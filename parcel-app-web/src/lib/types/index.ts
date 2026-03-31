@@ -21,6 +21,14 @@ export interface Product {
   name?: string;
   title?: string;
   price?: number;
+  description?: string;
+  photo?: string;
+  discount?: number;
+  vendor_name?: string;
+  vendor_photo?: string;
+  category?: string;
+  rating?: number;
+  stock?: number;
   [key: string]: unknown;
 }
 
