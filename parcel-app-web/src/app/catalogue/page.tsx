@@ -1,10 +1,5 @@
-import RouteStagePlaceholder from "@/components/RouteStagePlaceholder";
+import CatalogueView from "@/components/catalogue/CatalogueView";
 
 export default function CataloguePage() {
-  return (
-    <RouteStagePlaceholder
-      title="Catalogue"
-      description="Product catalogue UI and filters are routed and ready for full migration in the next stage."
-    />
-  );
+  return <CatalogueView />;
 }
