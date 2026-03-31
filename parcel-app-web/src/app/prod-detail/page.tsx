@@ -1,10 +1,5 @@
-import RouteStagePlaceholder from "@/components/RouteStagePlaceholder";
+import ProductDetailView from "@/components/product-detail/ProductDetailView";
 
 export default function ProductDetailPage() {
-  return (
-    <RouteStagePlaceholder
-      title="Product Detail"
-      description="Product detail rendering and add-to-cart actions will be migrated in the next stage."
-    />
-  );
+  return <ProductDetailView />;
 }

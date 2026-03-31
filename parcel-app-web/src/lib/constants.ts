@@ -5,6 +5,7 @@ export const STORAGE_KEYS = {
   cart: "parcelCart",
   cartTotal: "cartTot",
   productView: "prodView",
+  buySingle: "buySingle",
 } as const;
 
 export const ROUTES = {
