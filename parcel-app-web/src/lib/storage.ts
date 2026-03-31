@@ -1,5 +1,5 @@
 import { STORAGE_KEYS } from "@/lib/constants";
-import type { CartItem, User } from "@/lib/types";
+import type { CartItem, Product, User } from "@/lib/types";
 
 const isBrowser = typeof window !== "undefined";
 
@@ -62,5 +62,9 @@ export const storage = {
     removeItem(STORAGE_KEYS.cartTotal);
   },
 
+  getProductView: (): Product | null => readJSON<Product | null>(STORAGE_KEYS.productView, null),
   setProductView: (product: unknown): void => writeJSON(STORAGE_KEYS.productView, product),
+
+  getBuySingle: (): Product | null => readJSON<Product | null>(STORAGE_KEYS.buySingle, null),
+  setBuySingle: (product: unknown): void => writeJSON(STORAGE_KEYS.buySingle, product),
 };
