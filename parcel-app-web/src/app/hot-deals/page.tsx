@@ -1,10 +1,5 @@
-import RouteStagePlaceholder from "@/components/RouteStagePlaceholder";
+import HotDealsView from "@/components/hot-deals/HotDealsView";
 
 export default function HotDealsPage() {
-  return (
-    <RouteStagePlaceholder
-      title="Hot Deals"
-      description="Deal discovery and promotional pricing screens are scaffolded and queued for Stage 4 migration."
-    />
-  );
+  return <HotDealsView />;
 }
