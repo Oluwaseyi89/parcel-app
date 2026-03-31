@@ -20,10 +20,16 @@ export interface Product {
   id: number | string;
   name?: string;
   title?: string;
+  prod_name?: string;
+  prod_model?: string;
   price?: number;
+  prod_price?: number;
   description?: string;
+  prod_desc?: string;
   photo?: string;
+  prod_photo?: string;
   discount?: number;
+  prod_disc?: number;
   vendor_name?: string;
   vendor_photo?: string;
   category?: string;
