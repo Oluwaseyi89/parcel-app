@@ -1,10 +1,5 @@
-import ProtectedRoutePlaceholder from "@/components/ProtectedRoutePlaceholder";
+import PaymentView from "@/components/payment/PaymentView";
 
 export default function PaymentPage() {
-  return (
-    <ProtectedRoutePlaceholder
-      title="Payment"
-      description="Payment gateway integration and verification flow will be connected in Stage 4."
-    />
-  );
+  return <PaymentView />;
 }

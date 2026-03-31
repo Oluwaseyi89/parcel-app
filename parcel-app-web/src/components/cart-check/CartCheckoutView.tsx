@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/hooks/useAuth";
 import { useRequireAuth } from "@/lib/hooks/useRequireAuth";
 import { formatNaira, getProductModel, getProductName, getProductPhoto, getProductPrice } from "@/lib/productHelpers";
 import { useCartStore } from "@/lib/stores/cartStore";
+import { storage } from "@/lib/storage";
 import type { Product } from "@/lib/types";
 
 interface CartFormState {
@@ -118,16 +119,30 @@ export default function CartCheckoutView() {
       is_customer: Boolean(customer),
       customer: {
         id: customer?.id ?? null,
-        first_name: customer?.first_name ?? formState.first_name,
-        last_name: customer?.last_name ?? formState.last_name,
-        street: customer?.street ?? formState.street,
-        state: customer?.state ?? formState.state,
-        country: customer?.country ?? formState.country,
-        email: customer?.email ?? formState.email,
-        phone_no: customer?.phone_no ?? formState.phone_no,
+        first_name: String(customer?.first_name ?? formState.first_name),
+        last_name: String(customer?.last_name ?? formState.last_name),
+        street: String(customer?.street ?? formState.street),
+        state: String(customer?.state ?? formState.state),
+        country: String(customer?.country ?? formState.country),
+        email: String(customer?.email ?? formState.email),
+        phone_no: String(customer?.phone_no ?? formState.phone_no),
         reg_date: formState.reg_date,
       },
     };
+
+    storage.setCheckoutDraft({
+      mode: "cart",
+      customer_name: customerName,
+      shipping_method: formState.shipping_method,
+      zip_code: formState.zip_code,
+      total_items: cartTotalQty,
+      subtotal: totalPrice,
+      shipping_fee: 0,
+      grand_total_amount: totalPrice,
+      is_customer: Boolean(customer),
+      customer: payload.customer,
+      items: payload.items,
+    });
 
     // Best-effort checkout session save for migration stage; backend endpoint may vary by deployment.
     await apiRequest<{ status?: string; data?: string }>("/parcel_checkout/session/save/", {

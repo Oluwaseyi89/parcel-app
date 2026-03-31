@@ -50,3 +50,31 @@ export interface Deal {
   handled_dispatch?: boolean;
   [key: string]: unknown;
 }
+
+export interface CheckoutDraft {
+  mode: "cart" | "single";
+  customer_name: string;
+  shipping_method?: string;
+  zip_code?: string;
+  total_items: number;
+  subtotal: number;
+  shipping_fee: number;
+  grand_total_amount: number;
+  is_customer: boolean;
+  items: Array<{
+    product_id: number | string;
+    product_name: string;
+    quantity: number;
+    unit_price: number;
+  }>;
+  customer?: {
+    id?: number | string | null;
+    first_name?: string;
+    last_name?: string;
+    street?: string;
+    state?: string;
+    country?: string;
+    email?: string;
+    phone_no?: string;
+  };
+}

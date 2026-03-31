@@ -6,6 +6,9 @@ export const STORAGE_KEYS = {
   cartTotal: "cartTot",
   productView: "prodView",
   buySingle: "buySingle",
+  currentOrder: "curOrder",
+  paymentReference: "payRef",
+  checkoutDraft: "checkoutDraft",
 } as const;
 
 export const ROUTES = {

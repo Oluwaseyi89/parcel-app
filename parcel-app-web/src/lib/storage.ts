@@ -1,5 +1,5 @@
 import { STORAGE_KEYS } from "@/lib/constants";
-import type { CartItem, Product, User } from "@/lib/types";
+import type { CartItem, CheckoutDraft, Product, User } from "@/lib/types";
 
 const isBrowser = typeof window !== "undefined";
 
@@ -67,4 +67,33 @@ export const storage = {
 
   getBuySingle: (): Product | null => readJSON<Product | null>(STORAGE_KEYS.buySingle, null),
   setBuySingle: (product: unknown): void => writeJSON(STORAGE_KEYS.buySingle, product),
+
+  getCurrentOrder: (): string | null => {
+    if (!isBrowser) {
+      return null;
+    }
+    return window.localStorage.getItem(STORAGE_KEYS.currentOrder);
+  },
+  setCurrentOrder: (orderId: string): void => {
+    if (!isBrowser) {
+      return;
+    }
+    window.localStorage.setItem(STORAGE_KEYS.currentOrder, orderId);
+  },
+
+  getPaymentReference: (): string | null => {
+    if (!isBrowser) {
+      return null;
+    }
+    return window.localStorage.getItem(STORAGE_KEYS.paymentReference);
+  },
+  setPaymentReference: (reference: string): void => {
+    if (!isBrowser) {
+      return;
+    }
+    window.localStorage.setItem(STORAGE_KEYS.paymentReference, reference);
+  },
+
+  getCheckoutDraft: (): CheckoutDraft | null => readJSON<CheckoutDraft | null>(STORAGE_KEYS.checkoutDraft, null),
+  setCheckoutDraft: (draft: CheckoutDraft): void => writeJSON(STORAGE_KEYS.checkoutDraft, draft),
 };
