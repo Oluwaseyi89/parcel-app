@@ -1,0 +1,4 @@
+rootProject.name = 'parcel-app-payment-springboot'
+
+// This is a single-project build. Plugin application and dependency management
+// are defined in the project's `build.gradle`.

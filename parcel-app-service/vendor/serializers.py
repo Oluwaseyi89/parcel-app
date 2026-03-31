@@ -1,0 +1,206 @@
+from rest_framework import serializers
+from authentication.models import TempVendorUser, VendorUser
+from authentication.serializers import BaseUserSerializer
+
+class TempVendorRegistrationSerializer(serializers.ModelSerializer):
+    """Serializer for temporary vendor registration"""
+    password = serializers.CharField(write_only=True, required=True, min_length=8)
+    confirm_password = serializers.CharField(write_only=True, required=True)
+    policy_accepted = serializers.BooleanField(required=True)
+    
+    class Meta:
+        model = TempVendorUser
+        fields = [
+            'email', 'password', 'confirm_password', 'first_name', 'last_name',
+            'phone', 'business_country', 'business_state', 'business_street',
+            'business_category', 'cac_reg_no', 'nin', 'photo', 'policy_accepted'
+        ]
+        extra_kwargs = {
+            'photo': {'required': True},
+            'policy_accepted': {'required': True}
+        }
+    
+    def validate(self, data):
+        if data['password'] != data['confirm_password']:
+            raise serializers.ValidationError({'confirm_password': 'Passwords do not match.'})
+        
+        if not data['policy_accepted']:
+            raise serializers.ValidationError({'policy_accepted': 'You must accept the vendor policy.'})
+        
+        return data
+    
+    def create(self, validated_data):
+        validated_data.pop('confirm_password')
+        password = validated_data.pop('password')
+        
+        vendor = TempVendorUser(**validated_data)
+        vendor.set_password(password)
+        vendor.role = 'vendor'  # Set role for authentication
+        vendor.save()
+        
+        return vendor
+
+class VendorApprovalSerializer(serializers.ModelSerializer):
+    """Serializer for vendor approval"""
+    approved_by_email = serializers.EmailField(source='approved_by.email', read_only=True)
+    approved_by_name = serializers.SerializerMethodField(read_only=True)
+    
+    class Meta:
+        model = VendorUser
+        fields = [
+            'id', 'email', 'first_name', 'last_name', 'phone',
+            'business_country', 'business_state', 'business_street',
+            'business_category', 'cac_reg_no', 'nin', 'is_approved',
+            'approved_by_email', 'approved_by_name', 'approved_at',
+            'status', 'created_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'approved_at']
+    
+    def get_approved_by_name(self, obj):
+        if obj.approved_by:
+            return obj.approved_by.get_full_name()
+        return None
+
+class VendorLoginSerializer(serializers.Serializer):
+    """Serializer for vendor login"""
+    email = serializers.EmailField(required=True)
+    password = serializers.CharField(write_only=True, required=True)
+    
+    def validate(self, data):
+        # Check both TempVendorUser and VendorUser
+        email = data['email'].lower()
+        
+        # First check approved vendors
+        try:
+            vendor = VendorUser.objects.get(email=email, is_active=True)
+            if not vendor.check_password(data['password']):
+                raise serializers.ValidationError({'error': 'Invalid credentials.'})
+            
+            if not vendor.is_approved:
+                raise serializers.ValidationError({'error': 'Vendor account not yet approved.'})
+            
+            data['vendor'] = vendor
+            return data
+            
+        except VendorUser.DoesNotExist:
+            # Check temp vendors
+            try:
+                temp_vendor = TempVendorUser.objects.get(email=email, is_active=True)
+                if not temp_vendor.check_password(data['password']):
+                    raise serializers.ValidationError({'error': 'Invalid credentials.'})
+                
+                if not temp_vendor.is_email_verified:
+                    raise serializers.ValidationError({'error': 'Please verify your email first.'})
+                
+                raise serializers.ValidationError({'error': 'Your account is pending approval.'})
+                
+            except TempVendorUser.DoesNotExist:
+                raise serializers.ValidationError({'error': 'Invalid credentials.'})
+
+class VendorProfileSerializer(serializers.ModelSerializer):
+    """Serializer for vendor profile"""
+    class Meta:
+        model = VendorUser
+        fields = [
+            'id', 'email', 'first_name', 'last_name', 'phone',
+            'business_name', 'business_country', 'business_state',
+            'business_street', 'business_category', 'cac_reg_no',
+            'nin', 'photo', 'status', 'created_at', 'last_login'
+        ]
+        read_only_fields = fields
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# from django.contrib.auth.hashers import make_password
+# from rest_framework import serializers
+# from .models import TempVendor, Vendor
+
+
+# class TempVendorSerializer(serializers.ModelSerializer):
+#     first_name = serializers.CharField(max_length=50)
+#     last_name = serializers.CharField(max_length=50)
+#     bus_country = serializers.CharField(max_length=50)
+#     bus_state = serializers.CharField(max_length=50)
+#     bus_street = serializers.CharField(max_length=50)
+#     bus_category = serializers.CharField(max_length=25)
+#     cac_reg_no = serializers.CharField(max_length=10)
+#     nin = serializers.CharField(max_length=11)
+#     phone_no = serializers.CharField(max_length=14)
+#     email = serializers.EmailField(max_length=70)
+#     vend_photo = serializers.ImageField()
+#     ven_policy = serializers.BooleanField()
+#     password = serializers.CharField(max_length=200)
+#     reg_date = serializers.CharField(max_length=100)
+#     is_email_verified = serializers.BooleanField()
+
+#     @staticmethod
+#     def validate_password(password: str) -> str:
+#         return make_password(password)
+
+#     class Meta:
+#         model = TempVendor
+#         fields = '__all__'
+
+
+# class VendorSerializer(serializers.ModelSerializer):
+#     first_name = serializers.CharField(max_length=50)
+#     last_name = serializers.CharField(max_length=50)
+#     bus_country = serializers.CharField(max_length=50)
+#     bus_state = serializers.CharField(max_length=50)
+#     bus_street = serializers.CharField(max_length=50)
+#     bus_category = serializers.CharField(max_length=25)
+#     cac_reg_no = serializers.CharField(max_length=10)
+#     nin = serializers.CharField(max_length=11)
+#     phone_no = serializers.CharField(max_length=14)
+#     email = serializers.EmailField(max_length=70)
+#     vend_photo = serializers.CharField(max_length=200)
+#     ven_policy = serializers.BooleanField()
+#     password = serializers.CharField(max_length=200)
+#     appr_officer = serializers.CharField(max_length=100)
+#     appr_date = serializers.CharField(max_length=100)
+#     is_email_verified = serializers.BooleanField()
+
+#     class Meta:
+#         model = Vendor
+#         fields = '__all__'
+
+
+# class VendorLoginSerializer(serializers.ModelSerializer):
+#     email = serializers.CharField(max_length=70)
+#     password = serializers.CharField(max_length=200)
+
+#     class Meta:
+#         model = Vendor
+#         fields = ['email', 'password']
+
+
+# class VendorResetSerializer(serializers.ModelSerializer):
+#     email = serializers.CharField(max_length=70)
+
+#     class Meta:
+#         model = Vendor
+#         fields = ['email']
+
+
+# class VendorSaveResetSerializer(serializers.ModelSerializer):
+#     email = serializers.CharField(max_length=70)
+#     password = serializers.CharField(max_length=200)
+
+#     @staticmethod
+#     def validate_password(password: str) -> str:
+#         return make_password(password)
+
+#     class Meta:
+#         model = Vendor
+#         fields = ['email', 'password']

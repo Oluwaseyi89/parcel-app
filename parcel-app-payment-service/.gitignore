@@ -1,0 +1,206 @@
+# Spring Boot Application .gitignore
+
+## Build Output
+build/
+dist/
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+
+## Gradle
+.gradle/
+gradle-app.setting
+!gradle-wrapper.jar
+!gradle-wrapper.properties
+
+## IDE
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+*.swp
+*.swo
+*~
+.DS_Store
+.project
+.classpath
+.settings/
+*.sublime-workspace
+*.sublime-project
+
+## Maven
+pom.xml.tag
+pom.xml.releaseBackup
+release.properties
+
+## Logs
+logs/
+*.log
+*.log.*
+
+## Database
+*.db
+*.sqlite
+*.sqlite3
+
+## Environment Variables
+.env
+.env.local
+.env.*.local
+.env.prod
+.env.dev
+
+## Node (if using Node tools)
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+yarn.lock
+
+## Application Properties
+!src/main/resources/application.properties
+!src/main/resources/application-dev.properties
+!src/main/resources/application-prod.properties
+
+## Runtime
+*.pid
+*.seed
+*.pid.lock
+
+## Testing
+test-results/
+.coverage
+coverage.xml
+jacoco.exec
+*.profraw
+*.profdata
+
+## Temporary Files
+tmp/
+temp/
+*.tmp
+*.bak
+
+## OS-specific
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+## Docker
+.docker/
+docker-compose.override.yml
+
+## Kubernetes (if applicable)
+k8s/*.secret.yml
+k8s/*.secret.yaml
+
+## Backup Files
+*.backup
+*.orig
+*.rej
+
+## Gradle Build Cache
+.gradle/build-cache/
+
+## IntelliJ IDEA specific
+out/
+gen/
+.idea_modules/
+
+## VS Code specific
+.vscode/settings.json
+.vscode/launch.json
+.vscode/extensions.json
+
+## Eclipse specific
+.metadata/
+.recommenders/
+bin/
+
+## NetBeans specific
+nbproject/private/
+build.xml
+nbbuild/
+nbdist/
+.nb-gradle/
+
+## JetBrains IDEs
+*.suo
+*.ntvs*
+*.njsproj
+*.sln.iml
+
+## SonarQube
+.sonarqube/
+.scannerwork/
+
+## JaCoCo
+jacoco.xml
+
+## Git
+.git/
+.gitkeep
+
+## Maven wrapper
+mvnw
+mvnw.cmd
+.mvn/
+
+## Spring Boot specific
+HELP.md
+application-secret.properties
+application-prod-secrets.properties
+
+## Actuator/Metrics
+metrics.json
+
+## AWS
+.aws/credentials
+.aws/config
+
+## GitHub Secrets
+.github/workflows/secrets.yml
+
+## Certificate files
+*.pem
+*.pfx
+*.p12
+!src/main/resources/*.jks
+
+## SSL/TLS
+*.crt
+*.key
+*.cert
+
+## Local Override Files
+local-*.properties
+override.properties
+
+## Test Coverage
+coverage/
+htmlcov/
+
+## Build artifacts from CI/CD
+artifacts/
+releases/
+
+## Exception: Keep these important files
+!.gitattributes
+!build.gradle
+!settings.gradle
+!gradle.properties
+!README.md
+!LICENSE
+!Dockerfile
+!docker-compose.yml
+!.dockerignore
+!src/main/resources/schema.sql
+!src/main/resources/data.sql
