@@ -6,9 +6,9 @@ import { AlertCircle, Building, CheckCircle, CreditCard, Loader2, Truck, X } fro
 
 import { env } from "@/env";
 import { apiRequest } from "@/lib/api";
+import { ensureOrderFromDraft } from "@/lib/checkoutFlow";
 import { formatNaira } from "@/lib/productHelpers";
 import { storage } from "@/lib/storage";
-import type { CheckoutDraft } from "@/lib/types";
 
 interface PaymentFormState {
   payment_type: string;
@@ -66,10 +66,7 @@ export default function PaymentView() {
   async function updatePaymentReference(reference: string) {
     storage.setPaymentReference(reference);
 
-    const currentOrder = storage.getCurrentOrder();
-    if (!currentOrder) {
-      return;
-    }
+    const currentOrder = await ensureOrderFromDraft(checkoutDraft);
 
     await apiRequest<{ status?: string; data?: string }>(`/parcel_order/payment_update/${currentOrder}/`, {
       method: "PATCH",

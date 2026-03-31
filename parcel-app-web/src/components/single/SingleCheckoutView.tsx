@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle, Mail, MapPin, Phone, ShoppingBag, User, X } from "lucide-react";
 
-import { apiRequest } from "@/lib/api";
+import { createOrderFromCheckoutDraft } from "@/lib/checkoutFlow";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { formatNaira, getProductModel, getProductName, getProductPhoto, getProductPrice } from "@/lib/productHelpers";
 import { storage } from "@/lib/storage";
@@ -124,19 +124,14 @@ export default function SingleCheckoutView() {
 
     setSubmitting(true);
     try {
-      await apiRequest<{ status?: string; data?: string }>("/parcel_checkout/session/save/", {
-        method: "POST",
-        body: checkoutDraft,
-        json: true,
-      });
-      showSuccess("Checkout details saved.");
+      await createOrderFromCheckoutDraft(checkoutDraft);
+      showSuccess("Order prepared. Redirecting to payment.");
+      router.push("/payment");
     } catch {
-      showSuccess("Checkout details saved locally.");
+      showError("Unable to create order right now. Please try again.");
     } finally {
       setSubmitting(false);
     }
-
-    router.push("/payment");
   }
 
   if (!buySingle) {
