@@ -4,13 +4,13 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle, Minus, Plus, ShoppingCart, Trash2, X } from "lucide-react";
 
-import { apiRequest } from "@/lib/api";
+import { createOrderFromCheckoutDraft, persistCartSnapshot } from "@/lib/checkoutFlow";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { useRequireAuth } from "@/lib/hooks/useRequireAuth";
 import { formatNaira, getProductModel, getProductName, getProductPhoto, getProductPrice } from "@/lib/productHelpers";
 import { useCartStore } from "@/lib/stores/cartStore";
 import { storage } from "@/lib/storage";
-import type { Product } from "@/lib/types";
+import type { CheckoutDraft, Product } from "@/lib/types";
 
 interface CartFormState {
   first_name: string;
@@ -103,7 +103,7 @@ export default function CartCheckoutView() {
     updateCartItemQuantity(getProductId(item), Math.max(1, parsed));
   }
 
-  async function persistCartSession() {
+  function buildCheckoutDraft(): CheckoutDraft {
     const payload = {
       customer_name: customerName,
       total_items: cartTotalQty,
@@ -130,7 +130,7 @@ export default function CartCheckoutView() {
       },
     };
 
-    storage.setCheckoutDraft({
+    return {
       mode: "cart",
       customer_name: customerName,
       shipping_method: formState.shipping_method,
@@ -142,14 +142,13 @@ export default function CartCheckoutView() {
       is_customer: Boolean(customer),
       customer: payload.customer,
       items: payload.items,
-    });
+    };
+  }
 
-    // Best-effort checkout session save for migration stage; backend endpoint may vary by deployment.
-    await apiRequest<{ status?: string; data?: string }>("/parcel_checkout/session/save/", {
-      method: "POST",
-      body: payload,
-      json: true,
-    });
+  async function persistCartSession(draft: CheckoutDraft) {
+    storage.setCheckoutDraft(draft);
+
+    await persistCartSnapshot(draft);
   }
 
   async function handleSaveCart(e: React.FormEvent) {
@@ -165,9 +164,10 @@ export default function CartCheckoutView() {
       return;
     }
 
+    const draft = buildCheckoutDraft();
     setSubmitting(true);
     try {
-      await persistCartSession();
+      await persistCartSession(draft);
       showSuccess("Cart saved successfully.");
     } catch {
       showSuccess("Cart saved locally. Server sync will be retried during checkout.");
@@ -189,16 +189,20 @@ export default function CartCheckoutView() {
       return;
     }
 
+    const draft = buildCheckoutDraft();
+    storage.setCheckoutDraft(draft);
+
     setSubmitting(true);
     try {
-      await persistCartSession();
+      await persistCartSession(draft);
+      await createOrderFromCheckoutDraft(draft);
+      showSuccess("Order prepared. Redirecting to payment.");
+      router.push("/payment");
     } catch {
-      // Keep flow moving even if backend sync fails in this migration stage.
+      showError("Unable to create order right now. Please try again.");
     } finally {
       setSubmitting(false);
     }
-
-    router.push("/payment");
   }
 
   if (!ready) {
