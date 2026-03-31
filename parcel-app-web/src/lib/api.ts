@@ -2,7 +2,7 @@ import { env } from "@/env";
 
 type JsonBody = Record<string, unknown> | Array<unknown>;
 
-type ApiRequestOptions = Omit<RequestInit, "body"> & {
+export type ApiRequestOptions = Omit<RequestInit, "body"> & {
   body?: BodyInit | JsonBody;
   json?: boolean;
 };

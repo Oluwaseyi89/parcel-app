@@ -1,5 +1,10 @@
 import { create } from "zustand";
 
+import {
+  clearRoleSessionCookie,
+  setRoleSessionCookie,
+  syncSessionCookiesFromStorage,
+} from "@/lib/authSession";
 import { storage } from "@/lib/storage";
 import type { User } from "@/lib/types";
 
@@ -29,6 +34,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     const vendor = storage.getVendorAuth();
     const courier = storage.getCourierAuth();
 
+    syncSessionCookiesFromStorage(Boolean(customer), Boolean(vendor), Boolean(courier));
+
     set({
       customer,
       vendor,
@@ -39,21 +46,25 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   loginCustomer: (customerData) => {
     storage.setCustomerAuth(customerData);
+    setRoleSessionCookie("customer");
     set({ customer: customerData, isAuthenticated: true });
   },
 
   loginVendor: (vendorData) => {
     storage.setVendorAuth(vendorData);
+    setRoleSessionCookie("vendor");
     set({ vendor: vendorData, isAuthenticated: true });
   },
 
   loginCourier: (courierData) => {
     storage.setCourierAuth(courierData);
+    setRoleSessionCookie("courier");
     set({ courier: courierData, isAuthenticated: true });
   },
 
   logoutCustomer: () => {
     storage.clearCustomerAuth();
+    clearRoleSessionCookie("customer");
     set((state) => ({
       customer: null,
       isAuthenticated: Boolean(state.vendor || state.courier),
@@ -62,6 +73,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   logoutVendor: () => {
     storage.clearVendorAuth();
+    clearRoleSessionCookie("vendor");
     set((state) => ({
       vendor: null,
       isAuthenticated: Boolean(state.customer || state.courier),
@@ -70,6 +82,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   logoutCourier: () => {
     storage.clearCourierAuth();
+    clearRoleSessionCookie("courier");
     set((state) => ({
       courier: null,
       isAuthenticated: Boolean(state.customer || state.vendor),
@@ -80,6 +93,9 @@ export const useAuthStore = create<AuthState>((set) => ({
     storage.clearCustomerAuth();
     storage.clearVendorAuth();
     storage.clearCourierAuth();
+    clearRoleSessionCookie("customer");
+    clearRoleSessionCookie("vendor");
+    clearRoleSessionCookie("courier");
     set({ customer: null, vendor: null, courier: null, isAuthenticated: false });
   },
 }));
