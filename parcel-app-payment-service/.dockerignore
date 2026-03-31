@@ -1,0 +1,55 @@
+# Gradle and Maven
+.gradle
+gradlew
+gradlew.bat
+gradle/
+build/
+target/
+
+# Version Control
+.git
+.gitignore
+.gitattributes
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+*.log
+
+# Documentation
+README.md
+QUICK_START.md
+POSTGRESQL_MIGRATION.md
+POSTGRESQL_MIGRATION_SUMMARY.md
+*.md
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Node (if any frontend build)
+node_modules/
+npm-debug.log
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Project files
+*.bak
+*.tmp
+.classpath
+.project
+.settings/

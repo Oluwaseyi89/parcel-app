@@ -1,0 +1,297 @@
+# product/views.py
+from django.shortcuts import render, get_object_or_404
+from django.utils import timezone
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.parsers import MultiPartParser
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.pagination import PageNumberPagination
+from authentication.permissions import IsAdminOrSuperAdmin, IsVendorOrAdmin
+from .services import ProductService, CategoryService, InventoryService
+from .serializers import (
+    CategorySerializer, TempProductCreateSerializer, TempProductSerializer,
+    ProductSerializer, ProductUpdateSerializer, ProductApprovalSerializer,
+    ProductSearchSerializer
+)
+from .models import Category, TempProduct, Product
+
+class StandardPagination(PageNumberPagination):
+    """Standard pagination for product listings"""
+    page_size = 20
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+class ProductListView(APIView):
+    """List all approved products with filters"""
+    permission_classes = [AllowAny]
+    pagination_class = StandardPagination
+    
+    def get(self, request):
+        serializer = ProductSearchSerializer(data=request.query_params)
+        if not serializer.is_valid():
+            return Response({
+                "status": "error",
+                "errors": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        search_params = serializer.validated_data
+        result = ProductService.search_products(search_params)
+        
+        product_serializer = ProductSerializer(result['products'], many=True)
+        
+        return Response({
+            "status": "success",
+            "data": product_serializer.data,
+            "pagination": {
+                "page": result['page'],
+                "page_size": result['page_size'],
+                "total_count": result['total_count'],
+                "total_pages": result['total_pages']
+            }
+        })
+
+class ProductDetailView(APIView):
+    """Get single product details"""
+    permission_classes = [AllowAny]
+    
+    def get(self, request, product_id):
+        product = get_object_or_404(Product, id=product_id, status='active')
+        
+        # Record view
+        ProductService.record_product_view(product_id)
+        
+        serializer = ProductSerializer(product)
+        return Response({
+            "status": "success",
+            "data": serializer.data
+        })
+
+class ProductCreateView(APIView):
+    """Create a new product (temporary for approval)"""
+    permission_classes = [IsAuthenticated, IsVendorOrAdmin]
+    parser_classes = (MultiPartParser,)
+    
+    def post(self, request):
+        try:
+            temp_product = ProductService.create_temp_product(
+                request.data, 
+                request.user,
+                request
+            )
+            
+            return Response({
+                "status": "success",
+                "message": "Product created successfully and submitted for approval",
+                "data": TempProductSerializer(temp_product).data
+            }, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            return Response({
+                "status": "error",
+                "message": str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+class TempProductListView(APIView):
+    """List temporary products (admin only)"""
+    permission_classes = [IsAuthenticated, IsAdminOrSuperAdmin]
+    
+    def get(self, request):
+        status_filter = request.query_params.get('status', 'pending')
+        
+        temp_products = TempProduct.objects.filter(
+            status=status_filter
+        ).select_related('vendor', 'category')
+        
+        serializer = TempProductSerializer(temp_products, many=True)
+        return Response({
+            "status": "success",
+            "data": serializer.data
+        })
+
+class ProductApprovalView(APIView):
+    """Approve or reject temporary products"""
+    permission_classes = [IsAuthenticated, IsAdminOrSuperAdmin]
+    
+    def post(self, request, temp_product_id):
+        serializer = ProductApprovalSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                "status": "error",
+                "errors": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        action = serializer.validated_data['action']
+        comments = serializer.validated_data.get('comments', '')
+        
+        try:
+            if action == 'approve':
+                product = ProductService.approve_temp_product(
+                    temp_product_id, 
+                    request.user,
+                    request
+                )
+                message = "Product approved successfully"
+                data = ProductSerializer(product).data
+                
+            elif action == 'reject':
+                temp_product = ProductService.reject_temp_product(
+                    temp_product_id,
+                    request.user,
+                    comments,
+                    request
+                )
+                message = "Product rejected"
+                data = TempProductSerializer(temp_product).data
+                
+            else:  # request_changes
+                temp_product = get_object_or_404(TempProduct, id=temp_product_id)
+                temp_product.status = 'requires_changes'
+                temp_product.rejection_reason = comments
+                temp_product.save()
+                message = "Changes requested for product"
+                data = TempProductSerializer(temp_product).data
+            
+            return Response({
+                "status": "success",
+                "message": message,
+                "data": data
+            })
+            
+        except Exception as e:
+            return Response({
+                "status": "error",
+                "message": str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+class VendorProductsView(APIView):
+    """Get products for a specific vendor"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        include_temp = request.query_params.get('include_temp', 'false').lower() == 'true'
+        
+        try:
+            products_data = ProductService.get_vendor_products(
+                request.user.id,
+                include_temp=include_temp
+            )
+            
+            approved_serializer = ProductSerializer(products_data['approved'], many=True)
+            
+            response_data = {
+                "approved": approved_serializer.data
+            }
+            
+            if include_temp:
+                pending_serializer = TempProductSerializer(products_data['pending'], many=True)
+                response_data["pending"] = pending_serializer.data
+            
+            return Response({
+                "status": "success",
+                "data": response_data
+            })
+            
+        except Exception as e:
+            return Response({
+                "status": "error",
+                "message": str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+class ProductUpdateView(APIView):
+    """Update product details"""
+    permission_classes = [IsAuthenticated, IsVendorOrAdmin]
+    
+    def patch(self, request, product_id):
+        product = get_object_or_404(Product, id=product_id)
+        
+        # Check permission: vendor can only update their own products
+        if request.user.role == 'vendor' and product.vendor != request.user:
+            return Response({
+                "status": "error",
+                "message": "You can only update your own products"
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        serializer = ProductUpdateSerializer(product, data=request.data, partial=True)
+        if not serializer.is_valid():
+            return Response({
+                "status": "error",
+                "errors": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        updated_product = serializer.save()
+        
+        return Response({
+            "status": "success",
+            "message": "Product updated successfully",
+            "data": ProductSerializer(updated_product).data
+        })
+
+class CategoryListView(APIView):
+    """List all product categories"""
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        categories = Category.objects.all()
+        serializer = CategorySerializer(categories, many=True)
+        return Response({
+            "status": "success",
+            "data": serializer.data
+        })
+
+class CategoryCreateView(APIView):
+    """Create a new category (admin only)"""
+    permission_classes = [IsAuthenticated, IsAdminOrSuperAdmin]
+    
+    def post(self, request):
+        serializer = CategorySerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                "status": "error",
+                "errors": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        category = serializer.save()
+        
+        return Response({
+            "status": "success",
+            "message": "Category created successfully",
+            "data": serializer.data
+        }, status=status.HTTP_201_CREATED)
+
+class InventoryStatusView(APIView):
+    """Check inventory status (vendor/admin only)"""
+    permission_classes = [IsAuthenticated, IsVendorOrAdmin]
+    
+    def get(self, request):
+        if request.user.role == 'vendor':
+            low_stock = Product.objects.filter(
+                vendor=request.user,
+                quantity__lte=10,
+                quantity__gt=0,
+                status='active'
+            )
+            out_of_stock = Product.objects.filter(
+                vendor=request.user,
+                quantity=0,
+                status='active'
+            )
+        else:  # admin
+            low_stock = InventoryService.check_low_stock()
+            out_of_stock = InventoryService.check_out_of_stock()
+        
+        low_stock_serializer = ProductSerializer(low_stock, many=True)
+        out_of_stock_serializer = ProductSerializer(out_of_stock, many=True)
+        
+        return Response({
+            "status": "success",
+            "data": {
+                "low_stock": low_stock_serializer.data,
+                "out_of_stock": out_of_stock_serializer.data
+            }
+        })
+
+# Template views (keep these for backward compatibility)
+def product(request):
+    """Product page template"""
+    return render(request, "parcel_product/product.html")

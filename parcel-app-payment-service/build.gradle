@@ -1,0 +1,51 @@
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '3.4.0'
+	id 'io.spring.dependency-management' version '1.1.6'
+}
+
+group = 'com.deextralucid'
+version = '1.0.0'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(17)
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	// Spring Boot Starters
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
+	
+	// Database
+	runtimeOnly 'org.postgresql:postgresql'
+	testImplementation 'com.h2database:h2'
+	
+	// Jackson for JSON processing
+	implementation 'com.fasterxml.jackson.core:jackson-databind'
+	
+	// DotEnv for environment variable management
+	implementation 'io.github.cdimascio:dotenv-java:3.0.0'
+	
+	// Lombok for reducing boilerplate (optional but recommended)
+	compileOnly 'org.projectlombok:lombok'
+	annotationProcessor 'org.projectlombok:lombok'
+	
+	// Testing
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation 'org.junit.jupiter:junit-jupiter'
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}
+
+bootJar {
+	mainClass = 'com.deextralucid.parcel.ParcelApplication'
+}

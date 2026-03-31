@@ -1,0 +1,24 @@
+# Project dependencies (upgrade target: Django 4.2 LTS range)
+# Adjust exact versions and pin after testing in your environment.
+Django>=4.2,<5
+djangorestframework>=3.14
+django-cors-headers>=3.14
+django-environ>=0.10
+django-celery-results>=2.4
+celery>=5.2
+redis>=4.0
+flower>=1.0.0
+django-crispy-forms>=1.14
+psycopg-binary>=3.1
+dj-database-url>=1.0
+geoip2>=4.5
+# Optional / dev
+python-dotenv>=1.0.0
+# gunicorn (for production on UNIX hosts)
+# gunicorn>=20.1.0
+# pywin32
+psycopg
+geopy
+folium
+httpx
+Pillow
