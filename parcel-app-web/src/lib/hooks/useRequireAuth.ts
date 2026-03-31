@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 import { useAuth, type AppRole } from "@/lib/hooks/useAuth";
 import { useHydrated } from "@/lib/hooks/useHydrated";
@@ -17,7 +17,6 @@ export function useRequireAuth(options: RequireAuthOptions = {}) {
   const hydrated = useHydrated();
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
 
   useEffect(() => {
     if (!hydrated) {
@@ -25,7 +24,7 @@ export function useRequireAuth(options: RequireAuthOptions = {}) {
     }
 
     if (!auth.isAuthenticated) {
-      const query = new URLSearchParams(searchParams?.toString() || "");
+      const query = new URLSearchParams();
       query.set("from", pathname || "/");
       router.replace(`${redirectTo}?${query.toString()}`);
       return;
@@ -34,7 +33,7 @@ export function useRequireAuth(options: RequireAuthOptions = {}) {
     if (requiredRole && auth.role !== requiredRole) {
       router.replace(redirectTo);
     }
-  }, [auth.isAuthenticated, auth.role, hydrated, pathname, redirectTo, requiredRole, router, searchParams]);
+  }, [auth.isAuthenticated, auth.role, hydrated, pathname, redirectTo, requiredRole, router]);
 
   return {
     ...auth,
