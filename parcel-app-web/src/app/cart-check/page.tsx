@@ -1,10 +1,5 @@
-import ProtectedRoutePlaceholder from "@/components/ProtectedRoutePlaceholder";
+import CartCheckoutView from "@/components/cart-check/CartCheckoutView";
 
 export default function CartCheckPage() {
-  return (
-    <ProtectedRoutePlaceholder
-      title="Cart Checkout"
-      description="Checkout form and order persistence are scaffolded and ready for full migration."
-    />
-  );
+  return <CartCheckoutView />;
 }
