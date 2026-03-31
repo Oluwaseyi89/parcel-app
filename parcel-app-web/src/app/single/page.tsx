@@ -1,10 +1,5 @@
-import RouteStagePlaceholder from "@/components/RouteStagePlaceholder";
+import SingleCheckoutView from "@/components/single/SingleCheckoutView";
 
 export default function SingleCheckoutPage() {
-  return (
-    <RouteStagePlaceholder
-      title="Single Product Checkout"
-      description="Single-item checkout path is scaffolded for the upcoming component migration stage."
-    />
-  );
+  return <SingleCheckoutView />;
 }

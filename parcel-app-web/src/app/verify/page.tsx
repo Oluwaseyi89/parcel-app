@@ -1,10 +1,5 @@
-import RouteStagePlaceholder from "@/components/RouteStagePlaceholder";
+import VerifyPaymentView from "@/components/verify/VerifyPaymentView";
 
 export default function VerifyPaymentPage() {
-  return (
-    <RouteStagePlaceholder
-      title="Verify Payment"
-      description="Payment verification state and API calls will be ported in Stage 4."
-    />
-  );
+  return <VerifyPaymentView />;
 }

@@ -1,7 +1,9 @@
 const DEFAULT_API_BASE = "http://localhost:7000";
+const DEFAULT_PAYMENT_API_BASE = "http://localhost:8080";
 
 export const env = {
   apiBase: process.env.NEXT_PUBLIC_API_BASE?.trim() || DEFAULT_API_BASE,
+  paymentApiBase: process.env.NEXT_PUBLIC_PAYMENT_API_BASE?.trim() || DEFAULT_PAYMENT_API_BASE,
 };
 
 export function validateEnv(): void {
