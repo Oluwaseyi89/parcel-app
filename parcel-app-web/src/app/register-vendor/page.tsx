@@ -1,10 +1,5 @@
-import RouteStagePlaceholder from "@/components/RouteStagePlaceholder";
+import RegisterVendorView from "@/components/auth/RegisterVendorView";
 
 export default function RegisterVendorPage() {
-  return (
-    <RouteStagePlaceholder
-      title="Register Vendor"
-      description="Vendor registration form and submission logic will be migrated in Stage 4."
-    />
-  );
+  return <RegisterVendorView />;
 }

@@ -1,10 +1,5 @@
-import RouteStagePlaceholder from "@/components/RouteStagePlaceholder";
+import RegisterCourierView from "@/components/auth/RegisterCourierView";
 
 export default function RegisterCourierPage() {
-  return (
-    <RouteStagePlaceholder
-      title="Register Courier"
-      description="Courier registration fields and API integration are scaffolded for the next implementation stage."
-    />
-  );
+  return <RegisterCourierView />;
 }
