@@ -8,6 +8,7 @@ import { apiForm } from "@/lib/api";
 
 interface ApiResponse {
   status?: string;
+  message?: string;
   data?: string;
 }
 
@@ -20,6 +21,9 @@ interface CourierForm {
   cac_reg_no: string;
   nin: string;
   phone_no: string;
+  vehicle_type: string;
+  vehicle_registration: string;
+  service_area: string;
   email: string;
   password: string;
   cour_policy: boolean;
@@ -34,6 +38,9 @@ const initialForm: CourierForm = {
   cac_reg_no: "",
   nin: "",
   phone_no: "",
+  vehicle_type: "",
+  vehicle_registration: "",
+  service_area: "",
   email: "",
   password: "",
   cour_policy: false,
@@ -73,27 +80,29 @@ export default function RegisterCourierView() {
       const body = new FormData();
       body.append("first_name", form.first_name);
       body.append("last_name", form.last_name);
-      body.append("bus_country", form.bus_country);
-      body.append("bus_state", form.bus_state);
-      body.append("bus_street", form.bus_street);
+      body.append("business_country", form.bus_country);
+      body.append("business_state", form.bus_state);
+      body.append("business_street", form.bus_street);
       body.append("cac_reg_no", form.cac_reg_no);
       body.append("nin", form.nin);
-      body.append("phone_no", form.phone_no);
+      body.append("phone", form.phone_no);
+      body.append("vehicle_type", form.vehicle_type);
+      body.append("vehicle_registration", form.vehicle_registration);
+      body.append("service_area", form.service_area);
       body.append("email", form.email);
       body.append("password", form.password);
-      body.append("cour_photo", photo, photo.name);
-      body.append("cour_policy", String(form.cour_policy));
-      body.append("reg_date", new Date().toISOString());
-      body.append("is_email_verified", "false");
+      body.append("confirm_password", confirmPassword);
+      body.append("photo", photo, photo.name);
+      body.append("policy_accepted", String(form.cour_policy));
 
-      const response = await apiForm<ApiResponse>("/parcel_backends/reg_temp_cour/", "POST", body);
+      const response = await apiForm<ApiResponse>("/couriers/register/", "POST", body);
       if (response.status === "success") {
-        setSuccessMessage(String(response.data ?? "Courier registration submitted."));
+        setSuccessMessage(String(response.message ?? response.data ?? "Courier registration submitted."));
         setForm(initialForm);
         setConfirmPassword("");
         setPhoto(null);
       } else {
-        setErrorMessage(String(response.data ?? "Unable to submit registration."));
+        setErrorMessage(String(response.message ?? response.data ?? "Unable to submit registration."));
       }
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Unable to submit registration.");
@@ -136,6 +145,9 @@ export default function RegisterCourierView() {
             <input placeholder="Operating Country" value={form.bus_country} onChange={(e) => setField("bus_country", e.target.value)} className="rounded-lg border border-zinc-300 px-3 py-2.5" required />
             <input placeholder="Operating State" value={form.bus_state} onChange={(e) => setField("bus_state", e.target.value)} className="rounded-lg border border-zinc-300 px-3 py-2.5" required />
             <input placeholder="Business Street" value={form.bus_street} onChange={(e) => setField("bus_street", e.target.value)} className="rounded-lg border border-zinc-300 px-3 py-2.5 md:col-span-2" required />
+            <input placeholder="Vehicle Type" value={form.vehicle_type} onChange={(e) => setField("vehicle_type", e.target.value)} className="rounded-lg border border-zinc-300 px-3 py-2.5" required />
+            <input placeholder="Vehicle Registration" value={form.vehicle_registration} onChange={(e) => setField("vehicle_registration", e.target.value)} className="rounded-lg border border-zinc-300 px-3 py-2.5" required />
+            <input placeholder="Service Area" value={form.service_area} onChange={(e) => setField("service_area", e.target.value)} className="rounded-lg border border-zinc-300 px-3 py-2.5 md:col-span-2" required />
             <input type="email" placeholder="Email" value={form.email} onChange={(e) => setField("email", e.target.value)} className="rounded-lg border border-zinc-300 px-3 py-2.5" required />
             <input type="password" placeholder="Password" value={form.password} onChange={(e) => setField("password", e.target.value)} className="rounded-lg border border-zinc-300 px-3 py-2.5" required />
             <input type="password" placeholder="Confirm Password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="rounded-lg border border-zinc-300 px-3 py-2.5" required />

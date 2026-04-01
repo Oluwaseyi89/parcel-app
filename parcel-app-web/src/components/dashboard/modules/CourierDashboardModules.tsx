@@ -119,7 +119,7 @@ export default function CourierDashboardModules({ tab, user }: { tab: CourierTab
     }
 
     if (tab === "transactions") {
-      apiRequest<{ status?: string; data?: Partial<BankDetails> }>(`/parcel_backends/get_dist_cour_bank/${encodeURIComponent(email)}/`, { method: "GET" })
+      apiRequest<{ status?: string; data?: Partial<BankDetails> }>(`/banking/courier/get/${encodeURIComponent(email)}/`, { method: "GET" })
         .then((res) => {
           if (res.status === "success" && res.data) {
             setFetchedBank(res.data);
@@ -201,7 +201,7 @@ export default function CourierDashboardModules({ tab, user }: { tab: CourierTab
       return;
     }
 
-    const path = method === "POST" ? "/parcel_backends/save_cour_bank/" : `/parcel_backends/update_cour_bank/${encodeURIComponent(email)}`;
+    const path = method === "POST" ? "/banking/courier/save/" : `/banking/courier/update/${encodeURIComponent(email)}/`;
 
     try {
       const payload = {

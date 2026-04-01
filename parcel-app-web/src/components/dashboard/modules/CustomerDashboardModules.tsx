@@ -130,7 +130,7 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
     }
 
     if (tab === "complaints") {
-      apiRequest<{ data?: ComplaintItem[] }>(`/parcel_backends/get_dist_complain/${encodeURIComponent(String(user.email))}/`, { method: "GET" })
+      apiRequest<{ data?: ComplaintItem[] }>(`/complaints/customer/${encodeURIComponent(String(user.email))}/`, { method: "GET" })
          .then((res) => {
            setComplaints(Array.isArray(res.data) ? res.data.filter((c) => !c.is_satisfied) : []);
            setError("");
@@ -218,7 +218,7 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
         updated_at: new Date().toISOString(),
       };
 
-      const res = await apiRequest<{ status?: string; data?: string }>("/parcel_backends/customer_complain/", {
+      const res = await apiRequest<{ status?: string; data?: string }>("/complaints/submit/", {
         method: "POST",
         body: payload as Record<string, unknown>,
         json: true,
@@ -236,7 +236,7 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
   async function markComplaintSatisfied(id: number, checked: boolean) {
     setError("");
     try {
-      await apiRequest<{ status?: string; data?: string }>(`/parcel_backends/update_complain/${id}/`, {
+      await apiRequest<{ status?: string; data?: string }>(`/complaints/update/${id}/`, {
         method: "PATCH",
         body: {
           is_satisfied: checked,
