@@ -1,11 +1,5 @@
-import ProtectedRoutePlaceholder from "@/components/ProtectedRoutePlaceholder";
+import RoleDashboardView from "@/components/dashboard/RoleDashboardView";
 
 export default function CourierDashboardPage() {
-  return (
-    <ProtectedRoutePlaceholder
-      requiredRole="courier"
-      title="Courier Dashboard"
-      description="Courier dispatch, deals, and transaction modules will be migrated in the next stage."
-    />
-  );
+  return <RoleDashboardView role="courier" />;
 }

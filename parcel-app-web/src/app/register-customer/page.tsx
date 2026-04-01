@@ -1,10 +1,5 @@
-import RouteStagePlaceholder from "@/components/RouteStagePlaceholder";
+import RegisterCustomerView from "@/components/auth/RegisterCustomerView";
 
 export default function RegisterCustomerPage() {
-  return (
-    <RouteStagePlaceholder
-      title="Register Customer"
-      description="Customer signup form migration is planned for Stage 4 with validation and backend integration."
-    />
-  );
+  return <RegisterCustomerView />;
 }
