@@ -7,6 +7,7 @@ import { AlertCircle, CheckCircle, Lock, Mail, Package, User, UserPlus } from "l
 
 import { apiRequest } from "@/lib/api";
 import { useAuthStore } from "@/lib/stores/authStore";
+import { normalizeApiError, validateEmail } from "@/lib/validation";
 import type { User as AppUser } from "@/lib/types";
 
 type Role = "customer" | "vendor" | "courier";
@@ -99,7 +100,13 @@ export default function RoleLoginView({ role }: { role: Role }) {
     clearAlerts();
 
     if (!credentials.email || !credentials.password) {
-      setErrorMessage("Please fill in all required fields.");
+      setErrorMessage("Please enter both email and password.");
+      return;
+    }
+
+    const emailError = validateEmail(credentials.email);
+    if (emailError) {
+      setErrorMessage(emailError.message);
       return;
     }
 
@@ -118,13 +125,21 @@ export default function RoleLoginView({ role }: { role: Role }) {
         return;
       }
 
+      // Check for specific error conditions
       if (response.status === "password-error") {
         setShowReset(true);
+        setErrorMessage("Incorrect password. You can reset your password below.");
+        return;
       }
 
-      setErrorMessage(typeof data === "string" ? data : "Login failed.");
+      if (response.status === "not-found" || typeof data === "string" && data.toLowerCase().includes("not found")) {
+        setErrorMessage("Account not found. Please check your email or register a new account.");
+        return;
+      }
+
+      setErrorMessage(typeof data === "string" ? data : "Login failed. Please check your credentials and try again.");
     } catch (error) {
-      setErrorMessage(normalizeError(error));
+      setErrorMessage(normalizeApiError(error));
     } finally {
       setSubmitting(false);
     }
@@ -135,7 +150,13 @@ export default function RoleLoginView({ role }: { role: Role }) {
     clearAlerts();
 
     if (!resetEmail) {
-      setErrorMessage("Enter your email for password reset.");
+      setErrorMessage("Please enter your email address.");
+      return;
+    }
+
+    const emailError = validateEmail(resetEmail);
+    if (emailError) {
+      setErrorMessage(emailError.message);
       return;
     }
 
@@ -147,12 +168,14 @@ export default function RoleLoginView({ role }: { role: Role }) {
         json: true,
       });
       if (response.status === "success") {
-        setSuccessMessage(String(response.data ?? "Password reset request sent."));
+        setSuccessMessage(String(response.data ?? "Password reset request sent. Check your email for instructions."));
+        setShowReset(false);
+        setResetEmail("");
       } else {
-        setErrorMessage(String(response.data ?? "Unable to reset password."));
+        setErrorMessage(String(response.data ?? "Unable to process password reset. Please try again."));
       }
     } catch (error) {
-      setErrorMessage(normalizeError(error));
+      setErrorMessage(normalizeApiError(error));
     } finally {
       setSubmitting(false);
     }

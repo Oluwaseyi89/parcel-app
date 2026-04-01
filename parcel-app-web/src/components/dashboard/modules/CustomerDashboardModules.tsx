@@ -93,8 +93,9 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
   const [orders, setOrders] = useState<CustomerOrderItem[]>(sampleOrders);
   const [orderFilter, setOrderFilter] = useState<string>("all");
 
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
+    const [message, setMessage] = useState("");
+    const [error, setError] = useState("");
+    const [loadingTab, setLoadingTab] = useState(false);
 
   useEffect(() => {
     if (!user?.email || !customerName) {
@@ -104,7 +105,12 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
     if (tab === "carts") {
       apiRequest<{ status?: string; data?: CartRow[] }>(`/parcel_customer/get_cart/${encodeURIComponent(customerName)}/`, { method: "GET" })
         .then((res) => setCartRows(Array.isArray(res.data) ? res.data : []))
-        .catch(() => setCartRows([]));
+         .catch((err) => {
+           console.warn("Failed to load carts:", err);
+           setCartRows([]);
+           setError("Unable to load cart items. Please refresh to try again.");
+         })
+         .finally(() => setLoadingTab(false));
       return;
     }
 
@@ -114,14 +120,27 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
           const deals = Array.isArray(res.deals) ? res.deals : [];
           setDeliveries(deals.filter((deal) => String(deal.email ?? "") === String(user.email)));
         })
-        .catch(() => setDeliveries([]));
+         .catch((err) => {
+           console.warn("Failed to load deliveries:", err);
+           setDeliveries([]);
+           setError("Unable to load delivery status. Please refresh to try again.");
+         })
+         .finally(() => setLoadingTab(false));
       return;
     }
 
     if (tab === "complaints") {
       apiRequest<{ data?: ComplaintItem[] }>(`/parcel_backends/get_dist_complain/${encodeURIComponent(String(user.email))}/`, { method: "GET" })
-        .then((res) => setComplaints(Array.isArray(res.data) ? res.data.filter((c) => !c.is_satisfied) : []))
-        .catch(() => setComplaints([]));
+         .then((res) => {
+           setComplaints(Array.isArray(res.data) ? res.data.filter((c) => !c.is_satisfied) : []);
+           setError("");
+         })
+         .catch((err) => {
+           console.warn("Failed to load complaints:", err);
+           setComplaints([]);
+           setError("Unable to load complaints. Please refresh to try again.");
+         })
+         .finally(() => setLoadingTab(false));
     }
   }, [tab, user?.email, customerName]);
 

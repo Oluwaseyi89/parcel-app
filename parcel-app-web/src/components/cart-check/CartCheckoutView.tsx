@@ -10,6 +10,7 @@ import { useRequireAuth } from "@/lib/hooks/useRequireAuth";
 import { formatNaira, getProductModel, getProductName, getProductPhoto, getProductPrice } from "@/lib/productHelpers";
 import { useCartStore } from "@/lib/stores/cartStore";
 import { storage } from "@/lib/storage";
+import { normalizeApiError, validateShippingForm } from "@/lib/validation";
 import type { CheckoutDraft, Product } from "@/lib/types";
 
 interface CartFormState {
@@ -59,6 +60,7 @@ export default function CartCheckoutView() {
   const [formState, setFormState] = useState<CartFormState>(initialFormState);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
 
   const totalPrice = useMemo(
@@ -86,6 +88,29 @@ export default function CartCheckoutView() {
 
   function setField<K extends keyof CartFormState>(name: K, value: CartFormState[K]) {
     setFormState((prev) => ({ ...prev, [name]: value }));
+    setFieldErrors((prev) => ({ ...prev, [name]: "" }));
+  }
+
+  function validateCheckoutForm(): boolean {
+    const formData = {
+      first_name: String(customer?.first_name ?? formState.first_name),
+      last_name: String(customer?.last_name ?? formState.last_name),
+      street: String(customer?.street ?? formState.street),
+      state: String(customer?.state ?? formState.state),
+      country: String(customer?.country ?? formState.country),
+      email: String(customer?.email ?? formState.email),
+      phone_no: String(customer?.phone_no ?? formState.phone_no),
+      zip_code: String(formState.zip_code),
+      shipping_method: String(formState.shipping_method),
+    };
+
+    const error = validateShippingForm(formData);
+    if (error) {
+      setFieldErrors({ [error.field]: error.message });
+      return false;
+    }
+
+    return true;
   }
 
   function incrementQty(item: Product) {
@@ -153,14 +178,15 @@ export default function CartCheckoutView() {
 
   async function handleSaveCart(e: React.FormEvent) {
     e.preventDefault();
+    setFieldErrors({});
 
     if (cart.length === 0) {
-      showError("Your cart is empty.");
+      showError("Your cart is empty. Add items before saving.");
       return;
     }
 
-    if (!formState.shipping_method || !formState.zip_code) {
-      showError("Shipping method and zip code are required.");
+    if (!validateCheckoutForm()) {
+      showError("Please fill in all required shipping details.");
       return;
     }
 
@@ -168,9 +194,10 @@ export default function CartCheckoutView() {
     setSubmitting(true);
     try {
       await persistCartSession(draft);
-      showSuccess("Cart saved successfully.");
-    } catch {
-      showSuccess("Cart saved locally. Server sync will be retried during checkout.");
+      showSuccess("Cart saved successfully. You can resume checkout anytime.");
+    } catch (error) {
+      console.warn("Cart persistence warning:", error);
+      showSuccess("Cart saved locally. Changes will sync when you proceed to checkout.");
     } finally {
       setSubmitting(false);
     }
@@ -178,14 +205,15 @@ export default function CartCheckoutView() {
 
   async function handleProceedToPayment(e: React.FormEvent) {
     e.preventDefault();
+    setFieldErrors({});
 
     if (cart.length === 0) {
-      showError("Your cart is empty.");
+      showError("Your cart is empty. Add items before checkout.");
       return;
     }
 
-    if (!formState.shipping_method || !formState.zip_code) {
-      showError("Shipping method and zip code are required.");
+    if (!validateCheckoutForm()) {
+      showError("Please fill in all required shipping details.");
       return;
     }
 
@@ -196,10 +224,11 @@ export default function CartCheckoutView() {
     try {
       await persistCartSession(draft);
       await createOrderFromCheckoutDraft(draft);
-      showSuccess("Order prepared. Redirecting to payment.");
+      showSuccess("Order prepared successfully. Redirecting to payment...");
       router.push("/payment");
-    } catch {
-      showError("Unable to create order right now. Please try again.");
+    } catch (error) {
+      const errMsg = normalizeApiError(error);
+      showError(errMsg || "Unable to create order. Please check your details and try again.");
     } finally {
       setSubmitting(false);
     }
