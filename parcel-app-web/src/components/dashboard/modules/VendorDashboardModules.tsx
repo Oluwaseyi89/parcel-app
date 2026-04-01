@@ -464,7 +464,7 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
           {item.vendorResponse && <p className="mt-2 rounded bg-zinc-50 p-2 text-xs text-zinc-700">Response: {item.vendorResponse}</p>}
 
           <div className="mt-3 flex flex-wrap gap-2">
-            <input value={resolutionReply} onChange={(e) => setResolutionReply(e.target.value)} placeholder="Write response" className="min-w-[220px] flex-1 rounded border border-zinc-300 px-3 py-1.5 text-sm" />
+            <input value={resolutionReply} onChange={(e) => setResolutionReply(e.target.value)} placeholder="Write response" className="min-w-55 flex-1 rounded border border-zinc-300 px-3 py-1.5 text-sm" />
             <button onClick={() => sendResolutionReply(item.id)} className="rounded border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-700">Send Reply</button>
             <button onClick={() => markResolutionResolved(item.id)} className="rounded bg-danger px-3 py-1.5 text-xs font-medium text-white">Mark Resolved</button>
           </div>
