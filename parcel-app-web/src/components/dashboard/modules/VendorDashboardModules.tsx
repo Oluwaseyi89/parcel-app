@@ -144,7 +144,7 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
     }
 
     if (tab === "transactions") {
-      apiRequest<{ status?: string; data?: Partial<BankDetails> }>(`/parcel_backends/get_dist_vend_bank/${encodeURIComponent(email)}/`, { method: "GET" })
+      apiRequest<{ status?: string; data?: Partial<BankDetails> }>(`/banking/vendor/get/${encodeURIComponent(email)}/`, { method: "GET" })
         .then((res) => {
           if (res.status === "success" && res.data) {
             setFetchedBank(res.data);
@@ -301,7 +301,7 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
       return;
     }
 
-    const path = method === "POST" ? "/parcel_backends/save_vend_bank/" : `/parcel_backends/update_vend_bank/${encodeURIComponent(email)}`;
+    const path = method === "POST" ? "/banking/vendor/save/" : `/banking/vendor/update/${encodeURIComponent(email)}/`;
     const payload = {
       ...bank,
       vendor_email: email,

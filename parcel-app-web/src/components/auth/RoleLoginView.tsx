@@ -18,7 +18,7 @@ interface RoleConfig {
   registerPath: string;
   registerLabel: string;
   loginPath: string;
-  resetPath: string;
+  resetPath?: string;
   dashboardPath: string;
 }
 
@@ -28,8 +28,8 @@ const ROLE_CONFIG: Record<Role, RoleConfig> = {
     subtitle: "Access your customer dashboard",
     registerPath: "/register-customer",
     registerLabel: "Register as Customer",
-    loginPath: "/parcel_customer/customer_login/",
-    resetPath: "/parcel_customer/customer_resetter/",
+    loginPath: "/auth/customer/login/",
+    resetPath: "/auth/customer/password/reset/",
     dashboardPath: "/customer-dash",
   },
   vendor: {
@@ -37,8 +37,7 @@ const ROLE_CONFIG: Record<Role, RoleConfig> = {
     subtitle: "Access your vendor dashboard",
     registerPath: "/register-vendor",
     registerLabel: "Register as Vendor",
-    loginPath: "/parcel_backends/vendor_login/",
-    resetPath: "/parcel_backends/vendor_resetter/",
+    loginPath: "/vendors/login/",
     dashboardPath: "/vendor-dash",
   },
   courier: {
@@ -46,22 +45,19 @@ const ROLE_CONFIG: Record<Role, RoleConfig> = {
     subtitle: "Access your courier dashboard",
     registerPath: "/register-courier",
     registerLabel: "Register as Courier",
-    loginPath: "/parcel_backends/courier_login/",
-    resetPath: "/parcel_backends/courier_resetter/",
+    loginPath: "/couriers/login/",
     dashboardPath: "/courier-dash",
   },
 };
 
 interface AuthResponse {
   status?: string;
-  data?: AppUser | string;
+  message?: string;
+  data?: AppUser | { vendor?: AppUser; courier?: AppUser; session_token?: string } | string;
 }
 
-function normalizeError(err: unknown): string {
-  if (err instanceof Error) {
-    return err.message;
-  }
-  return "An unexpected error occurred.";
+function isAppUser(value: unknown): value is AppUser {
+  return Boolean(value && typeof value === "object" && "email" in value);
 }
 
 export default function RoleLoginView({ role }: { role: Role }) {
@@ -119,25 +115,34 @@ export default function RoleLoginView({ role }: { role: Role }) {
       });
 
       const data = response.data;
-      if (data && typeof data === "object" && data.email === credentials.email) {
-        setRoleSession(data);
+      const userPayload = (() => {
+        if (!data || typeof data !== "object") return null;
+        if (isAppUser(data)) return data;
+        if ("vendor" in data && isAppUser(data.vendor)) return data.vendor;
+        if ("courier" in data && isAppUser(data.courier)) return data.courier;
+        return null;
+      })();
+
+      if (userPayload && userPayload.email === credentials.email) {
+        setRoleSession(userPayload);
         router.push(config.dashboardPath);
         return;
       }
 
       // Check for specific error conditions
-      if (response.status === "password-error") {
+      if (response.status === "password-error" && config.resetPath) {
         setShowReset(true);
         setErrorMessage("Incorrect password. You can reset your password below.");
         return;
       }
 
-      if (response.status === "not-found" || typeof data === "string" && data.toLowerCase().includes("not found")) {
+      const responseMessage = String(response.message ?? (typeof data === "string" ? data : ""));
+      if (response.status === "not-found" || responseMessage.toLowerCase().includes("not found")) {
         setErrorMessage("Account not found. Please check your email or register a new account.");
         return;
       }
 
-      setErrorMessage(typeof data === "string" ? data : "Login failed. Please check your credentials and try again.");
+      setErrorMessage(responseMessage || "Login failed. Please check your credentials and try again.");
     } catch (error) {
       setErrorMessage(normalizeApiError(error));
     } finally {
@@ -148,6 +153,11 @@ export default function RoleLoginView({ role }: { role: Role }) {
   async function handleResetPassword(event: React.FormEvent) {
     event.preventDefault();
     clearAlerts();
+
+    if (!config.resetPath) {
+      setErrorMessage("Password reset is not available for this role yet.");
+      return;
+    }
 
     if (!resetEmail) {
       setErrorMessage("Please enter your email address.");
@@ -172,7 +182,7 @@ export default function RoleLoginView({ role }: { role: Role }) {
         setShowReset(false);
         setResetEmail("");
       } else {
-        setErrorMessage(String(response.data ?? "Unable to process password reset. Please try again."));
+        setErrorMessage(String(response.message ?? response.data ?? "Unable to process password reset. Please try again."));
       }
     } catch (error) {
       setErrorMessage(normalizeApiError(error));
@@ -275,7 +285,7 @@ export default function RoleLoginView({ role }: { role: Role }) {
           </p>
         </form>
 
-        {showReset && (
+          {showReset && config.resetPath && (
           <form onSubmit={handleResetPassword} className="space-y-3 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
             <h2 className="text-base font-semibold text-zinc-800">Reset Password</h2>
             <input

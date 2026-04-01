@@ -37,7 +37,7 @@ export default function ProductGrid() {
     setError(null);
 
     try {
-      const response = await fetch(`${env.apiBase}/parcel_product/get_prod/`, {
+      const response = await fetch(`${env.apiBase}/product/products/`, {
         method: "GET",
         credentials: "include",
       });

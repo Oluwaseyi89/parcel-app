@@ -97,9 +97,19 @@ export default function RegisterCustomerView() {
 
     setSubmitting(true);
     try {
-      const response = await apiRequest<ApiResponse>("/parcel_customer/reg_customer/", {
+      const response = await apiRequest<ApiResponse>("/auth/customer/register/", {
         method: "POST",
-        body: form as unknown as Record<string, unknown>,
+        body: {
+          first_name: form.first_name,
+          last_name: form.last_name,
+          country: form.country,
+          state: form.state,
+          street: form.street,
+          phone: form.phone_no,
+          email: form.email,
+          password: form.password,
+          confirm_password: confirmPassword,
+        } as Record<string, unknown>,
         json: true,
       });
 
