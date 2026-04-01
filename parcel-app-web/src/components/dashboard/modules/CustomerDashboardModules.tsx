@@ -53,10 +53,27 @@ interface NotificationItem {
   read: boolean;
 }
 
+interface CustomerOrderItem {
+  id: number;
+  orderNumber: string;
+  date: string;
+  status: "pending" | "processing" | "shipped" | "delivered" | "cancelled";
+  items: number;
+  total: number;
+  paymentMethod: string;
+}
+
 const staticNotifications: NotificationItem[] = [
   { id: 1, title: "Order Update", message: "Your recent order is being prepared.", time: "10 mins ago", read: false },
   { id: 2, title: "Payment Confirmed", message: "Your payment was received successfully.", time: "3 hours ago", read: false },
   { id: 3, title: "Welcome", message: "Welcome to Parcel App customer dashboard.", time: "2 days ago", read: true },
+];
+
+const sampleOrders: CustomerOrderItem[] = [
+  { id: 1, orderNumber: "ORD-78945", date: "2026-03-15", status: "delivered", items: 3, total: 125000, paymentMethod: "Card" },
+  { id: 2, orderNumber: "ORD-78946", date: "2026-03-14", status: "shipped", items: 2, total: 75000, paymentMethod: "Transfer" },
+  { id: 3, orderNumber: "ORD-78947", date: "2026-03-13", status: "processing", items: 1, total: 45000, paymentMethod: "Card" },
+  { id: 4, orderNumber: "ORD-78948", date: "2026-03-12", status: "pending", items: 4, total: 185000, paymentMethod: "Card" },
 ];
 
 export default function CustomerDashboardModules({ tab, user }: { tab: CustomerTab; user: User | null }) {
@@ -73,6 +90,8 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
   const [complaintDetail, setComplaintDetail] = useState("");
 
   const [notifications, setNotifications] = useState<NotificationItem[]>(staticNotifications);
+  const [orders, setOrders] = useState<CustomerOrderItem[]>(sampleOrders);
+  const [orderFilter, setOrderFilter] = useState<string>("all");
 
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -240,12 +259,42 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
   }
 
   if (tab === "orders") {
+    const filtered = orders.filter((order) => orderFilter === "all" || order.status === orderFilter);
+
     return (
-      <div className="space-y-3">
-        <p className="text-zinc-700">Order history view migrated.</p>
-        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-600">
-          Detailed order timeline cards from legacy app are next; checkout and payment lifecycle is already active.
+      <div className="space-y-4">
+        <div className="flex flex-wrap gap-2">
+          {["all", "pending", "processing", "shipped", "delivered", "cancelled"].map((status) => (
+            <button
+              key={status}
+              onClick={() => setOrderFilter(status)}
+              className={`rounded-full px-3 py-1 text-xs font-medium ${orderFilter === status ? "bg-danger text-white" : "bg-zinc-100 text-zinc-700"}`}
+            >
+              {status}
+            </button>
+          ))}
         </div>
+
+        {filtered.map((order) => (
+          <div key={order.id} className="rounded-lg border border-zinc-200 p-4">
+            <div className="flex items-center justify-between">
+              <p className="font-semibold text-zinc-900">{order.orderNumber}</p>
+              <span className="rounded-full bg-zinc-100 px-2 py-1 text-xs text-zinc-700">{order.status}</span>
+            </div>
+            <p className="mt-1 text-sm text-zinc-600">Date: {new Date(order.date).toLocaleDateString()}</p>
+            <p className="text-sm text-zinc-600">Items: {order.items}</p>
+            <p className="text-sm text-zinc-600">Payment: {order.paymentMethod}</p>
+            <p className="mt-1 text-sm font-semibold text-danger">Total: {formatNaira(order.total)}</p>
+            {order.status === "pending" && (
+              <button
+                onClick={() => setOrders((prev) => prev.map((entry) => (entry.id === order.id ? { ...entry, status: "cancelled" } : entry)))}
+                className="mt-2 rounded-lg border border-red-300 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+              >
+                Cancel Order
+              </button>
+            )}
+          </div>
+        ))}
       </div>
     );
   }

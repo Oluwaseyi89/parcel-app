@@ -45,6 +45,20 @@ interface BankDetails {
   account_no: string;
 }
 
+interface CourierTransaction {
+  id: number;
+  reference: string;
+  amount: number;
+  status: "pending" | "settled";
+  date: string;
+}
+
+interface CourierResolutionCard {
+  id: number;
+  title: string;
+  description: string;
+}
+
 const initialBank: BankDetails = {
   bank_name: "",
   account_type: "",
@@ -52,11 +66,25 @@ const initialBank: BankDetails = {
   account_no: "",
 };
 
+const sampleTransactions: CourierTransaction[] = [
+  { id: 1, reference: "CR-1001", amount: 12000, status: "settled", date: "2026-03-18" },
+  { id: 2, reference: "CR-1002", amount: 8500, status: "settled", date: "2026-03-17" },
+  { id: 3, reference: "CR-1003", amount: 5500, status: "pending", date: "2026-03-16" },
+];
+
+const resolutionCards: CourierResolutionCard[] = [
+  { id: 1, title: "Issue Resolution", description: "Track and resolve delivery issues." },
+  { id: 2, title: "Customer Feedback", description: "Review ratings and comments from customers." },
+  { id: 3, title: "Performance Metrics", description: "Monitor delivery performance trends." },
+];
+
 export default function CourierDashboardModules({ tab, user }: { tab: CourierTab; user: User | null }) {
   const [deals, setDeals] = useState<CourierDeal[]>([]);
   const [dispatches, setDispatches] = useState<CourierDispatch[]>([]);
 
   const [bank, setBank] = useState<BankDetails>(initialBank);
+  const [fetchedBank, setFetchedBank] = useState<Partial<BankDetails>>({});
+  const [transactions] = useState<CourierTransaction[]>(sampleTransactions);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -87,6 +115,17 @@ export default function CourierDashboardModules({ tab, user }: { tab: CourierTab
           setDispatches(rows);
         })
         .catch(() => setDispatches([]));
+      return;
+    }
+
+    if (tab === "transactions") {
+      apiRequest<{ status?: string; data?: Partial<BankDetails> }>(`/parcel_backends/get_dist_cour_bank/${encodeURIComponent(email)}/`, { method: "GET" })
+        .then((res) => {
+          if (res.status === "success" && res.data) {
+            setFetchedBank(res.data);
+          }
+        })
+        .catch(() => undefined);
     }
   }, [tab, email]);
 
@@ -258,32 +297,68 @@ export default function CourierDashboardModules({ tab, user }: { tab: CourierTab
   }
 
   if (tab === "transactions") {
+    const total = transactions.reduce((sum, row) => sum + row.amount, 0);
+
     return (
       <div className="space-y-4">
         {message && <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">{message}</div>}
         {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-lg border border-zinc-200 p-3 text-sm">Total records: <strong>{transactions.length}</strong></div>
+          <div className="rounded-lg border border-zinc-200 p-3 text-sm">Settled: <strong>{transactions.filter((row) => row.status === "settled").length}</strong></div>
+          <div className="rounded-lg border border-zinc-200 p-3 text-sm">Total amount: <strong>{formatNaira(total)}</strong></div>
+        </div>
+
         <div className="grid gap-3 md:grid-cols-2">
-          <input placeholder="Bank Name" value={bank.bank_name} onChange={(e) => setBank((prev) => ({ ...prev, bank_name: e.target.value }))} className="rounded-lg border border-zinc-300 px-3 py-2.5" />
+          <input placeholder={fetchedBank.bank_name || "Bank Name"} value={bank.bank_name} onChange={(e) => setBank((prev) => ({ ...prev, bank_name: e.target.value }))} className="rounded-lg border border-zinc-300 px-3 py-2.5" />
           <select value={bank.account_type} onChange={(e) => setBank((prev) => ({ ...prev, account_type: e.target.value }))} className="rounded-lg border border-zinc-300 px-3 py-2.5">
-            <option value="">Account Type</option>
+            <option value="">{fetchedBank.account_type || "Account Type"}</option>
             <option value="Savings">Savings</option>
             <option value="Current">Current</option>
           </select>
-          <input placeholder="Account Name" value={bank.account_name} onChange={(e) => setBank((prev) => ({ ...prev, account_name: e.target.value }))} className="rounded-lg border border-zinc-300 px-3 py-2.5" />
-          <input placeholder="Account Number" value={bank.account_no} onChange={(e) => setBank((prev) => ({ ...prev, account_no: e.target.value }))} className="rounded-lg border border-zinc-300 px-3 py-2.5" />
+          <input placeholder={fetchedBank.account_name || "Account Name"} value={bank.account_name} onChange={(e) => setBank((prev) => ({ ...prev, account_name: e.target.value }))} className="rounded-lg border border-zinc-300 px-3 py-2.5" />
+          <input placeholder={fetchedBank.account_no || "Account Number"} value={bank.account_no} onChange={(e) => setBank((prev) => ({ ...prev, account_no: e.target.value }))} className="rounded-lg border border-zinc-300 px-3 py-2.5" />
         </div>
         <div className="flex gap-3">
           <button onClick={() => saveBank("POST")} className="rounded-lg border border-danger px-4 py-2 text-sm font-medium text-danger hover:bg-red-50">Save</button>
           <button onClick={() => saveBank("PATCH")} className="rounded-lg bg-danger px-4 py-2 text-sm font-medium text-white hover:brightness-95">Update</button>
+        </div>
+
+        <div className="overflow-x-auto rounded-lg border border-zinc-200">
+          <table className="min-w-full text-sm">
+            <thead className="bg-zinc-50 text-left text-zinc-600">
+              <tr>
+                <th className="px-3 py-2">Reference</th>
+                <th className="px-3 py-2">Amount</th>
+                <th className="px-3 py-2">Status</th>
+                <th className="px-3 py-2">Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {transactions.map((row) => (
+                <tr key={row.id} className="border-t border-zinc-200">
+                  <td className="px-3 py-2">{row.reference}</td>
+                  <td className="px-3 py-2">{formatNaira(row.amount)}</td>
+                  <td className="px-3 py-2">{row.status}</td>
+                  <td className="px-3 py-2">{new Date(row.date).toLocaleDateString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-600">
-      Courier resolution center is active and ready for API-backed dispute tickets in the next substage.
+    <div className="space-y-4">
+      {resolutionCards.map((card) => (
+        <div key={card.id} className="rounded-lg border border-zinc-200 p-4">
+          <p className="font-semibold text-zinc-900">{card.title}</p>
+          <p className="mt-1 text-sm text-zinc-600">{card.description}</p>
+        </div>
+      ))}
     </div>
   );
 }

@@ -35,12 +35,48 @@ interface BankDetails {
   account_no: string;
 }
 
+interface ResolutionItem {
+  id: number;
+  orderId: string;
+  customerName: string;
+  issueType: "delivery" | "quality" | "payment" | "other";
+  description: string;
+  status: "pending" | "in_progress" | "resolved";
+  priority: "low" | "medium" | "high";
+  amount: number;
+  vendorResponse?: string;
+}
+
 const initialBank: BankDetails = {
   bank_name: "",
   account_type: "",
   account_name: "",
   account_no: "",
 };
+
+const sampleResolutions: ResolutionItem[] = [
+  {
+    id: 1,
+    orderId: "ORD-9001",
+    customerName: "Amina Yusuf",
+    issueType: "delivery",
+    description: "Package arrived late and seal looked tampered.",
+    status: "pending",
+    priority: "high",
+    amount: 54000,
+  },
+  {
+    id: 2,
+    orderId: "ORD-9002",
+    customerName: "Kola Adebayo",
+    issueType: "quality",
+    description: "Received wrong size for the requested model.",
+    status: "in_progress",
+    priority: "medium",
+    amount: 28000,
+    vendorResponse: "Warehouse team is validating lot batch now.",
+  },
+];
 
 export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; user: User | null }) {
   const [products, setProducts] = useState<Product[]>([]);
@@ -60,6 +96,11 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
     prod_desc: "",
     prod_disc: "",
   });
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ edit_price: "", edit_qty: "", edit_disc: "" });
+
+  const [resolutions, setResolutions] = useState<ResolutionItem[]>(sampleResolutions);
+  const [resolutionReply, setResolutionReply] = useState("");
 
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -167,6 +208,90 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
     }
   }
 
+  async function deleteProduct(productId: number | string) {
+    setError("");
+    setMessage("");
+    try {
+      const res = await apiRequest<{ status?: string; data?: string }>(`/parcel_product/del_product/${productId}/`, { method: "DELETE" });
+      if (res.status === "success") {
+        setProducts((prev) => prev.filter((product) => String(product.id) !== String(productId)));
+        setMessage(String(res.data ?? "Product deleted."));
+      } else {
+        setError(String(res.data ?? "Unable to delete product."));
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to delete product.");
+    }
+  }
+
+  async function saveProductEdit(productId: string) {
+    setError("");
+    setMessage("");
+
+    if (!editForm.edit_price || !editForm.edit_qty || !editForm.edit_disc) {
+      setError("Edit fields are required.");
+      return;
+    }
+
+    try {
+      const payload = {
+        prod_price: editForm.edit_price,
+        prod_qty: editForm.edit_qty,
+        prod_disc: editForm.edit_disc,
+        updated_at: new Date().toISOString(),
+      };
+      const res = await apiRequest<{ status?: string; data?: string }>(`/parcel_product/update_product/${productId}/`, {
+        method: "POST",
+        body: payload as Record<string, unknown>,
+        json: true,
+      });
+
+      if (res.status === "success") {
+        setProducts((prev) =>
+          prev.map((product) =>
+            String(product.id) === productId
+              ? {
+                  ...product,
+                  prod_price: Number(editForm.edit_price),
+                  prod_qty: Number(editForm.edit_qty),
+                  prod_disc: Number(editForm.edit_disc),
+                }
+              : product,
+          ),
+        );
+        setEditingProductId(null);
+        setEditForm({ edit_price: "", edit_qty: "", edit_disc: "" });
+        setMessage(String(res.data ?? "Product updated."));
+      } else {
+        setError(String(res.data ?? "Unable to update product."));
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to update product.");
+    }
+  }
+
+  async function markResolutionResolved(id: number) {
+    setResolutions((prev) => prev.map((item) => (item.id === id ? { ...item, status: "resolved" } : item)));
+    setMessage("Resolution marked as resolved.");
+  }
+
+  function sendResolutionReply(id: number) {
+    if (!resolutionReply.trim()) {
+      setError("Write a response before sending.");
+      return;
+    }
+
+    setResolutions((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? { ...item, status: "in_progress", vendorResponse: resolutionReply }
+          : item,
+      ),
+    );
+    setResolutionReply("");
+    setMessage("Response sent.");
+  }
+
   async function saveBank(method: "POST" | "PATCH") {
     setError("");
     setMessage("");
@@ -228,13 +353,47 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
         </form>
 
         <div className="space-y-2">
-          {products.map((prod) => (
-            <div key={String(prod.id)} className="rounded-lg border border-zinc-200 p-3 text-sm">
-              <p className="font-medium text-zinc-900">{String(prod.prod_name ?? prod.name ?? "Unnamed Product")}</p>
-              <p className="text-zinc-600">{String(prod.prod_model ?? "No model")}</p>
-              <p className="text-danger">{formatNaira(Number(prod.prod_price ?? prod.price ?? 0))}</p>
-            </div>
-          ))}
+          {products.map((prod) => {
+            const productId = String(prod.id);
+            const isEditing = editingProductId === productId;
+
+            return (
+              <div key={productId} className="rounded-lg border border-zinc-200 p-3 text-sm">
+                <p className="font-medium text-zinc-900">{String(prod.prod_name ?? prod.name ?? "Unnamed Product")}</p>
+                <p className="text-zinc-600">{String(prod.prod_model ?? "No model")}</p>
+                <p className="text-danger">{formatNaira(Number(prod.prod_price ?? prod.price ?? 0))}</p>
+
+                {isEditing ? (
+                  <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                    <input placeholder="Price" value={editForm.edit_price} onChange={(e) => setEditForm((prev) => ({ ...prev, edit_price: e.target.value }))} className="rounded border border-zinc-300 px-2 py-1.5" />
+                    <input placeholder="Qty" value={editForm.edit_qty} onChange={(e) => setEditForm((prev) => ({ ...prev, edit_qty: e.target.value }))} className="rounded border border-zinc-300 px-2 py-1.5" />
+                    <input placeholder="Discount" value={editForm.edit_disc} onChange={(e) => setEditForm((prev) => ({ ...prev, edit_disc: e.target.value }))} className="rounded border border-zinc-300 px-2 py-1.5" />
+                    <button onClick={() => saveProductEdit(productId)} className="rounded bg-danger px-3 py-1.5 text-xs font-medium text-white">Save</button>
+                    <button onClick={() => setEditingProductId(null)} className="rounded border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-700">Cancel</button>
+                  </div>
+                ) : (
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      onClick={() => {
+                        setEditingProductId(productId);
+                        setEditForm({
+                          edit_price: String(prod.prod_price ?? prod.price ?? ""),
+                          edit_qty: String((prod as { prod_qty?: number }).prod_qty ?? ""),
+                          edit_disc: String((prod as { prod_disc?: number }).prod_disc ?? ""),
+                        });
+                      }}
+                      className="rounded border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-700"
+                    >
+                      Edit
+                    </button>
+                    <button onClick={() => deleteProduct(prod.id)} className="rounded border border-red-300 px-3 py-1.5 text-xs font-medium text-red-600">
+                      Delete
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     );
@@ -288,11 +447,29 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
   }
 
   return (
-    <div className="space-y-3">
-      <p className="text-zinc-700">Resolution center migrated.</p>
-      <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-600">
-        High-priority customer issues panel from the React app can now be plugged into this tab with API-backed ticket records.
-      </div>
+    <div className="space-y-4">
+      {message && <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">{message}</div>}
+      {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+
+      {resolutions.map((item) => (
+        <div key={item.id} className="rounded-lg border border-zinc-200 p-4">
+          <div className="flex items-center justify-between">
+            <p className="font-semibold text-zinc-900">{item.orderId} - {item.customerName}</p>
+            <span className="rounded-full bg-zinc-100 px-2 py-1 text-xs">{item.status}</span>
+          </div>
+          <p className="mt-1 text-sm text-zinc-600">Issue: {item.issueType}</p>
+          <p className="text-sm text-zinc-600">Priority: {item.priority}</p>
+          <p className="text-sm text-zinc-600">Amount: {formatNaira(item.amount)}</p>
+          <p className="mt-2 text-sm text-zinc-700">{item.description}</p>
+          {item.vendorResponse && <p className="mt-2 rounded bg-zinc-50 p-2 text-xs text-zinc-700">Response: {item.vendorResponse}</p>}
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <input value={resolutionReply} onChange={(e) => setResolutionReply(e.target.value)} placeholder="Write response" className="min-w-[220px] flex-1 rounded border border-zinc-300 px-3 py-1.5 text-sm" />
+            <button onClick={() => sendResolutionReply(item.id)} className="rounded border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-700">Send Reply</button>
+            <button onClick={() => markResolutionResolved(item.id)} className="rounded bg-danger px-3 py-1.5 text-xs font-medium text-white">Mark Resolved</button>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
