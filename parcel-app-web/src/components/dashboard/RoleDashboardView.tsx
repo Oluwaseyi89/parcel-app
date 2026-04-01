@@ -4,6 +4,9 @@ import { useRouter } from "next/navigation";
 import { useState, type ComponentType } from "react";
 import { CreditCard, LogOut, MessageSquare, Package, ShoppingCart, Tag, Truck, User } from "lucide-react";
 
+import CourierDashboardModules from "@/components/dashboard/modules/CourierDashboardModules";
+import CustomerDashboardModules from "@/components/dashboard/modules/CustomerDashboardModules";
+import VendorDashboardModules from "@/components/dashboard/modules/VendorDashboardModules";
 import { useRequireAuth } from "@/lib/hooks/useRequireAuth";
 import { useAuthStore } from "@/lib/stores/authStore";
 
@@ -128,8 +131,10 @@ export default function RoleDashboardView({ role }: { role: Role }) {
           <div className="p-6">
             <h2 className="text-xl font-semibold text-zinc-900">{selectedTab.label}</h2>
             <p className="mt-2 text-zinc-600">{selectedTab.description}</p>
-            <div className="mt-5 rounded-lg border border-dashed border-zinc-300 bg-zinc-50 p-5 text-sm text-zinc-600">
-              This module is now routed with real auth and role gating. Detailed data tables and actions from the legacy dashboard are the next substep.
+            <div className="mt-5">
+              {role === "customer" && <CustomerDashboardModules tab={activeTab as "carts" | "orders" | "deliveries" | "notifications" | "complaints"} user={user} />}
+              {role === "vendor" && <VendorDashboardModules tab={activeTab as "products" | "deals" | "transactions" | "resolutions"} user={user} />}
+              {role === "courier" && <CourierDashboardModules tab={activeTab as "deals" | "dispatches" | "transactions" | "resolutions"} user={user} />}
             </div>
           </div>
         </div>
