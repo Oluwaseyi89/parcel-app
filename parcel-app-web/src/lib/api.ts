@@ -98,6 +98,30 @@ export function unwrapApiData<T>(payload: T | ApiEnvelope<T> | null | undefined,
   return payload as T;
 }
 
+/**
+ * Unwraps a list from any DRF response shape:
+ *   { data: T[] }
+ *   { results: { data: T[] } }
+ *   { results: T[] }
+ *   T[]  (raw array)
+ * Returns an empty array on anything else.
+ */
+export function unwrapListData<T>(payload: unknown): T[] {
+  if (Array.isArray(payload)) return payload as T[];
+  if (!payload || typeof payload !== "object") return [];
+
+  const body = payload as Record<string, unknown>;
+  if (Array.isArray(body.data)) return body.data as T[];
+
+  if (body.results && typeof body.results === "object") {
+    const results = body.results as Record<string, unknown>;
+    if (Array.isArray(results.data)) return results.data as T[];
+    if (Array.isArray(body.results)) return body.results as T[];
+  }
+
+  return [];
+}
+
 export async function apiJSON<T>(path: string, method: string, body?: JsonBody): Promise<T> {
   return apiRequest<T>(path, { method, body, json: true });
 }
