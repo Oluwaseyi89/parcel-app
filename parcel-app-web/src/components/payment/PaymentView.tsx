@@ -19,6 +19,16 @@ interface PaymentFormState {
   shipping_txn_ref: string;
 }
 
+interface PaymentInitiateResponse {
+  status?: string;
+  message?: string;
+  data?: {
+    payment?: {
+      reference?: string;
+    };
+  };
+}
+
 const initialState: PaymentFormState = {
   payment_type: "",
   shipping_pay_type: "",
@@ -63,21 +73,35 @@ export default function PaymentView() {
     window.setTimeout(() => setSuccessMessage(""), 4000);
   }
 
-  async function updatePaymentReference(reference: string) {
-    storage.setPaymentReference(reference);
+  function normalizePaymentMethod(value: string): "card" | "bank_transfer" | "cash_on_delivery" {
+    const paymentType = value.toLowerCase();
+    if (paymentType.includes("card")) return "card";
+    if (paymentType.includes("bank transfer")) return "bank_transfer";
+    return "cash_on_delivery";
+  }
 
+  async function initiateOrderPayment(paymentType: string) {
     const currentOrder = await ensureOrderFromDraft(checkoutDraft);
+    const numericOrderId = Number(currentOrder);
 
-    await apiRequest<{ status?: string; data?: string }>(`/parcel_order/payment_update/${currentOrder}/`, {
-      method: "PATCH",
+    if (!Number.isFinite(numericOrderId)) {
+      throw new Error("Invalid order id for payment initialization.");
+    }
+
+    const response = await apiRequest<PaymentInitiateResponse>("/order/payments/initiate/", {
+      method: "POST",
       body: {
-        shipping_fee: shippingFee,
-        grand_total_amount: grandTotal,
-        reference,
-        updated_at: new Date().toISOString(),
+        order_id: numericOrderId,
+        payment_method: normalizePaymentMethod(paymentType),
+        save_card: false,
       },
       json: true,
     });
+
+    const backendReference = response.data?.payment?.reference;
+    if (backendReference) {
+      storage.setPaymentReference(backendReference);
+    }
   }
 
   async function handleCardPayment(e: React.FormEvent) {
@@ -120,7 +144,8 @@ export default function PaymentView() {
 
       const data = (await response.json()) as { data?: { authorization_url?: string; reference?: string } };
       const reference = data?.data?.reference ?? `local-${Date.now()}`;
-      await updatePaymentReference(reference);
+      storage.setPaymentReference(reference);
+      await initiateOrderPayment(form.payment_type || "Card Payment");
 
       const redirectUrl = data?.data?.authorization_url;
       if (redirectUrl) {
@@ -131,7 +156,8 @@ export default function PaymentView() {
       router.push("/verify");
     } catch {
       const fallbackReference = `local-${Date.now()}`;
-      await updatePaymentReference(fallbackReference).catch(() => undefined);
+      storage.setPaymentReference(fallbackReference);
+      await initiateOrderPayment(form.payment_type || "Card Payment").catch(() => undefined);
       showError("Unable to reach payment gateway. A local reference has been created for retry.");
       router.push("/verify");
     } finally {
@@ -149,7 +175,8 @@ export default function PaymentView() {
 
     setProcessing(true);
     try {
-      await updatePaymentReference(form.txn_ref);
+      storage.setPaymentReference(form.txn_ref);
+      await initiateOrderPayment(form.payment_type || "Bank Transfer");
       showSuccess("Bank transfer reference recorded.");
       router.push("/verify");
     } catch {
@@ -176,7 +203,8 @@ export default function PaymentView() {
 
     setProcessing(true);
     try {
-      await updatePaymentReference(shippingRef);
+      storage.setPaymentReference(shippingRef);
+      await initiateOrderPayment(form.shipping_pay_type || "Bank Transfer for Shipping");
       showSuccess("Shipping payment recorded. Continue to final verification.");
       router.push("/verify");
     } catch {
