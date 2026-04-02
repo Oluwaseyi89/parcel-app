@@ -130,14 +130,28 @@ export function validateShippingForm(data: {
  */
 export function normalizeApiError(error: unknown): string {
   if (error instanceof Error) {
-    // Network errors
-    if (error.message.includes("Failed to fetch")) {
+    const msg = error.message;
+
+    if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
       return "Unable to connect to server. Please check your internet connection and try again.";
     }
-    if (error.message.includes("timeout")) {
+    if (msg.includes("timeout")) {
       return "Request timed out. The server is not responding. Please try again.";
     }
-    return error.message;
+
+    // Handle legacy verbose format: "API request failed (400): {raw json}"
+    const prefixMatch = /^API request failed \(\d+\):\s*/.exec(msg);
+    if (prefixMatch) {
+      const remainder = msg.slice(prefixMatch[0].length).trim();
+      try {
+        const body = JSON.parse(remainder) as { message?: string; detail?: string; error?: string };
+        return String(body.message ?? body.detail ?? body.error ?? remainder) || msg;
+      } catch {
+        return remainder || msg;
+      }
+    }
+
+    return msg;
   }
 
   if (typeof error === "string") return error;
