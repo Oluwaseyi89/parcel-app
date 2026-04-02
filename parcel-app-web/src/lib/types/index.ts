@@ -78,3 +78,33 @@ export interface CheckoutDraft {
     phone_no?: string;
   };
 }
+
+/**
+ * Dashboard API response types.
+ * Used across vendor, courier, and customer dashboard modules.
+ */
+
+export type ApiResponse<T = string> = {
+  status?: string;
+  message?: string;
+  data?: T;
+};
+
+export type ApiListResponse<T> = ApiResponse<T[]>;
+
+export interface BankDetails {
+  bank_name: string;
+  account_type: string;
+  account_name: string;
+  account_no: string;
+}
+
+export interface ProductsApprovalResponse {
+  approved?: Product[];
+  pending?: unknown[];
+}
+
+export interface CategoryOption {
+  id: number;
+  name: string;
+}
