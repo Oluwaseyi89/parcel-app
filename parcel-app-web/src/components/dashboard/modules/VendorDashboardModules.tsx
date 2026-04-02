@@ -9,23 +9,19 @@ import type { Product, User } from "@/lib/types";
 type VendorTab = "products" | "deals" | "transactions" | "resolutions";
 
 interface VendorDealItem {
+  dispatch_item_id: number | string;
   order_id: number | string;
   product_id: number | string;
-  vendor_phone?: string;
   product_name?: string;
   quantity?: number;
   prod_price?: number;
   total_amount?: number;
   is_supply_ready?: boolean;
-  is_supply_received?: boolean;
-  is_received?: boolean;
 }
 
-interface DispatchDeal {
-  order_id: number | string;
-  products: VendorDealItem[];
-  courier_name?: string;
-  courier_phone?: string;
+interface CategoryOption {
+  id: number;
+  name: string;
 }
 
 interface BankDetails {
@@ -83,6 +79,7 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
   const [tempCount, setTempCount] = useState(0);
 
   const [deals, setDeals] = useState<VendorDealItem[]>([]);
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
 
   const [bank, setBank] = useState<BankDetails>(initialBank);
   const [fetchedBank, setFetchedBank] = useState<Partial<BankDetails>>({});
@@ -95,6 +92,7 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
     prod_qty: "",
     prod_desc: "",
     prod_disc: "",
+    category_id: "",
   });
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ edit_price: "", edit_qty: "", edit_disc: "" });
@@ -106,8 +104,30 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
   const [message, setMessage] = useState("");
 
   const email = String(user?.email ?? "");
-  const vendorPhone = String(user?.phone_no ?? "");
   const vendorName = `${String(user?.last_name ?? "")} ${String(user?.first_name ?? "")}`.trim();
+
+  function extractList<T>(payload: unknown): T[] {
+    if (!payload || typeof payload !== "object") {
+      return [];
+    }
+
+    const body = payload as Record<string, unknown>;
+    if (Array.isArray(body.data)) {
+      return body.data as T[];
+    }
+
+    if (body.results && typeof body.results === "object") {
+      const results = body.results as Record<string, unknown>;
+      if (Array.isArray(results.data)) {
+        return results.data as T[];
+      }
+      if (Array.isArray(body.results)) {
+        return body.results as T[];
+      }
+    }
+
+    return [];
+  }
 
   useEffect(() => {
     if (!email) {
@@ -115,28 +135,36 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
     }
 
     if (tab === "products") {
-      apiRequest<{ data?: Product[] }>(`/parcel_product/get_dist_ven_product/${encodeURIComponent(email)}/`, { method: "GET" })
-        .then((res) => setProducts(Array.isArray(res.data) ? res.data : []))
+      apiRequest<{ status?: string; data?: { approved?: Product[]; pending?: unknown[] } }>("/product/vendor/products/?include_temp=true", { method: "GET" })
+        .then((res) => {
+          const approved = Array.isArray(res.data?.approved) ? res.data?.approved : [];
+          const pending = Array.isArray(res.data?.pending) ? res.data?.pending : [];
+          setProducts(approved ?? []);
+          setTempCount(pending?.length ?? 0);
+        })
         .catch(() => setProducts([]));
 
-      apiRequest<{ data?: unknown[] }>(`/parcel_product/get_dist_temp_product/${encodeURIComponent(email)}/`, { method: "GET" })
-        .then((res) => setTempCount(Array.isArray(res.data) ? res.data.length : 0))
-        .catch(() => setTempCount(0));
+      apiRequest<{ data?: CategoryOption[] }>("/product/categories/", { method: "GET" })
+        .then((res) => setCategories(Array.isArray(res.data) ? res.data : []))
+        .catch(() => setCategories([]));
       return;
     }
 
     if (tab === "deals") {
-      apiRequest<{ deals?: DispatchDeal[] }>("/parcel_dispatch/get_dispatch_from_db/", { method: "GET" })
+      apiRequest<unknown>("/dispatch/vendor/items/?status=pending", { method: "GET" })
         .then((res) => {
-          const allDeals = Array.isArray(res.deals) ? res.deals : [];
-          const rows: VendorDealItem[] = [];
-          for (const deal of allDeals) {
-            for (const prod of deal.products ?? []) {
-              if (String(prod.vendor_phone ?? "") === vendorPhone && !prod.is_received) {
-                rows.push({ ...prod, order_id: deal.order_id });
-              }
-            }
-          }
+          const rows = extractList<Record<string, unknown>>(res).map((item) => {
+            const orderItemDetails = (item.order_item_details ?? {}) as Record<string, unknown>;
+            return {
+              dispatch_item_id: String(item.id ?? ""),
+              order_id: String(orderItemDetails.order ?? ""),
+              product_id: String(item.order_item ?? ""),
+              product_name: String(orderItemDetails.product_name ?? "Product"),
+              quantity: Number(orderItemDetails.quantity ?? 0),
+              total_amount: Number(orderItemDetails.total_price ?? 0),
+              is_supply_ready: Boolean(item.is_ready_for_pickup),
+            } as VendorDealItem;
+          });
           setDeals(rows);
         })
         .catch(() => setDeals([]));
@@ -152,7 +180,7 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
         })
         .catch(() => undefined);
     }
-  }, [tab, email, vendorPhone]);
+  }, [tab, email]);
 
   async function uploadProduct(event: React.FormEvent) {
     event.preventDefault();
@@ -166,26 +194,21 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
 
     try {
       const formData = new FormData();
-      formData.append("vendor_name", vendorName);
-      formData.append("vendor_phone", vendorPhone);
       formData.append("vendor_email", email);
-      formData.append("vend_photo", String(user?.vend_photo ?? ""));
-      formData.append("prod_cat", String(user?.bus_category ?? "General_Merchandise"));
-      formData.append("prod_name", uploadForm.prod_name);
-      formData.append("prod_model", uploadForm.prod_model);
-      formData.append("prod_photo", uploadPhoto, uploadPhoto.name);
-      formData.append("prod_price", uploadForm.prod_price);
-      formData.append("prod_qty", uploadForm.prod_qty);
-      formData.append("prod_disc", uploadForm.prod_disc);
-      formData.append("prod_desc", uploadForm.prod_desc);
-      formData.append("img_base", uploadPhoto.name);
-      formData.append("upload_date", new Date().toISOString());
+      formData.append("name", uploadForm.prod_name);
+      formData.append("model", uploadForm.prod_model);
+      formData.append("description", uploadForm.prod_desc);
+      formData.append("category", uploadForm.category_id);
+      formData.append("price", uploadForm.prod_price);
+      formData.append("quantity", uploadForm.prod_qty);
+      formData.append("discount_percentage", uploadForm.prod_disc || "0");
+      formData.append("image", uploadPhoto, uploadPhoto.name);
 
-      const res = await apiForm<{ status?: string; data?: string }>("/parcel_product/product_upload/", "POST", formData);
+      const res = await apiForm<{ status?: string; message?: string; data?: string }>("/product/products/create/", "POST", formData);
       if (res.status === "success") {
-        setMessage(String(res.data ?? "Product uploaded."));
+        setMessage(String(res.message ?? res.data ?? "Product uploaded."));
       } else {
-        setError(String(res.data ?? "Unable to upload product."));
+        setError(String(res.message ?? res.data ?? "Unable to upload product."));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to upload product.");
@@ -197,9 +220,14 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
     setMessage("");
     try {
       const formData = new FormData();
-      formData.append("is_supply_ready", String(checked));
-      formData.append("updated_at", new Date().toISOString());
-      await apiForm<{ status?: string; data?: string }>(`/parcel_dispatch/update_supplied_product/${item.order_id}/${item.product_id}/`, "POST", formData);
+      formData.append("is_ready_for_pickup", String(checked));
+      await apiRequest<{ status?: string; data?: string }>(`/dispatch/items/${item.dispatch_item_id}/update/`, {
+        method: "PATCH",
+        body: {
+          is_ready_for_pickup: checked,
+        } as Record<string, unknown>,
+        json: true,
+      });
 
       setDeals((prev) => prev.map((row) => (String(row.order_id) === String(item.order_id) && String(row.product_id) === String(item.product_id) ? { ...row, is_supply_ready: checked } : row)));
       setMessage("Supply status updated.");
@@ -212,12 +240,18 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
     setError("");
     setMessage("");
     try {
-      const res = await apiRequest<{ status?: string; data?: string }>(`/parcel_product/del_product/${productId}/`, { method: "DELETE" });
+      const res = await apiRequest<{ status?: string; message?: string; data?: string }>(`/product/products/${productId}/update/`, {
+        method: "PATCH",
+        body: {
+          status: "archived",
+        } as Record<string, unknown>,
+        json: true,
+      });
       if (res.status === "success") {
         setProducts((prev) => prev.filter((product) => String(product.id) !== String(productId)));
-        setMessage(String(res.data ?? "Product deleted."));
+        setMessage(String(res.message ?? res.data ?? "Product archived."));
       } else {
-        setError(String(res.data ?? "Unable to delete product."));
+        setError(String(res.message ?? res.data ?? "Unable to archive product."));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to delete product.");
@@ -235,13 +269,12 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
 
     try {
       const payload = {
-        prod_price: editForm.edit_price,
-        prod_qty: editForm.edit_qty,
-        prod_disc: editForm.edit_disc,
-        updated_at: new Date().toISOString(),
+        price: Number(editForm.edit_price),
+        quantity: Number(editForm.edit_qty),
+        discount_percentage: Number(editForm.edit_disc),
       };
-      const res = await apiRequest<{ status?: string; data?: string }>(`/parcel_product/update_product/${productId}/`, {
-        method: "POST",
+      const res = await apiRequest<{ status?: string; message?: string; data?: string }>(`/product/products/${productId}/update/`, {
+        method: "PATCH",
         body: payload as Record<string, unknown>,
         json: true,
       });
@@ -252,18 +285,18 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
             String(product.id) === productId
               ? {
                   ...product,
-                  prod_price: Number(editForm.edit_price),
-                  prod_qty: Number(editForm.edit_qty),
-                  prod_disc: Number(editForm.edit_disc),
+                  price: Number(editForm.edit_price),
+                  quantity: Number(editForm.edit_qty),
+                  discount_percentage: Number(editForm.edit_disc),
                 }
               : product,
           ),
         );
         setEditingProductId(null);
         setEditForm({ edit_price: "", edit_qty: "", edit_disc: "" });
-        setMessage(String(res.data ?? "Product updated."));
+        setMessage(String(res.message ?? res.data ?? "Product updated."));
       } else {
-        setError(String(res.data ?? "Unable to update product."));
+        setError(String(res.message ?? res.data ?? "Unable to update product."));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to update product.");
@@ -347,6 +380,12 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
             <input placeholder="Price" value={uploadForm.prod_price} onChange={(e) => setUploadForm((prev) => ({ ...prev, prod_price: e.target.value }))} className="rounded-lg border border-zinc-300 px-3 py-2.5" />
             <input placeholder="Quantity" value={uploadForm.prod_qty} onChange={(e) => setUploadForm((prev) => ({ ...prev, prod_qty: e.target.value }))} className="rounded-lg border border-zinc-300 px-3 py-2.5" />
             <input placeholder="Discount" value={uploadForm.prod_disc} onChange={(e) => setUploadForm((prev) => ({ ...prev, prod_disc: e.target.value }))} className="rounded-lg border border-zinc-300 px-3 py-2.5" />
+            <select value={uploadForm.category_id} onChange={(e) => setUploadForm((prev) => ({ ...prev, category_id: e.target.value }))} className="rounded-lg border border-zinc-300 px-3 py-2.5">
+              <option value="">Select Category</option>
+              {categories.map((category) => (
+                <option key={category.id} value={String(category.id)}>{category.name}</option>
+              ))}
+            </select>
             <input placeholder="Description" value={uploadForm.prod_desc} onChange={(e) => setUploadForm((prev) => ({ ...prev, prod_desc: e.target.value }))} className="rounded-lg border border-zinc-300 px-3 py-2.5" />
           </div>
           <button type="submit" className="rounded-lg bg-danger px-4 py-2 text-sm font-medium text-white hover:brightness-95">Upload Product</button>
@@ -378,8 +417,8 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
                         setEditingProductId(productId);
                         setEditForm({
                           edit_price: String(prod.prod_price ?? prod.price ?? ""),
-                          edit_qty: String((prod as { prod_qty?: number }).prod_qty ?? ""),
-                          edit_disc: String((prod as { prod_disc?: number }).prod_disc ?? ""),
+                          edit_qty: String((prod as { quantity?: number; prod_qty?: number }).quantity ?? (prod as { prod_qty?: number }).prod_qty ?? ""),
+                          edit_disc: String((prod as { discount_percentage?: number; prod_disc?: number }).discount_percentage ?? (prod as { prod_disc?: number }).prod_disc ?? ""),
                         });
                       }}
                       className="rounded border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-700"

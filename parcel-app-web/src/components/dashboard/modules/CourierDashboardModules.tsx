@@ -2,19 +2,21 @@
 
 import { useEffect, useState } from "react";
 
-import { apiForm, apiRequest } from "@/lib/api";
+import { apiRequest } from "@/lib/api";
 import { formatNaira } from "@/lib/productHelpers";
 import type { User } from "@/lib/types";
 
 type CourierTab = "deals" | "dispatches" | "transactions" | "resolutions";
 
 interface CourierDeal {
+  dispatch_id: number | string;
   order_id: number | string;
   customer_name?: string;
   address?: string;
   phone_no?: string;
   handled_dispatch?: boolean;
   products: Array<{
+    dispatch_item_id: number | string;
     product_id: number | string;
     vendor_name?: string;
     vendor_phone?: string;
@@ -24,16 +26,18 @@ interface CourierDeal {
 }
 
 interface CourierDispatch {
+  dispatch_id: number | string;
   order_id: number | string;
   courier_email?: string;
   customer_name?: string;
   total_price?: number;
   products: Array<{
+    dispatch_item_id: number | string;
     product_id: number | string;
     product_name?: string;
     quantity?: number;
     total_amount?: number;
-    is_supply_received?: boolean;
+    is_picked_up?: boolean;
     is_delivered?: boolean;
   }>;
 }
@@ -91,15 +95,56 @@ export default function CourierDashboardModules({ tab, user }: { tab: CourierTab
   const email = String(user?.email ?? "");
   const courierName = `${String(user?.last_name ?? "")} ${String(user?.first_name ?? "")}`.trim();
 
+  function extractDispatchList(payload: unknown): Array<Record<string, unknown>> {
+    if (!payload || typeof payload !== "object") {
+      return [];
+    }
+
+    const body = payload as Record<string, unknown>;
+    if (body.results && typeof body.results === "object") {
+      const wrapped = body.results as Record<string, unknown>;
+      if (Array.isArray(wrapped.data)) {
+        return wrapped.data as Array<Record<string, unknown>>;
+      }
+    }
+    if (Array.isArray(body.data)) {
+      return body.data as Array<Record<string, unknown>>;
+    }
+
+    return [];
+  }
+
   useEffect(() => {
     if (!email) {
       return;
     }
 
     if (tab === "deals") {
-      apiRequest<{ deals?: CourierDeal[] }>("/parcel_dispatch/get_dispatch_from_db/", { method: "GET" })
+      apiRequest<unknown>("/dispatch/dispatches/?status=assigned", { method: "GET" })
         .then((res) => {
-          const rows = Array.isArray(res.deals) ? res.deals.filter((d) => !d.handled_dispatch) : [];
+          const rows = extractDispatchList(res).map((dispatch) => {
+            const orderDetails = (dispatch.order_details ?? {}) as Record<string, unknown>;
+            const customerDetails = (orderDetails.customer_details ?? {}) as Record<string, unknown>;
+            const itemRows = Array.isArray(dispatch.items) ? dispatch.items : [];
+
+            return {
+              dispatch_id: String(dispatch.id ?? ""),
+              order_id: String(orderDetails.id ?? dispatch.order ?? ""),
+              customer_name: `${String(customerDetails.first_name ?? "")} ${String(customerDetails.last_name ?? "")}`.trim(),
+              address: String(dispatch.delivery_address ?? ""),
+              products: itemRows.map((item) => {
+                const orderItemDetails = (item as Record<string, unknown>).order_item_details as Record<string, unknown>;
+                const vendorDetails = (item as Record<string, unknown>).vendor_details as Record<string, unknown>;
+                return {
+                  dispatch_item_id: String((item as Record<string, unknown>).id ?? ""),
+                  product_id: String((item as Record<string, unknown>).order_item ?? ""),
+                  vendor_name: `${String(vendorDetails?.first_name ?? "")} ${String(vendorDetails?.last_name ?? "")}`.trim(),
+                  vendor_phone: String(vendorDetails?.phone ?? ""),
+                  is_supply_ready: Boolean((item as Record<string, unknown>).is_ready_for_pickup),
+                };
+              }),
+            } as CourierDeal;
+          });
           setDeals(rows);
         })
         .catch(() => setDeals([]));
@@ -107,11 +152,36 @@ export default function CourierDashboardModules({ tab, user }: { tab: CourierTab
     }
 
     if (tab === "dispatches") {
-      apiRequest<{ deals?: CourierDispatch[] }>("/parcel_dispatch/get_dispatch_from_db/", { method: "GET" })
+      apiRequest<unknown>("/dispatch/dispatches/", { method: "GET" })
         .then((res) => {
-          const rows = Array.isArray(res.deals)
-            ? res.deals.filter((d) => String(d.courier_email ?? "") === email && !d.products?.every((p) => p.is_delivered))
-            : [];
+          const rows = extractDispatchList(res)
+            .map((dispatch) => {
+              const orderDetails = (dispatch.order_details ?? {}) as Record<string, unknown>;
+              const customerDetails = (orderDetails.customer_details ?? {}) as Record<string, unknown>;
+              const courierDetails = (dispatch.courier_details ?? {}) as Record<string, unknown>;
+              const itemRows = Array.isArray(dispatch.items) ? dispatch.items : [];
+
+              return {
+                dispatch_id: String(dispatch.id ?? ""),
+                order_id: String(orderDetails.id ?? dispatch.order ?? ""),
+                courier_email: String(courierDetails.email ?? ""),
+                customer_name: `${String(customerDetails.first_name ?? "")} ${String(customerDetails.last_name ?? "")}`.trim(),
+                total_price: Number(orderDetails.total_amount ?? 0),
+                products: itemRows.map((item) => {
+                  const orderItemDetails = (item as Record<string, unknown>).order_item_details as Record<string, unknown>;
+                  return {
+                    dispatch_item_id: String((item as Record<string, unknown>).id ?? ""),
+                    product_id: String((item as Record<string, unknown>).order_item ?? ""),
+                    product_name: String(orderItemDetails?.product_name ?? "Product"),
+                    quantity: Number(orderItemDetails?.quantity ?? 0),
+                    total_amount: Number(orderItemDetails?.total_price ?? 0),
+                    is_picked_up: Boolean((item as Record<string, unknown>).is_picked_up),
+                    is_delivered: Boolean((item as Record<string, unknown>).is_delivered),
+                  };
+                }),
+              } as CourierDispatch;
+            })
+            .filter((d) => String(d.courier_email ?? "") === email && !d.products.every((p) => p.is_delivered));
           setDispatches(rows);
         })
         .catch(() => setDispatches([]));
@@ -129,50 +199,38 @@ export default function CourierDashboardModules({ tab, user }: { tab: CourierTab
     }
   }, [tab, email]);
 
-  async function acceptDeal(orderId: number | string) {
+  async function acceptDeal(dispatchId: number | string) {
     setError("");
     setMessage("");
     try {
       const payload = {
-        handled_dispatch: true,
-        courier_id: user?.id,
-        courier_name: courierName,
-        courier_email: email,
-        courier_phone: user?.phone_no,
-        updated_at: new Date().toISOString(),
+        status: "picking_up",
+        notes: `Accepted by ${courierName}`,
       };
-      await apiRequest<{ status?: string; data?: string }>(`/parcel_dispatch/update_dispatch/${orderId}/`, {
-        method: "PATCH",
+      await apiRequest<{ status?: string; data?: string }>(`/dispatch/dispatches/${dispatchId}/status/`, {
+        method: "POST",
         body: payload as Record<string, unknown>,
         json: true,
       });
-      setDeals((prev) => prev.filter((d) => String(d.order_id) !== String(orderId)));
+      setDeals((prev) => prev.filter((d) => String(d.dispatch_id) !== String(dispatchId)));
       setMessage("Deal accepted.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to accept deal.");
     }
   }
 
-  async function toggleDispatchProduct(orderId: number | string, productId: number | string, key: "is_delivered" | "is_supply_received", checked: boolean) {
+  async function toggleDispatchProduct(orderId: number | string, dispatchItemId: number | string, key: "is_delivered" | "is_picked_up", checked: boolean) {
     setError("");
     setMessage("");
 
     try {
-      if (key === "is_supply_received") {
-        const formData = new FormData();
-        formData.append("is_supply_received", String(checked));
-        formData.append("updated_at", new Date().toISOString());
-        await apiForm<{ status?: string; data?: string }>(`/parcel_dispatch/update_received_product/${orderId}/${productId}/`, "POST", formData);
-      } else {
-        await apiRequest<{ status?: string; data?: string }>(`/parcel_dispatch/update_dispatched_product/${orderId}/${productId}/`, {
-          method: "PATCH",
-          body: {
-            is_delivered: checked,
-            updated_at: new Date().toISOString(),
-          } as Record<string, unknown>,
-          json: true,
-        });
-      }
+      await apiRequest<{ status?: string; data?: string }>(`/dispatch/items/${dispatchItemId}/update/`, {
+        method: "PATCH",
+        body: {
+          [key]: checked,
+        } as Record<string, unknown>,
+        json: true,
+      });
 
       setDispatches((prev) =>
         prev.map((dispatch) =>
@@ -181,7 +239,7 @@ export default function CourierDashboardModules({ tab, user }: { tab: CourierTab
             : {
                 ...dispatch,
                 products: dispatch.products.map((prod) =>
-                  String(prod.product_id) === String(productId) ? { ...prod, [key]: checked } : prod,
+                  String(prod.dispatch_item_id) === String(dispatchItemId) ? { ...prod, [key]: checked } : prod,
                 ),
               },
         ),
@@ -242,7 +300,7 @@ export default function CourierDashboardModules({ tab, user }: { tab: CourierTab
                 <p key={`${deal.order_id}-${prod.product_id}`}>Vendor: {prod.vendor_name} ({prod.is_supply_ready ? "Ready" : "Pending"})</p>
               ))}
             </div>
-            <button onClick={() => acceptDeal(deal.order_id)} className="mt-3 rounded-lg bg-danger px-4 py-2 text-sm font-medium text-white hover:brightness-95">
+            <button onClick={() => acceptDeal(deal.dispatch_id)} className="mt-3 rounded-lg bg-danger px-4 py-2 text-sm font-medium text-white hover:brightness-95">
               Accept Deal
             </button>
           </div>
@@ -273,16 +331,16 @@ export default function CourierDashboardModules({ tab, user }: { tab: CourierTab
                     <label className="inline-flex items-center gap-2">
                       <input
                         type="checkbox"
-                        checked={Boolean(prod.is_supply_received)}
-                        onChange={(e) => toggleDispatchProduct(dispatch.order_id, prod.product_id, "is_supply_received", e.target.checked)}
+                        checked={Boolean(prod.is_picked_up)}
+                        onChange={(e) => toggleDispatchProduct(dispatch.order_id, prod.dispatch_item_id, "is_picked_up", e.target.checked)}
                       />
-                      Supply received
+                      Picked up
                     </label>
                     <label className="inline-flex items-center gap-2">
                       <input
                         type="checkbox"
                         checked={Boolean(prod.is_delivered)}
-                        onChange={(e) => toggleDispatchProduct(dispatch.order_id, prod.product_id, "is_delivered", e.target.checked)}
+                        onChange={(e) => toggleDispatchProduct(dispatch.order_id, prod.dispatch_item_id, "is_delivered", e.target.checked)}
                       />
                       Delivered
                     </label>

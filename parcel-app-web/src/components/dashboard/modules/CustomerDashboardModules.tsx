@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { apiRequest } from "@/lib/api";
 import { formatNaira, getProductName, getProductPrice } from "@/lib/productHelpers";
+import { useCartStore } from "@/lib/stores/cartStore";
 import type { Product, User } from "@/lib/types";
 
 type CustomerTab = "carts" | "orders" | "deliveries" | "notifications" | "complaints";
@@ -16,6 +17,7 @@ interface CartRow {
 }
 
 interface DispatchProduct {
+  dispatch_item_id?: number | string;
   order_id: number | string;
   product_id: number | string;
   product_name?: string;
@@ -96,6 +98,25 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
     const [message, setMessage] = useState("");
     const [error, setError] = useState("");
     const [loadingTab, setLoadingTab] = useState(false);
+    const localCart = useCartStore((state) => state.cart as Product[]);
+
+    function extractDispatchList(payload: unknown): Array<Record<string, unknown>> {
+      if (!payload || typeof payload !== "object") {
+        return [];
+      }
+
+      const body = payload as Record<string, unknown>;
+      if (body.results && typeof body.results === "object") {
+        const wrapped = body.results as Record<string, unknown>;
+        if (Array.isArray(wrapped.data)) {
+          return wrapped.data as Array<Record<string, unknown>>;
+        }
+      }
+      if (Array.isArray(body.data)) {
+        return body.data as Array<Record<string, unknown>>;
+      }
+      return [];
+    }
 
   useEffect(() => {
     if (!user?.email || !customerName) {
@@ -103,22 +124,48 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
     }
 
     if (tab === "carts") {
-      apiRequest<{ status?: string; data?: CartRow[] }>(`/parcel_customer/get_cart/${encodeURIComponent(customerName)}/`, { method: "GET" })
-        .then((res) => setCartRows(Array.isArray(res.data) ? res.data : []))
-         .catch((err) => {
-           console.warn("Failed to load carts:", err);
-           setCartRows([]);
-           setError("Unable to load cart items. Please refresh to try again.");
-         })
-         .finally(() => setLoadingTab(false));
+      const rows = localCart.map((item) => ({
+        id: item.id,
+        product_id: item.id,
+        product_name: String(item.prod_name ?? item.name ?? "Product"),
+        quantity: Number(item.purchased_qty ?? 1),
+      }));
+      setCartRows(rows);
+      setLoadingTab(false);
       return;
     }
 
     if (tab === "deliveries") {
-      apiRequest<{ deals?: DispatchDeal[] }>("/parcel_dispatch/get_dispatch_from_db/", { method: "GET" })
+      apiRequest<unknown>("/dispatch/dispatches/", { method: "GET" })
         .then((res) => {
-          const deals = Array.isArray(res.deals) ? res.deals : [];
-          setDeliveries(deals.filter((deal) => String(deal.email ?? "") === String(user.email)));
+          const rows = extractDispatchList(res)
+            .map((dispatch) => {
+              const orderDetails = (dispatch.order_details ?? {}) as Record<string, unknown>;
+              const customerDetails = (orderDetails.customer_details ?? {}) as Record<string, unknown>;
+              const itemRows = Array.isArray(dispatch.items) ? dispatch.items : [];
+              return {
+                order_id: String(orderDetails.id ?? dispatch.order ?? ""),
+                email: String(customerDetails.email ?? ""),
+                customer_name: `${String(customerDetails.first_name ?? "")} ${String(customerDetails.last_name ?? "")}`.trim(),
+                total_price: Number(orderDetails.total_amount ?? 0),
+                products: itemRows.map((item) => {
+                  const raw = item as Record<string, unknown>;
+                  const orderItemDetails = (raw.order_item_details ?? {}) as Record<string, unknown>;
+                  return {
+                    dispatch_item_id: raw.id as number | string,
+                    order_id: String(orderDetails.id ?? dispatch.order ?? ""),
+                    product_id: String(raw.order_item ?? ""),
+                    product_name: String(orderItemDetails.product_name ?? "Product"),
+                    quantity: Number(orderItemDetails.quantity ?? 0),
+                    total_amount: Number(orderItemDetails.total_price ?? 0),
+                    is_delivered: Boolean(raw.is_delivered),
+                    is_received: Boolean(raw.is_delivered),
+                  } as DispatchProduct;
+                }),
+              } as DispatchDeal;
+            })
+            .filter((deal) => String(deal.email ?? "") === String(user.email));
+          setDeliveries(rows);
         })
          .catch((err) => {
            console.warn("Failed to load deliveries:", err);
@@ -142,7 +189,7 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
          })
          .finally(() => setLoadingTab(false));
     }
-  }, [tab, user?.email, customerName]);
+  }, [tab, user?.email, customerName, localCart]);
 
   useEffect(() => {
     if (tab !== "carts" || cartRows.length === 0) {
@@ -151,7 +198,7 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
 
     Promise.all(
       cartRows.map((row) =>
-        apiRequest<{ status?: string; data?: Product }>(`/parcel_product/get_sing_prod/${row.product_id}/`, { method: "GET" })
+        apiRequest<{ status?: string; data?: Product }>(`/product/products/${row.product_id}/`, { method: "GET" })
           .then((res) => [String(row.product_id), res.data] as const)
           .catch(() => [String(row.product_id), undefined] as const),
       ),
@@ -166,15 +213,14 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
     });
   }, [tab, cartRows]);
 
-  async function markReceived(orderId: number | string, productId: number | string, checked: boolean) {
+  async function markReceived(orderId: number | string, dispatchItemId: number | string, checked: boolean) {
     setError("");
     setMessage("");
     try {
-      await apiRequest<{ status?: string; data?: string }>(`/parcel_dispatch/update_dispatched_product/${orderId}/${productId}/`, {
+      await apiRequest<{ status?: string; data?: string }>(`/dispatch/items/${dispatchItemId}/update/`, {
         method: "PATCH",
         body: {
-          is_received: checked,
-          updated_at: new Date().toISOString(),
+          is_delivered: checked,
         } as Record<string, unknown>,
         json: true,
       });
@@ -186,7 +232,7 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
             : {
                 ...deal,
                 products: deal.products.map((prod) =>
-                  String(prod.product_id) === String(productId) ? { ...prod, is_received: checked } : prod,
+                  String(prod.dispatch_item_id) === String(dispatchItemId) ? { ...prod, is_received: checked } : prod,
                 ),
               },
         ),
@@ -335,7 +381,7 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
                   <input
                     type="checkbox"
                     checked={Boolean(prod.is_received)}
-                    onChange={(e) => markReceived(deal.order_id, prod.product_id, e.target.checked)}
+                    onChange={(e) => markReceived(deal.order_id, prod.dispatch_item_id ?? prod.product_id, e.target.checked)}
                     disabled={!prod.is_delivered}
                   />
                 </label>
