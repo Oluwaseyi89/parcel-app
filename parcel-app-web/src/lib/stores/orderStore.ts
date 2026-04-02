@@ -1,6 +1,5 @@
 import { create } from "zustand";
 
-import { apiRequest, type ApiEnvelope, unwrapApiData } from "@/lib/api";
 import type { Order } from "@/lib/types";
 
 interface OrderState {
@@ -12,11 +11,6 @@ interface OrderState {
   setSelectedOrder: (order: Order | null) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
-  fetchOrders: (fetchUrl: string) => Promise<void>;
-  addOrder: (order: Order) => void;
-  updateOrder: (orderId: Order["id"], updatedData: Partial<Order>) => void;
-  removeOrder: (orderId: Order["id"]) => void;
-  clearOrders: () => void;
 }
 
 export const useOrderStore = create<OrderState>((set) => ({
@@ -29,31 +23,4 @@ export const useOrderStore = create<OrderState>((set) => ({
   setSelectedOrder: (order) => set({ selectedOrder: order }),
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
-
-  fetchOrders: async (fetchUrl) => {
-    set({ loading: true, error: null });
-    try {
-      const response = await apiRequest<Order[] | ApiEnvelope<Order[]>>(fetchUrl, { method: "GET" });
-      const orders = unwrapApiData<Order[]>(response, []);
-      set({ orders, loading: false });
-    } catch (error) {
-      set({ error: error instanceof Error ? error.message : "Failed to fetch orders.", loading: false });
-    }
-  },
-
-  addOrder: (order) => {
-    set((state) => ({ orders: [...state.orders, order] }));
-  },
-
-  updateOrder: (orderId, updatedData) => {
-    set((state) => ({
-      orders: state.orders.map((order) => (order.id === orderId ? { ...order, ...updatedData } : order)),
-    }));
-  },
-
-  removeOrder: (orderId) => {
-    set((state) => ({ orders: state.orders.filter((order) => order.id !== orderId) }));
-  },
-
-  clearOrders: () => set({ orders: [], selectedOrder: null }),
 }));
