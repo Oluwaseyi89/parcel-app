@@ -27,6 +27,7 @@ interface PaymentInitiateResponse {
       reference?: string;
     };
   };
+  errors?: unknown;
 }
 
 const initialState: PaymentFormState = {
@@ -98,6 +99,10 @@ export default function PaymentView() {
       json: true,
     });
 
+    if (String(response.status ?? "").toLowerCase() !== "success") {
+      throw new Error(String(response.message ?? "Unable to initialize order payment."));
+    }
+
     const backendReference = response.data?.payment?.reference;
     if (backendReference) {
       storage.setPaymentReference(backendReference);
@@ -153,13 +158,18 @@ export default function PaymentView() {
         return;
       }
 
+      showError("Unable to reach payment gateway. A local reference has been created for retry.");
       router.push("/verify");
     } catch {
       const fallbackReference = `local-${Date.now()}`;
       storage.setPaymentReference(fallbackReference);
-      await initiateOrderPayment(form.payment_type || "Card Payment").catch(() => undefined);
-      showError("Unable to reach payment gateway. A local reference has been created for retry.");
-      router.push("/verify");
+      try {
+        await initiateOrderPayment(form.payment_type || "Card Payment");
+        showError("Unable to reach payment gateway. A local reference has been created for retry.");
+        router.push("/verify");
+      } catch {
+        showError("Unable to initialize payment. Please try again.");
+      }
     } finally {
       setProcessing(false);
     }

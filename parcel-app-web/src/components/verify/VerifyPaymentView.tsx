@@ -4,10 +4,19 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle, Loader2, Shield, XCircle } from "lucide-react";
 
-import { env } from "@/env";
+import { apiRequest } from "@/lib/api";
 import { storage } from "@/lib/storage";
 
 type VerifyState = "pending" | "verified" | "failed";
+
+interface VerifyPaymentResponse {
+  status?: string;
+  message?: string;
+  data?: {
+    status?: string;
+    reference?: string;
+  };
+}
 
 export default function VerifyPaymentView() {
   const router = useRouter();
@@ -21,26 +30,22 @@ export default function VerifyPaymentView() {
     setLoading(true);
 
     try {
-      const response = await fetch(`${env.paymentApiBase}/v1/verifypayment/${reference}`, {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-        },
+      const response = await apiRequest<VerifyPaymentResponse>(`/order/payments/verify/${encodeURIComponent(reference)}/`, {
+        method: "POST",
+        body: {},
+        json: true,
       });
 
-      if (!response.ok) {
-        throw new Error(`Verification failed (${response.status})`);
-      }
-
-      const raw = (await response.json()) as boolean | { status?: boolean; verified?: boolean };
-      const verified = typeof raw === "boolean" ? raw : Boolean(raw.status ?? raw.verified);
+      const isSuccess = String(response.status ?? "").toLowerCase() === "success";
+      const paymentStatus = String(response.data?.status ?? "").toLowerCase();
+      const verified = isSuccess && ["completed", "paid", "success"].includes(paymentStatus || "completed");
 
       if (verified) {
         setStatus("verified");
         setMessage("Payment successfully verified.");
       } else {
         setStatus("pending");
-        setMessage("Payment is still pending. Please refresh in a moment.");
+        setMessage(String(response.message ?? "Payment is still pending. Please refresh in a moment."));
       }
     } catch {
       setStatus("failed");
