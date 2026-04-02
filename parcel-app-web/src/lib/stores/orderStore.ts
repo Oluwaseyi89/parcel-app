@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-import { apiRequest } from "@/lib/api";
+import { apiRequest, type ApiEnvelope, unwrapApiData } from "@/lib/api";
 import type { Order } from "@/lib/types";
 
 interface OrderState {
@@ -19,11 +19,6 @@ interface OrderState {
   clearOrders: () => void;
 }
 
-interface OrderListEnvelope {
-  status?: string;
-  data?: Order[];
-}
-
 export const useOrderStore = create<OrderState>((set) => ({
   orders: [],
   selectedOrder: null,
@@ -38,8 +33,8 @@ export const useOrderStore = create<OrderState>((set) => ({
   fetchOrders: async (fetchUrl) => {
     set({ loading: true, error: null });
     try {
-      const response = await apiRequest<Order[] | OrderListEnvelope>(fetchUrl, { method: "GET" });
-      const orders = Array.isArray(response) ? response : Array.isArray(response.data) ? response.data : [];
+      const response = await apiRequest<Order[] | ApiEnvelope<Order[]>>(fetchUrl, { method: "GET" });
+      const orders = unwrapApiData<Order[]>(response, []);
       set({ orders, loading: false });
     } catch (error) {
       set({ error: error instanceof Error ? error.message : "Failed to fetch orders.", loading: false });

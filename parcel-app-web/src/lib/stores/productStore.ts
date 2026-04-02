@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-import { apiRequest } from "@/lib/api";
+import { apiRequest, type ApiEnvelope, unwrapApiData } from "@/lib/api";
 import { storage } from "@/lib/storage";
 import type { Product } from "@/lib/types";
 
@@ -18,11 +18,6 @@ interface ProductState {
   clearSelectedProduct: () => void;
 }
 
-interface ProductListEnvelope {
-  status?: string;
-  data?: Product[];
-}
-
 export const useProductStore = create<ProductState>((set, get) => ({
   products: [],
   selectedProduct: null,
@@ -37,8 +32,8 @@ export const useProductStore = create<ProductState>((set, get) => ({
   getAllProducts: async (fetchUrl) => {
     set({ loading: true, error: null });
     try {
-      const response = await apiRequest<Product[] | ProductListEnvelope>(fetchUrl, { method: "GET" });
-      const products = Array.isArray(response) ? response : Array.isArray(response.data) ? response.data : [];
+      const response = await apiRequest<Product[] | ApiEnvelope<Product[]>>(fetchUrl, { method: "GET" });
+      const products = unwrapApiData<Product[]>(response, []);
       set({ products, loading: false });
     } catch (error) {
       set({ error: error instanceof Error ? error.message : "Failed to fetch products.", loading: false });
