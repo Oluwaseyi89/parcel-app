@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { apiRequest, unwrapListData } from "@/lib/api";
+import { unwrapListData } from "@/lib/api";
 import { useApi } from "@/lib/hooks/useApi";
 import { formatNaira, getProductName, getProductPrice } from "@/lib/productHelpers";
 import { useCartStore } from "@/lib/stores/cartStore";
@@ -80,6 +80,7 @@ const sampleOrders: CustomerOrderItem[] = [
 ];
 
 export default function CustomerDashboardModules({ tab, user }: { tab: CustomerTab; user: User | null }) {
+  const { request: readRequest, isLoading: isReadLoading, error: readError } = useApi();
   const { request } = useApi();
   const customerName = useMemo(() => `${String(user?.last_name ?? "")} ${String(user?.first_name ?? "")}`.trim(), [user?.first_name, user?.last_name]);
 
@@ -97,10 +98,9 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
   const [orders, setOrders] = useState<CustomerOrderItem[]>(sampleOrders);
   const [orderFilter, setOrderFilter] = useState<string>("all");
 
-    const [message, setMessage] = useState("");
-    const [error, setError] = useState("");
-    const [loadingTab, setLoadingTab] = useState(false);
-    const localCart = useCartStore((state) => state.cart as Product[]);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const localCart = useCartStore((state) => state.cart as Product[]);
 
 
 
@@ -117,12 +117,11 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
         quantity: Number(item.purchased_qty ?? 1),
       }));
       setCartRows(rows);
-      setLoadingTab(false);
       return;
     }
 
     if (tab === "deliveries") {
-      apiRequest<unknown>("/dispatch/dispatches/", { method: "GET" })
+      readRequest<unknown>("/dispatch/dispatches/", { method: "GET" })
         .then((res) => {
           const rows = unwrapListData<Record<string, unknown>>(res)
             .map((dispatch) => {
@@ -157,13 +156,12 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
            console.warn("Failed to load deliveries:", err);
            setDeliveries([]);
            setError("Unable to load delivery status. Please refresh to try again.");
-         })
-         .finally(() => setLoadingTab(false));
+         });
       return;
     }
 
     if (tab === "complaints") {
-      apiRequest<{ data?: ComplaintItem[] }>(`/complaints/customer/${encodeURIComponent(String(user.email))}/`, { method: "GET" })
+      readRequest<{ data?: ComplaintItem[] }>(`/complaints/customer/${encodeURIComponent(String(user.email))}/`, { method: "GET" })
          .then((res) => {
            setComplaints(Array.isArray(res.data) ? res.data.filter((c) => !c.is_satisfied) : []);
            setError("");
@@ -172,10 +170,9 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
            console.warn("Failed to load complaints:", err);
            setComplaints([]);
            setError("Unable to load complaints. Please refresh to try again.");
-         })
-         .finally(() => setLoadingTab(false));
+         });
     }
-  }, [tab, user?.email, customerName, localCart]);
+  }, [tab, user?.email, customerName, localCart, readRequest]);
 
   useEffect(() => {
     if (tab !== "carts" || cartRows.length === 0) {
@@ -184,7 +181,7 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
 
     Promise.all(
       cartRows.map((row) =>
-        apiRequest<{ status?: string; data?: Product }>(`/product/products/${row.product_id}/`, { method: "GET" })
+        readRequest<{ status?: string; data?: Product }>(`/product/products/${row.product_id}/`, { method: "GET" })
           .then((res) => [String(row.product_id), res.data] as const)
           .catch(() => [String(row.product_id), undefined] as const),
       ),
@@ -197,7 +194,7 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
       }
       setCartProducts(next);
     });
-  }, [tab, cartRows]);
+  }, [tab, cartRows, readRequest]);
 
   async function markReceived(orderId: number | string, dispatchItemId: number | string, checked: boolean) {
     setError("");
@@ -282,6 +279,8 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
     }
   }
 
+  const activeError = error || readError || "";
+
   if (tab === "carts") {
     const amount = cartRows.reduce((sum, row) => {
       const product = cartProducts[String(row.product_id)];
@@ -290,6 +289,7 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
 
     return (
       <div className="space-y-4">
+        {isReadLoading && <p className="text-sm text-zinc-500">Loading data...</p>}
         <p className="text-zinc-700">Saved cart items: {cartRows.length}</p>
         {cartRows.length === 0 && <p className="text-sm text-zinc-500">No saved cart records found.</p>}
         {cartRows.map((row) => {
@@ -314,6 +314,7 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
 
     return (
       <div className="space-y-4">
+        {isReadLoading && <p className="text-sm text-zinc-500">Loading data...</p>}
         <div className="flex flex-wrap gap-2">
           {["all", "pending", "processing", "shipped", "delivered", "cancelled"].map((status) => (
             <button
@@ -354,7 +355,8 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
     return (
       <div className="space-y-4">
         {message && <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">{message}</div>}
-        {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+        {activeError && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{activeError}</div>}
+        {isReadLoading && <p className="text-sm text-zinc-500">Loading data...</p>}
         <p className="text-zinc-700">Expected delivery groups: {deliveries.length}</p>
         {deliveries.map((deal) => (
           <div key={String(deal.order_id)} className="rounded-lg border border-zinc-200 p-4">
@@ -408,7 +410,8 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
   return (
     <div className="space-y-4">
       {message && <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">{message}</div>}
-      {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+      {activeError && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{activeError}</div>}
+      {isReadLoading && <p className="text-sm text-zinc-500">Loading data...</p>}
 
       <form onSubmit={submitComplaint} className="space-y-3 rounded-lg border border-zinc-200 p-4">
         <input value={complaintSubject} onChange={(e) => setComplaintSubject(e.target.value)} placeholder="Complaint Subject" className="w-full rounded-lg border border-zinc-300 px-3 py-2.5" />
