@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { apiForm, apiRequest, unwrapListData } from "@/lib/api";
+import { apiForm, unwrapListData } from "@/lib/api";
 import { useApi } from "@/lib/hooks/useApi";
 import { formatNaira } from "@/lib/productHelpers";
 import type { Product, User } from "@/lib/types";
@@ -76,6 +76,7 @@ const sampleResolutions: ResolutionItem[] = [
 ];
 
 export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; user: User | null }) {
+  const { request: readRequest, isLoading: isReadLoading, error: readError } = useApi();
   const { request } = useApi();
   const [products, setProducts] = useState<Product[]>([]);
   const [tempCount, setTempCount] = useState(0);
@@ -114,7 +115,7 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
     }
 
     if (tab === "products") {
-      apiRequest<{ status?: string; data?: { approved?: Product[]; pending?: unknown[] } }>("/product/vendor/products/?include_temp=true", { method: "GET" })
+      readRequest<{ status?: string; data?: { approved?: Product[]; pending?: unknown[] } }>("/product/vendor/products/?include_temp=true", { method: "GET" })
         .then((res) => {
           const approved = Array.isArray(res.data?.approved) ? res.data?.approved : [];
           const pending = Array.isArray(res.data?.pending) ? res.data?.pending : [];
@@ -123,14 +124,14 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
         })
         .catch(() => setProducts([]));
 
-      apiRequest<{ data?: CategoryOption[] }>("/product/categories/", { method: "GET" })
+      readRequest<{ data?: CategoryOption[] }>("/product/categories/", { method: "GET" })
         .then((res) => setCategories(Array.isArray(res.data) ? res.data : []))
         .catch(() => setCategories([]));
       return;
     }
 
     if (tab === "deals") {
-      apiRequest<unknown>("/dispatch/vendor/items/?status=pending", { method: "GET" })
+      readRequest<unknown>("/dispatch/vendor/items/?status=pending", { method: "GET" })
         .then((res) => {
           const rows = unwrapListData<Record<string, unknown>>(res).map((item) => {
             const orderItemDetails = (item.order_item_details ?? {}) as Record<string, unknown>;
@@ -151,7 +152,7 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
     }
 
     if (tab === "transactions") {
-      apiRequest<{ status?: string; data?: Partial<BankDetails> }>(`/banking/vendor/get/${encodeURIComponent(email)}/`, { method: "GET" })
+      readRequest<{ status?: string; data?: Partial<BankDetails> }>(`/banking/vendor/get/${encodeURIComponent(email)}/`, { method: "GET" })
         .then((res) => {
           if (res.status === "success" && res.data) {
             setFetchedBank(res.data);
@@ -159,7 +160,7 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
         })
         .catch(() => undefined);
     }
-  }, [tab, email]);
+  }, [tab, email, readRequest]);
 
   async function uploadProduct(event: React.FormEvent) {
     event.preventDefault();
@@ -338,12 +339,14 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
   }
 
   const productsTotal = useMemo(() => products.length, [products.length]);
+  const activeError = error || readError || "";
 
   if (tab === "products") {
     return (
       <div className="space-y-4">
         {message && <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">{message}</div>}
-        {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+        {activeError && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{activeError}</div>}
+        {isReadLoading && <p className="text-sm text-zinc-500">Loading data...</p>}
 
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="rounded-lg border border-zinc-200 p-3 text-sm">Approved products: <strong>{productsTotal}</strong></div>
@@ -421,7 +424,8 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
     return (
       <div className="space-y-4">
         {message && <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">{message}</div>}
-        {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+        {activeError && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{activeError}</div>}
+        {isReadLoading && <p className="text-sm text-zinc-500">Loading data...</p>}
 
         <p className="text-zinc-700">Supply deals: {deals.length}</p>
         {deals.map((item) => (
@@ -444,7 +448,8 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
     return (
       <div className="space-y-4">
         {message && <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">{message}</div>}
-        {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+        {activeError && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{activeError}</div>}
+        {isReadLoading && <p className="text-sm text-zinc-500">Loading data...</p>}
 
         <div className="grid gap-3 md:grid-cols-2">
           <input placeholder={fetchedBank.bank_name || "Bank Name"} value={bank.bank_name} onChange={(e) => setBank((prev) => ({ ...prev, bank_name: e.target.value }))} className="rounded-lg border border-zinc-300 px-3 py-2.5" />
@@ -467,7 +472,7 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
   return (
     <div className="space-y-4">
       {message && <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">{message}</div>}
-      {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+      {activeError && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{activeError}</div>}
 
       {resolutions.map((item) => (
         <div key={item.id} className="rounded-lg border border-zinc-200 p-4">
