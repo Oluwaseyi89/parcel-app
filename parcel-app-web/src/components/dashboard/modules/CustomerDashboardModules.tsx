@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { apiRequest, unwrapListData } from "@/lib/api";
+import { useApi } from "@/lib/hooks/useApi";
 import { formatNaira, getProductName, getProductPrice } from "@/lib/productHelpers";
 import { useCartStore } from "@/lib/stores/cartStore";
 import type { Product, User } from "@/lib/types";
@@ -79,6 +80,7 @@ const sampleOrders: CustomerOrderItem[] = [
 ];
 
 export default function CustomerDashboardModules({ tab, user }: { tab: CustomerTab; user: User | null }) {
+  const { request } = useApi();
   const customerName = useMemo(() => `${String(user?.last_name ?? "")} ${String(user?.first_name ?? "")}`.trim(), [user?.first_name, user?.last_name]);
 
   const [cartRows, setCartRows] = useState<CartRow[]>([]);
@@ -201,7 +203,7 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
     setError("");
     setMessage("");
     try {
-      await apiRequest<{ status?: string; data?: string }>(`/dispatch/items/${dispatchItemId}/update/`, {
+      await request<{ status?: string; data?: string }>(`/dispatch/items/${dispatchItemId}/update/`, {
         method: "PATCH",
         body: {
           is_delivered: checked,
@@ -248,7 +250,7 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
         updated_at: new Date().toISOString(),
       };
 
-      const res = await apiRequest<{ status?: string; data?: string }>("/complaints/submit/", {
+      const res = await request<{ status?: string; data?: string }>("/complaints/submit/", {
         method: "POST",
         body: payload as Record<string, unknown>,
         json: true,
@@ -266,7 +268,7 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
   async function markComplaintSatisfied(id: number, checked: boolean) {
     setError("");
     try {
-      await apiRequest<{ status?: string; data?: string }>(`/complaints/update/${id}/`, {
+      await request<{ status?: string; data?: string }>(`/complaints/update/${id}/`, {
         method: "PATCH",
         body: {
           is_satisfied: checked,
