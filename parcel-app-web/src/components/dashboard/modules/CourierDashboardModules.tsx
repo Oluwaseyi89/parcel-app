@@ -6,7 +6,7 @@ import { unwrapListData } from "@/lib/api";
 import { useApi } from "@/lib/hooks/useApi";
 import { DashboardFeedback } from "@/components/dashboard/DashboardUi";
 import { formatNaira } from "@/lib/productHelpers";
-import type { User } from "@/lib/types";
+import type { User, ApiResponse, BankDetails } from "@/lib/types";
 
 type CourierTab = "deals" | "dispatches" | "transactions" | "resolutions";
 
@@ -44,12 +44,7 @@ interface CourierDispatch {
   }>;
 }
 
-interface BankDetails {
-  bank_name: string;
-  account_type: string;
-  account_name: string;
-  account_no: string;
-}
+
 
 interface CourierTransaction {
   id: number;
@@ -105,7 +100,7 @@ export default function CourierDashboardModules({ tab, user }: { tab: CourierTab
     }
 
     if (tab === "deals") {
-      readRequest<unknown>("/dispatch/dispatches/?status=assigned", { method: "GET" })
+      readRequest<ApiResponse>("/dispatch/dispatches/?status=assigned", { method: "GET" })
         .then((res) => {
           const rows = unwrapListData<Record<string, unknown>>(res).map((dispatch) => {
             const orderDetails = (dispatch.order_details ?? {}) as Record<string, unknown>;
@@ -137,7 +132,7 @@ export default function CourierDashboardModules({ tab, user }: { tab: CourierTab
     }
 
     if (tab === "dispatches") {
-      readRequest<unknown>("/dispatch/dispatches/", { method: "GET" })
+      readRequest<ApiResponse>("/dispatch/dispatches/", { method: "GET" })
         .then((res) => {
           const rows = unwrapListData<Record<string, unknown>>(res)
             .map((dispatch) => {
@@ -174,7 +169,7 @@ export default function CourierDashboardModules({ tab, user }: { tab: CourierTab
     }
 
     if (tab === "transactions") {
-      readRequest<{ status?: string; data?: Partial<BankDetails> }>(`/banking/courier/get/${encodeURIComponent(email)}/`, { method: "GET" })
+      readRequest<ApiResponse<Partial<BankDetails>>>(`/banking/courier/get/${encodeURIComponent(email)}/`, { method: "GET" })
         .then((res) => {
           if (res.status === "success" && res.data) {
             setFetchedBank(res.data);
@@ -192,7 +187,7 @@ export default function CourierDashboardModules({ tab, user }: { tab: CourierTab
         status: "picking_up",
         notes: `Accepted by ${courierName}`,
       };
-      await request<{ status?: string; data?: string }>(`/dispatch/dispatches/${dispatchId}/status/`, {
+      await request<ApiResponse>(`/dispatch/dispatches/${dispatchId}/status/`, {
         method: "POST",
         body: payload as Record<string, unknown>,
         json: true,
@@ -209,7 +204,7 @@ export default function CourierDashboardModules({ tab, user }: { tab: CourierTab
     setMessage("");
 
     try {
-      await request<{ status?: string; data?: string }>(`/dispatch/items/${dispatchItemId}/update/`, {
+      await request<ApiResponse>(`/dispatch/items/${dispatchItemId}/update/`, {
         method: "PATCH",
         body: {
           [key]: checked,
@@ -253,7 +248,7 @@ export default function CourierDashboardModules({ tab, user }: { tab: CourierTab
         added_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
-      const res = await request<{ status?: string; data?: string }>(path, {
+      const res = await request<ApiResponse>(path, {
         method,
         body: payload as Record<string, unknown>,
         json: true,
