@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { unwrapListData } from "@/lib/api";
 import { useApi } from "@/lib/hooks/useApi";
+import { DashboardFeedback } from "@/components/dashboard/DashboardUi";
 import { formatNaira } from "@/lib/productHelpers";
 import type { User } from "@/lib/types";
 
@@ -272,9 +273,7 @@ export default function CourierDashboardModules({ tab, user }: { tab: CourierTab
   if (tab === "deals") {
     return (
       <div className="space-y-4">
-        {message && <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">{message}</div>}
-        {activeError && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{activeError}</div>}
-        {isReadLoading && <p className="text-sm text-zinc-500">Loading data...</p>}
+        <DashboardFeedback message={message} error={activeError} isLoading={isReadLoading} />
 
         <p className="text-zinc-700">Deals available: {deals.length}</p>
         {deals.map((deal) => (
@@ -299,9 +298,7 @@ export default function CourierDashboardModules({ tab, user }: { tab: CourierTab
   if (tab === "dispatches") {
     return (
       <div className="space-y-4">
-        {message && <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">{message}</div>}
-        {activeError && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{activeError}</div>}
-        {isReadLoading && <p className="text-sm text-zinc-500">Loading data...</p>}
+        <DashboardFeedback message={message} error={activeError} isLoading={isReadLoading} />
 
         <p className="text-zinc-700">Dispatch groups: {dispatches.length}</p>
         {dispatches.map((dispatch) => (
@@ -347,9 +344,7 @@ export default function CourierDashboardModules({ tab, user }: { tab: CourierTab
 
     return (
       <div className="space-y-4">
-        {message && <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">{message}</div>}
-        {activeError && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{activeError}</div>}
-        {isReadLoading && <p className="text-sm text-zinc-500">Loading data...</p>}
+        <DashboardFeedback message={message} error={activeError} isLoading={isReadLoading} />
 
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="rounded-lg border border-zinc-200 p-3 text-sm">Total records: <strong>{transactions.length}</strong></div>

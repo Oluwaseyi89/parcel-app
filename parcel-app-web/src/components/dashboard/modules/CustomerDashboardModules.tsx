@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { unwrapListData } from "@/lib/api";
 import { useApi } from "@/lib/hooks/useApi";
+import { DashboardFeedback, DashboardLoading } from "@/components/dashboard/DashboardUi";
 import { formatNaira, getProductName, getProductPrice } from "@/lib/productHelpers";
 import { useCartStore } from "@/lib/stores/cartStore";
 import type { Product, User } from "@/lib/types";
@@ -289,7 +290,7 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
 
     return (
       <div className="space-y-4">
-        {isReadLoading && <p className="text-sm text-zinc-500">Loading data...</p>}
+        <DashboardLoading isLoading={isReadLoading} />
         <p className="text-zinc-700">Saved cart items: {cartRows.length}</p>
         {cartRows.length === 0 && <p className="text-sm text-zinc-500">No saved cart records found.</p>}
         {cartRows.map((row) => {
@@ -314,7 +315,7 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
 
     return (
       <div className="space-y-4">
-        {isReadLoading && <p className="text-sm text-zinc-500">Loading data...</p>}
+        <DashboardLoading isLoading={isReadLoading} />
         <div className="flex flex-wrap gap-2">
           {["all", "pending", "processing", "shipped", "delivered", "cancelled"].map((status) => (
             <button
@@ -354,9 +355,7 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
   if (tab === "deliveries") {
     return (
       <div className="space-y-4">
-        {message && <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">{message}</div>}
-        {activeError && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{activeError}</div>}
-        {isReadLoading && <p className="text-sm text-zinc-500">Loading data...</p>}
+        <DashboardFeedback message={message} error={activeError} isLoading={isReadLoading} />
         <p className="text-zinc-700">Expected delivery groups: {deliveries.length}</p>
         {deliveries.map((deal) => (
           <div key={String(deal.order_id)} className="rounded-lg border border-zinc-200 p-4">
@@ -409,9 +408,7 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
 
   return (
     <div className="space-y-4">
-      {message && <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">{message}</div>}
-      {activeError && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{activeError}</div>}
-      {isReadLoading && <p className="text-sm text-zinc-500">Loading data...</p>}
+      <DashboardFeedback message={message} error={activeError} isLoading={isReadLoading} />
 
       <form onSubmit={submitComplaint} className="space-y-3 rounded-lg border border-zinc-200 p-4">
         <input value={complaintSubject} onChange={(e) => setComplaintSubject(e.target.value)} placeholder="Complaint Subject" className="w-full rounded-lg border border-zinc-300 px-3 py-2.5" />
