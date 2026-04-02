@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { apiForm, unwrapListData } from "@/lib/api";
 import { useApi } from "@/lib/hooks/useApi";
+import { DashboardFeedback } from "@/components/dashboard/DashboardUi";
 import { formatNaira } from "@/lib/productHelpers";
 import type { Product, User } from "@/lib/types";
 
@@ -344,9 +345,7 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
   if (tab === "products") {
     return (
       <div className="space-y-4">
-        {message && <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">{message}</div>}
-        {activeError && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{activeError}</div>}
-        {isReadLoading && <p className="text-sm text-zinc-500">Loading data...</p>}
+        <DashboardFeedback message={message} error={activeError} isLoading={isReadLoading} />
 
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="rounded-lg border border-zinc-200 p-3 text-sm">Approved products: <strong>{productsTotal}</strong></div>
@@ -423,9 +422,7 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
   if (tab === "deals") {
     return (
       <div className="space-y-4">
-        {message && <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">{message}</div>}
-        {activeError && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{activeError}</div>}
-        {isReadLoading && <p className="text-sm text-zinc-500">Loading data...</p>}
+        <DashboardFeedback message={message} error={activeError} isLoading={isReadLoading} />
 
         <p className="text-zinc-700">Supply deals: {deals.length}</p>
         {deals.map((item) => (
@@ -447,9 +444,7 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
   if (tab === "transactions") {
     return (
       <div className="space-y-4">
-        {message && <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">{message}</div>}
-        {activeError && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{activeError}</div>}
-        {isReadLoading && <p className="text-sm text-zinc-500">Loading data...</p>}
+        <DashboardFeedback message={message} error={activeError} isLoading={isReadLoading} />
 
         <div className="grid gap-3 md:grid-cols-2">
           <input placeholder={fetchedBank.bank_name || "Bank Name"} value={bank.bank_name} onChange={(e) => setBank((prev) => ({ ...prev, bank_name: e.target.value }))} className="rounded-lg border border-zinc-300 px-3 py-2.5" />
@@ -471,8 +466,7 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
 
   return (
     <div className="space-y-4">
-      {message && <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">{message}</div>}
-      {activeError && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{activeError}</div>}
+      <DashboardFeedback message={message} error={activeError} />
 
       {resolutions.map((item) => (
         <div key={item.id} className="rounded-lg border border-zinc-200 p-4">
