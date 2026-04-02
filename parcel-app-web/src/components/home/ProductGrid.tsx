@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { Eye, Package, ShoppingCart, Shield, Star, Store, Tag, Truck } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-import { env } from "@/env";
+import { apiRequest } from "@/lib/api";
 import { demoProducts } from "@/lib/demoProducts";
 import { storage } from "@/lib/storage";
 import { useCartStore } from "@/lib/stores/cartStore";
@@ -27,6 +27,17 @@ function productImageFallback(name: string): string {
   return `https://via.placeholder.com/300x300?text=${encodeURIComponent(name)}`;
 }
 
+interface ProductListResponse {
+  status?: string;
+  data?: Product[];
+  pagination?: {
+    page: number;
+    page_size: number;
+    total_count: number;
+    total_pages: number;
+  };
+}
+
 export default function ProductGrid() {
   const router = useRouter();
   const { products, setProducts, loading, error, setLoading, setError, setSelectedProduct } = useProductStore();
@@ -37,17 +48,8 @@ export default function ProductGrid() {
     setError(null);
 
     try {
-      const response = await fetch(`${env.apiBase}/product/products/`, {
-        method: "GET",
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch products: ${response.status}`);
-      }
-
-      const data = (await response.json()) as { data?: Product[] } | Product[];
-      const resolvedProducts = Array.isArray(data) ? data : data.data;
+      const result = await apiRequest<ProductListResponse>("/product/products/", { method: "GET" });
+      const resolvedProducts = result.data;
       if (resolvedProducts && resolvedProducts.length > 0) {
         setProducts(resolvedProducts);
       } else {
