@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { apiRequest } from "@/lib/api";
+import { apiRequest, unwrapListData } from "@/lib/api";
 import { formatNaira } from "@/lib/productHelpers";
 import type { User } from "@/lib/types";
 
@@ -95,25 +95,6 @@ export default function CourierDashboardModules({ tab, user }: { tab: CourierTab
   const email = String(user?.email ?? "");
   const courierName = `${String(user?.last_name ?? "")} ${String(user?.first_name ?? "")}`.trim();
 
-  function extractDispatchList(payload: unknown): Array<Record<string, unknown>> {
-    if (!payload || typeof payload !== "object") {
-      return [];
-    }
-
-    const body = payload as Record<string, unknown>;
-    if (body.results && typeof body.results === "object") {
-      const wrapped = body.results as Record<string, unknown>;
-      if (Array.isArray(wrapped.data)) {
-        return wrapped.data as Array<Record<string, unknown>>;
-      }
-    }
-    if (Array.isArray(body.data)) {
-      return body.data as Array<Record<string, unknown>>;
-    }
-
-    return [];
-  }
-
   useEffect(() => {
     if (!email) {
       return;
@@ -122,7 +103,7 @@ export default function CourierDashboardModules({ tab, user }: { tab: CourierTab
     if (tab === "deals") {
       apiRequest<unknown>("/dispatch/dispatches/?status=assigned", { method: "GET" })
         .then((res) => {
-          const rows = extractDispatchList(res).map((dispatch) => {
+          const rows = unwrapListData<Record<string, unknown>>(res).map((dispatch) => {
             const orderDetails = (dispatch.order_details ?? {}) as Record<string, unknown>;
             const customerDetails = (orderDetails.customer_details ?? {}) as Record<string, unknown>;
             const itemRows = Array.isArray(dispatch.items) ? dispatch.items : [];
@@ -154,7 +135,7 @@ export default function CourierDashboardModules({ tab, user }: { tab: CourierTab
     if (tab === "dispatches") {
       apiRequest<unknown>("/dispatch/dispatches/", { method: "GET" })
         .then((res) => {
-          const rows = extractDispatchList(res)
+          const rows = unwrapListData<Record<string, unknown>>(res)
             .map((dispatch) => {
               const orderDetails = (dispatch.order_details ?? {}) as Record<string, unknown>;
               const customerDetails = (orderDetails.customer_details ?? {}) as Record<string, unknown>;

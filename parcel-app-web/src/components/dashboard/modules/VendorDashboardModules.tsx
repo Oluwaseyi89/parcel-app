@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { apiForm, apiRequest } from "@/lib/api";
+import { apiForm, apiRequest, unwrapListData } from "@/lib/api";
 import { formatNaira } from "@/lib/productHelpers";
 import type { Product, User } from "@/lib/types";
 
@@ -106,29 +106,6 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
   const email = String(user?.email ?? "");
   const vendorName = `${String(user?.last_name ?? "")} ${String(user?.first_name ?? "")}`.trim();
 
-  function extractList<T>(payload: unknown): T[] {
-    if (!payload || typeof payload !== "object") {
-      return [];
-    }
-
-    const body = payload as Record<string, unknown>;
-    if (Array.isArray(body.data)) {
-      return body.data as T[];
-    }
-
-    if (body.results && typeof body.results === "object") {
-      const results = body.results as Record<string, unknown>;
-      if (Array.isArray(results.data)) {
-        return results.data as T[];
-      }
-      if (Array.isArray(body.results)) {
-        return body.results as T[];
-      }
-    }
-
-    return [];
-  }
-
   useEffect(() => {
     if (!email) {
       return;
@@ -153,7 +130,7 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
     if (tab === "deals") {
       apiRequest<unknown>("/dispatch/vendor/items/?status=pending", { method: "GET" })
         .then((res) => {
-          const rows = extractList<Record<string, unknown>>(res).map((item) => {
+          const rows = unwrapListData<Record<string, unknown>>(res).map((item) => {
             const orderItemDetails = (item.order_item_details ?? {}) as Record<string, unknown>;
             return {
               dispatch_item_id: String(item.id ?? ""),

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { apiRequest } from "@/lib/api";
+import { apiRequest, unwrapListData } from "@/lib/api";
 import { formatNaira, getProductName, getProductPrice } from "@/lib/productHelpers";
 import { useCartStore } from "@/lib/stores/cartStore";
 import type { Product, User } from "@/lib/types";
@@ -100,23 +100,7 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
     const [loadingTab, setLoadingTab] = useState(false);
     const localCart = useCartStore((state) => state.cart as Product[]);
 
-    function extractDispatchList(payload: unknown): Array<Record<string, unknown>> {
-      if (!payload || typeof payload !== "object") {
-        return [];
-      }
 
-      const body = payload as Record<string, unknown>;
-      if (body.results && typeof body.results === "object") {
-        const wrapped = body.results as Record<string, unknown>;
-        if (Array.isArray(wrapped.data)) {
-          return wrapped.data as Array<Record<string, unknown>>;
-        }
-      }
-      if (Array.isArray(body.data)) {
-        return body.data as Array<Record<string, unknown>>;
-      }
-      return [];
-    }
 
   useEffect(() => {
     if (!user?.email || !customerName) {
@@ -138,7 +122,7 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
     if (tab === "deliveries") {
       apiRequest<unknown>("/dispatch/dispatches/", { method: "GET" })
         .then((res) => {
-          const rows = extractDispatchList(res)
+          const rows = unwrapListData<Record<string, unknown>>(res)
             .map((dispatch) => {
               const orderDetails = (dispatch.order_details ?? {}) as Record<string, unknown>;
               const customerDetails = (orderDetails.customer_details ?? {}) as Record<string, unknown>;
