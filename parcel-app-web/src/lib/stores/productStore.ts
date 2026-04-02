@@ -18,6 +18,11 @@ interface ProductState {
   clearSelectedProduct: () => void;
 }
 
+interface ProductListEnvelope {
+  status?: string;
+  data?: Product[];
+}
+
 export const useProductStore = create<ProductState>((set, get) => ({
   products: [],
   selectedProduct: null,
@@ -32,8 +37,9 @@ export const useProductStore = create<ProductState>((set, get) => ({
   getAllProducts: async (fetchUrl) => {
     set({ loading: true, error: null });
     try {
-      const data = await apiRequest<Product[]>(fetchUrl, { method: "GET" });
-      set({ products: data, loading: false });
+      const response = await apiRequest<Product[] | ProductListEnvelope>(fetchUrl, { method: "GET" });
+      const products = Array.isArray(response) ? response : Array.isArray(response.data) ? response.data : [];
+      set({ products, loading: false });
     } catch (error) {
       set({ error: error instanceof Error ? error.message : "Failed to fetch products.", loading: false });
     }
