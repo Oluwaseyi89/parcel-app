@@ -7,7 +7,7 @@ import { useApi } from "@/lib/hooks/useApi";
 import { DashboardFeedback, DashboardLoading } from "@/components/dashboard/DashboardUi";
 import { formatNaira, getProductName, getProductPrice } from "@/lib/productHelpers";
 import { useCartStore } from "@/lib/stores/cartStore";
-import type { Product, User } from "@/lib/types";
+import type { Product, User, ApiResponse, ApiListResponse } from "@/lib/types";
 
 type CustomerTab = "carts" | "orders" | "deliveries" | "notifications" | "complaints";
 
@@ -122,7 +122,7 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
     }
 
     if (tab === "deliveries") {
-      readRequest<unknown>("/dispatch/dispatches/", { method: "GET" })
+      readRequest<ApiResponse>("/dispatch/dispatches/", { method: "GET" })
         .then((res) => {
           const rows = unwrapListData<Record<string, unknown>>(res)
             .map((dispatch) => {
@@ -162,7 +162,7 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
     }
 
     if (tab === "complaints") {
-      readRequest<{ data?: ComplaintItem[] }>(`/complaints/customer/${encodeURIComponent(String(user.email))}/`, { method: "GET" })
+      readRequest<ApiListResponse<ComplaintItem>>(`/complaints/customer/${encodeURIComponent(String(user.email))}/`, { method: "GET" })
          .then((res) => {
            setComplaints(Array.isArray(res.data) ? res.data.filter((c) => !c.is_satisfied) : []);
            setError("");
@@ -182,7 +182,7 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
 
     Promise.all(
       cartRows.map((row) =>
-        readRequest<{ status?: string; data?: Product }>(`/product/products/${row.product_id}/`, { method: "GET" })
+        readRequest<ApiResponse<Product>>(`/product/products/${row.product_id}/`, { method: "GET" })
           .then((res) => [String(row.product_id), res.data] as const)
           .catch(() => [String(row.product_id), undefined] as const),
       ),
@@ -201,7 +201,7 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
     setError("");
     setMessage("");
     try {
-      await request<{ status?: string; data?: string }>(`/dispatch/items/${dispatchItemId}/update/`, {
+      await request<ApiResponse>(`/dispatch/items/${dispatchItemId}/update/`, {
         method: "PATCH",
         body: {
           is_delivered: checked,
@@ -248,7 +248,7 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
         updated_at: new Date().toISOString(),
       };
 
-      const res = await request<{ status?: string; data?: string }>("/complaints/submit/", {
+      const res = await request<ApiResponse>("/complaints/submit/", {
         method: "POST",
         body: payload as Record<string, unknown>,
         json: true,
@@ -266,7 +266,7 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
   async function markComplaintSatisfied(id: number, checked: boolean) {
     setError("");
     try {
-      await request<{ status?: string; data?: string }>(`/complaints/update/${id}/`, {
+      await request<ApiResponse>(`/complaints/update/${id}/`, {
         method: "PATCH",
         body: {
           is_satisfied: checked,

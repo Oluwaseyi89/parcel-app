@@ -6,7 +6,7 @@ import { apiForm, unwrapListData } from "@/lib/api";
 import { useApi } from "@/lib/hooks/useApi";
 import { DashboardFeedback } from "@/components/dashboard/DashboardUi";
 import { formatNaira } from "@/lib/productHelpers";
-import type { Product, User } from "@/lib/types";
+import type { Product, User, ApiResponse, ApiListResponse, BankDetails, ProductsApprovalResponse, CategoryOption } from "@/lib/types";
 
 type VendorTab = "products" | "deals" | "transactions" | "resolutions";
 
@@ -21,17 +21,7 @@ interface VendorDealItem {
   is_supply_ready?: boolean;
 }
 
-interface CategoryOption {
-  id: number;
-  name: string;
-}
 
-interface BankDetails {
-  bank_name: string;
-  account_type: string;
-  account_name: string;
-  account_no: string;
-}
 
 interface ResolutionItem {
   id: number;
@@ -116,7 +106,7 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
     }
 
     if (tab === "products") {
-      readRequest<{ status?: string; data?: { approved?: Product[]; pending?: unknown[] } }>("/product/vendor/products/?include_temp=true", { method: "GET" })
+      readRequest<ApiResponse<ProductsApprovalResponse>>("/product/vendor/products/?include_temp=true", { method: "GET" })
         .then((res) => {
           const approved = Array.isArray(res.data?.approved) ? res.data?.approved : [];
           const pending = Array.isArray(res.data?.pending) ? res.data?.pending : [];
@@ -125,14 +115,14 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
         })
         .catch(() => setProducts([]));
 
-      readRequest<{ data?: CategoryOption[] }>("/product/categories/", { method: "GET" })
+      readRequest<ApiListResponse<CategoryOption>>("/product/categories/", { method: "GET" })
         .then((res) => setCategories(Array.isArray(res.data) ? res.data : []))
         .catch(() => setCategories([]));
       return;
     }
 
     if (tab === "deals") {
-      readRequest<unknown>("/dispatch/vendor/items/?status=pending", { method: "GET" })
+      readRequest<ApiResponse>("/dispatch/vendor/items/?status=pending", { method: "GET" })
         .then((res) => {
           const rows = unwrapListData<Record<string, unknown>>(res).map((item) => {
             const orderItemDetails = (item.order_item_details ?? {}) as Record<string, unknown>;
@@ -153,7 +143,7 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
     }
 
     if (tab === "transactions") {
-      readRequest<{ status?: string; data?: Partial<BankDetails> }>(`/banking/vendor/get/${encodeURIComponent(email)}/`, { method: "GET" })
+      readRequest<ApiResponse<Partial<BankDetails>>>(`/banking/vendor/get/${encodeURIComponent(email)}/`, { method: "GET" })
         .then((res) => {
           if (res.status === "success" && res.data) {
             setFetchedBank(res.data);
@@ -202,7 +192,7 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
     try {
       const formData = new FormData();
       formData.append("is_ready_for_pickup", String(checked));
-      await request<{ status?: string; data?: string }>(`/dispatch/items/${item.dispatch_item_id}/update/`, {
+      await request<ApiResponse>(`/dispatch/items/${item.dispatch_item_id}/update/`, {
         method: "PATCH",
         body: {
           is_ready_for_pickup: checked,
@@ -221,7 +211,7 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
     setError("");
     setMessage("");
     try {
-      const res = await request<{ status?: string; message?: string; data?: string }>(`/product/products/${productId}/update/`, {
+      const res = await request<ApiResponse>(`/product/products/${productId}/update/`, {
         method: "PATCH",
         body: {
           status: "archived",
@@ -254,7 +244,7 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
         quantity: Number(editForm.edit_qty),
         discount_percentage: Number(editForm.edit_disc),
       };
-      const res = await request<{ status?: string; message?: string; data?: string }>(`/product/products/${productId}/update/`, {
+      const res = await request<ApiResponse>(`/product/products/${productId}/update/`, {
         method: "PATCH",
         body: payload as Record<string, unknown>,
         json: true,
@@ -324,7 +314,7 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
     };
 
     try {
-      const res = await request<{ status?: string; data?: string }>(path, {
+      const res = await request<ApiResponse>(path, {
         method,
         body: payload as Record<string, unknown>,
         json: true,
