@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { apiRequest, unwrapListData } from "@/lib/api";
+import { useApi } from "@/lib/hooks/useApi";
 import { formatNaira } from "@/lib/productHelpers";
 import type { User } from "@/lib/types";
 
@@ -83,6 +84,7 @@ const resolutionCards: CourierResolutionCard[] = [
 ];
 
 export default function CourierDashboardModules({ tab, user }: { tab: CourierTab; user: User | null }) {
+  const { request } = useApi();
   const [deals, setDeals] = useState<CourierDeal[]>([]);
   const [dispatches, setDispatches] = useState<CourierDispatch[]>([]);
 
@@ -188,7 +190,7 @@ export default function CourierDashboardModules({ tab, user }: { tab: CourierTab
         status: "picking_up",
         notes: `Accepted by ${courierName}`,
       };
-      await apiRequest<{ status?: string; data?: string }>(`/dispatch/dispatches/${dispatchId}/status/`, {
+      await request<{ status?: string; data?: string }>(`/dispatch/dispatches/${dispatchId}/status/`, {
         method: "POST",
         body: payload as Record<string, unknown>,
         json: true,
@@ -205,7 +207,7 @@ export default function CourierDashboardModules({ tab, user }: { tab: CourierTab
     setMessage("");
 
     try {
-      await apiRequest<{ status?: string; data?: string }>(`/dispatch/items/${dispatchItemId}/update/`, {
+      await request<{ status?: string; data?: string }>(`/dispatch/items/${dispatchItemId}/update/`, {
         method: "PATCH",
         body: {
           [key]: checked,
@@ -249,7 +251,7 @@ export default function CourierDashboardModules({ tab, user }: { tab: CourierTab
         added_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
-      const res = await apiRequest<{ status?: string; data?: string }>(path, {
+      const res = await request<{ status?: string; data?: string }>(path, {
         method,
         body: payload as Record<string, unknown>,
         json: true,

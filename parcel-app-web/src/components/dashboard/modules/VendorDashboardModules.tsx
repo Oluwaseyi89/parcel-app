@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { apiForm, apiRequest, unwrapListData } from "@/lib/api";
+import { useApi } from "@/lib/hooks/useApi";
 import { formatNaira } from "@/lib/productHelpers";
 import type { Product, User } from "@/lib/types";
 
@@ -75,6 +76,7 @@ const sampleResolutions: ResolutionItem[] = [
 ];
 
 export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; user: User | null }) {
+  const { request } = useApi();
   const [products, setProducts] = useState<Product[]>([]);
   const [tempCount, setTempCount] = useState(0);
 
@@ -198,7 +200,7 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
     try {
       const formData = new FormData();
       formData.append("is_ready_for_pickup", String(checked));
-      await apiRequest<{ status?: string; data?: string }>(`/dispatch/items/${item.dispatch_item_id}/update/`, {
+      await request<{ status?: string; data?: string }>(`/dispatch/items/${item.dispatch_item_id}/update/`, {
         method: "PATCH",
         body: {
           is_ready_for_pickup: checked,
@@ -217,7 +219,7 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
     setError("");
     setMessage("");
     try {
-      const res = await apiRequest<{ status?: string; message?: string; data?: string }>(`/product/products/${productId}/update/`, {
+      const res = await request<{ status?: string; message?: string; data?: string }>(`/product/products/${productId}/update/`, {
         method: "PATCH",
         body: {
           status: "archived",
@@ -250,7 +252,7 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
         quantity: Number(editForm.edit_qty),
         discount_percentage: Number(editForm.edit_disc),
       };
-      const res = await apiRequest<{ status?: string; message?: string; data?: string }>(`/product/products/${productId}/update/`, {
+      const res = await request<{ status?: string; message?: string; data?: string }>(`/product/products/${productId}/update/`, {
         method: "PATCH",
         body: payload as Record<string, unknown>,
         json: true,
@@ -320,7 +322,7 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
     };
 
     try {
-      const res = await apiRequest<{ status?: string; data?: string }>(path, {
+      const res = await request<{ status?: string; data?: string }>(path, {
         method,
         body: payload as Record<string, unknown>,
         json: true,
