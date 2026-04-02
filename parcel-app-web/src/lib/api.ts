@@ -7,6 +7,13 @@ export type ApiRequestOptions = Omit<RequestInit, "body"> & {
   json?: boolean;
 };
 
+export type ApiEnvelope<T> = {
+  status?: string;
+  message?: string;
+  data?: T;
+  errors?: unknown;
+};
+
 function getCookie(name: string): string | null {
   if (typeof document === "undefined" || !document.cookie) {
     return null;
@@ -68,6 +75,19 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   }
 
   return (await res.json()) as T;
+}
+
+export function unwrapApiData<T>(payload: T | ApiEnvelope<T> | null | undefined, fallback: T): T {
+  if (payload == null) {
+    return fallback;
+  }
+
+  if (typeof payload === "object" && !Array.isArray(payload) && "data" in payload) {
+    const data = (payload as ApiEnvelope<T>).data;
+    return (data ?? fallback) as T;
+  }
+
+  return payload as T;
 }
 
 export async function apiJSON<T>(path: string, method: string, body?: JsonBody): Promise<T> {
