@@ -66,8 +66,16 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   const res = await fetch(toAbsoluteUrl(path), requestInit);
 
   if (!res.ok) {
-    const payload = await res.text().catch(() => "");
-    throw new Error(`API request failed (${res.status}): ${payload}`);
+    const raw = await res.text().catch(() => "");
+    let message = `Request failed (${res.status})`;
+    try {
+      const body = JSON.parse(raw) as { message?: string; detail?: string; error?: string };
+      const extracted = body.message ?? body.detail ?? body.error;
+      if (extracted) message = String(extracted);
+    } catch {
+      if (raw.trim()) message = raw.trim();
+    }
+    throw new Error(message);
   }
 
   if (res.status === 204) {
