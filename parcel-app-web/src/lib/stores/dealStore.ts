@@ -17,6 +17,11 @@ interface DealState {
   clearDeals: () => void;
 }
 
+interface DealListEnvelope {
+  status?: string;
+  data?: Deal[];
+}
+
 export const useDealStore = create<DealState>((set) => ({
   deals: [],
   loading: false,
@@ -29,8 +34,9 @@ export const useDealStore = create<DealState>((set) => ({
   fetchDeals: async (fetchUrl) => {
     set({ loading: true, error: null });
     try {
-      const data = await apiRequest<Deal[]>(fetchUrl, { method: "GET" });
-      const filteredDeals = data.filter((item) => !item.handled_dispatch);
+      const response = await apiRequest<Deal[] | DealListEnvelope>(fetchUrl, { method: "GET" });
+      const deals = Array.isArray(response) ? response : Array.isArray(response.data) ? response.data : [];
+      const filteredDeals = deals.filter((item) => !item.handled_dispatch);
       set({ deals: filteredDeals, loading: false });
     } catch (error) {
       set({ error: error instanceof Error ? error.message : "Failed to fetch deals.", loading: false });
