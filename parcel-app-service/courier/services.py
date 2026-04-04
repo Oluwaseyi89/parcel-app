@@ -22,8 +22,7 @@ class CourierService:
         
         # Check for existing courier
         email = courier_data.get('email', '').lower()
-        if TempCourierUser.objects.filter(email=email).exists() or \
-           CourierUser.objects.filter(email=email).exists():
+        if CourierUser.objects.filter(email=email).exists() or TempCourierUser.objects.filter(email=email).exists():
             raise ValidationError("Courier with this email already exists")
         
         # Create temporary courier
@@ -37,9 +36,9 @@ class CourierService:
             AuditLog.log_action(
                 user=courier,
                 action='create',
-                model_name='TempCourierUser',
+                model_name='CourierUser',
                 object_id=courier.id,
-                details={'type': 'temp_courier_registration'},
+                details={'type': 'courier_registration_pending_approval'},
                 request=request
             )
         
@@ -47,11 +46,49 @@ class CourierService:
     
     @staticmethod
     def approve_courier(temp_courier_id, admin_user, request=None):
-        """Approve a temporary courier"""
+        """Approve a pending courier account."""
+        # Stage 3 primary path: approve CourierUser directly.
+        try:
+            courier = CourierUser.objects.get(id=temp_courier_id, is_active=True)
+
+            if not courier.is_email_verified:
+                raise ValidationError("Courier email not verified")
+
+            if courier.is_approved:
+                return courier
+
+            review_time = timezone.now()
+            courier.is_approved = True
+            courier.approval_status = 'approved'
+            courier.rejection_reason = ''
+            courier.reviewed_at = review_time
+            courier.status = 'active'
+            courier.approved_by = admin_user
+            courier.approved_at = review_time
+            courier.save()
+
+            AuditLog.log_action(
+                user=admin_user,
+                action='update',
+                model_name='CourierUser',
+                object_id=courier.id,
+                details={
+                    'action': 'courier_approval',
+                    'courier_id': courier.id,
+                    'approved_by': admin_user.email,
+                },
+                request=request
+            )
+
+            return courier
+        except CourierUser.DoesNotExist:
+            pass
+
+        # Legacy fallback for pre-stage-3 temp records.
         try:
             temp_courier = TempCourierUser.objects.get(id=temp_courier_id, is_active=True)
         except TempCourierUser.DoesNotExist:
-            raise ValidationError("Temporary courier not found")
+            raise ValidationError("Courier not found")
         
         if not temp_courier.is_email_verified:
             raise ValidationError("Courier email not verified")

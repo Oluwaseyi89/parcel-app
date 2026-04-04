@@ -56,9 +56,9 @@ class TempVendorListView(APIView):
     permission_classes = [IsAuthenticated, IsAdminOrSuperAdmin]
     
     def get(self, request):
-        from authentication.models import TempVendorUser
-        vendors = TempVendorUser.objects.filter(is_active=True)
-        serializer = TempVendorRegistrationSerializer(vendors, many=True)
+        # Stage 3: use primary VendorUser table for pending approvals.
+        vendors = VendorUser.objects.filter(is_active=True, is_approved=False)
+        serializer = VendorApprovalSerializer(vendors, many=True)
         return Response({
             "status": "success",
             "data": serializer.data
@@ -123,13 +123,19 @@ def activate_vendor(request, uidb64, token):
     """Activate vendor account"""
     try:
         uid = force_str(urlsafe_base64_decode(uidb64))
-        vendor = TempVendorUser.objects.get(pk=uid)
-    except (TypeError, ValueError, OverflowError, TempVendorUser.DoesNotExist):
-        vendor = None
+        vendor = VendorUser.objects.get(pk=uid)
+    except (TypeError, ValueError, OverflowError, VendorUser.DoesNotExist):
+        try:
+            vendor = TempVendorUser.objects.get(pk=uid)
+        except TempVendorUser.DoesNotExist:
+            vendor = None
     
     if vendor is not None and account_activation_token.check_token(vendor, token):
         vendor.is_email_verified = True
-        vendor.status = 'verified'
+        if isinstance(vendor, VendorUser):
+            vendor.approval_status = 'pending'
+        else:
+            vendor.status = 'verified'
         vendor.save()
         return render(request, "parcel_backends/activation_page.html", {
             "message": "Your vendor account has been activated successfully. Awaiting approval."

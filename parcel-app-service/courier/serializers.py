@@ -164,10 +164,10 @@ class TempCourierRegistrationSerializer(serializers.ModelSerializer):
     """Serializer for temporary courier registration"""
     password = serializers.CharField(write_only=True, required=True, min_length=8)
     confirm_password = serializers.CharField(write_only=True, required=True)
-    policy_accepted = serializers.BooleanField(required=True)
+    policy_accepted = serializers.BooleanField(write_only=True, required=True)
     
     class Meta:
-        model = TempCourierUser
+        model = CourierUser
         fields = [
             'email', 'password', 'confirm_password', 'first_name', 'last_name',
             'phone', 'business_country', 'business_state', 'business_street',
@@ -190,11 +190,17 @@ class TempCourierRegistrationSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         validated_data.pop('confirm_password')
+        validated_data.pop('policy_accepted', None)
         password = validated_data.pop('password')
         
-        courier = TempCourierUser(**validated_data)
+        courier = CourierUser(**validated_data)
         courier.set_password(password)
         courier.role = 'courier'  # Set role for authentication
+        courier.is_approved = False
+        courier.approval_status = 'pending'
+        courier.status = 'inactive'
+        courier.is_email_verified = False
+        courier.is_active = True
         courier.save()
         
         return courier
