@@ -1,9 +1,9 @@
 # product/serializers.py
 from rest_framework import serializers
 from django.utils.text import slugify
+from django.utils import timezone
 from .models import Category, TempProduct, Product
 from authentication.serializers import SimpleAdminSerializer
-from datetime import timezone
 
 class CategorySerializer(serializers.ModelSerializer):
     """Serializer for product categories"""
@@ -18,11 +18,12 @@ class CategorySerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 class TempProductCreateSerializer(serializers.ModelSerializer):
-    """Serializer for creating temporary products"""
+    """Serializer for creating products pending approval."""
     vendor_email = serializers.EmailField(write_only=True, required=False)
+    image = serializers.ImageField(source='main_image', write_only=True, required=True)
     
     class Meta:
-        model = TempProduct
+        model = Product
         fields = [
             'name', 'description', 'model', 'brand', 'category',
             'price', 'quantity', 'discount_percentage', 'image',
@@ -60,6 +61,22 @@ class TempProductCreateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({'vendor_email': 'Vendor not found or inactive.'})
         else:
             raise serializers.ValidationError({'vendor_email': 'Vendor email is required.'})
+
+        # Create pending product on primary table (single-record lifecycle).
+        validated_data['approval_status'] = 'pending'
+        validated_data['status'] = 'active'
+        validated_data['submitted_at'] = timezone.now()
+
+        if not validated_data.get('slug'):
+            base_slug = slugify(validated_data['name'])[:180] or 'product'
+            validated_data['slug'] = f"{base_slug}-{int(timezone.now().timestamp())}"
+
+        if not validated_data.get('sku'):
+            vendor_prefix = (validated_data['vendor'].business_name[:3] if validated_data['vendor'].business_name else 'VEN').upper()
+            category_obj = validated_data.get('category')
+            category_prefix = (category_obj.name[:3] if category_obj else 'GEN').upper()
+            timestamp = str(int(timezone.now().timestamp()))[-6:]
+            validated_data['sku'] = f"{vendor_prefix}-{category_prefix}-{timestamp}"
         
         return super().create(validated_data)
 

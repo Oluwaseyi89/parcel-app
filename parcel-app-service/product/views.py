@@ -56,7 +56,7 @@ class ProductDetailView(APIView):
     permission_classes = [AllowAny]
     
     def get(self, request, product_id):
-        product = get_object_or_404(Product, id=product_id, status='active')
+        product = get_object_or_404(Product, id=product_id, status='active', approval_status='approved')
         
         # Record view
         ProductService.record_product_view(product_id)
@@ -74,7 +74,7 @@ class ProductCreateView(APIView):
     
     def post(self, request):
         try:
-            temp_product = ProductService.create_temp_product(
+            pending_product = ProductService.create_temp_product(
                 request.data, 
                 request.user,
                 request
@@ -83,7 +83,7 @@ class ProductCreateView(APIView):
             return Response({
                 "status": "success",
                 "message": "Product created successfully and submitted for approval",
-                "data": TempProductSerializer(temp_product).data
+                "data": ProductSerializer(pending_product).data
             }, status=status.HTTP_201_CREATED)
             
         except Exception as e:
@@ -99,11 +99,11 @@ class TempProductListView(APIView):
     def get(self, request):
         status_filter = request.query_params.get('status', 'pending')
         
-        temp_products = TempProduct.objects.filter(
-            status=status_filter
+        temp_products = Product.objects.filter(
+            approval_status=status_filter
         ).select_related('vendor', 'category')
-        
-        serializer = TempProductSerializer(temp_products, many=True)
+
+        serializer = ProductSerializer(temp_products, many=True)
         return Response({
             "status": "success",
             "data": serializer.data
@@ -135,22 +135,30 @@ class ProductApprovalView(APIView):
                 data = ProductSerializer(product).data
                 
             elif action == 'reject':
-                temp_product = ProductService.reject_temp_product(
+                rejected_obj = ProductService.reject_temp_product(
                     temp_product_id,
                     request.user,
                     comments,
                     request
                 )
                 message = "Product rejected"
-                data = TempProductSerializer(temp_product).data
+                if isinstance(rejected_obj, Product):
+                    data = ProductSerializer(rejected_obj).data
+                else:
+                    data = TempProductSerializer(rejected_obj).data
                 
             else:  # request_changes
-                temp_product = get_object_or_404(TempProduct, id=temp_product_id)
-                temp_product.status = 'requires_changes'
-                temp_product.rejection_reason = comments
-                temp_product.save()
+                changed_obj = ProductService.request_product_changes(
+                    temp_product_id,
+                    request.user,
+                    comments,
+                    request
+                )
                 message = "Changes requested for product"
-                data = TempProductSerializer(temp_product).data
+                if isinstance(changed_obj, Product):
+                    data = ProductSerializer(changed_obj).data
+                else:
+                    data = TempProductSerializer(changed_obj).data
             
             return Response({
                 "status": "success",
@@ -184,7 +192,7 @@ class VendorProductsView(APIView):
             }
             
             if include_temp:
-                pending_serializer = TempProductSerializer(products_data['pending'], many=True)
+                pending_serializer = ProductSerializer(products_data['pending'], many=True)
                 response_data["pending"] = pending_serializer.data
             
             return Response({
