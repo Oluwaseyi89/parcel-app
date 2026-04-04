@@ -2,7 +2,7 @@
 from rest_framework import serializers
 from django.utils.text import slugify
 from django.utils import timezone
-from .models import Category, TempProduct, Product
+from .models import Category, Product
 from authentication.serializers import SimpleAdminSerializer
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -79,25 +79,6 @@ class TempProductCreateSerializer(serializers.ModelSerializer):
             validated_data['sku'] = f"{vendor_prefix}-{category_prefix}-{timestamp}"
         
         return super().create(validated_data)
-
-class TempProductSerializer(serializers.ModelSerializer):
-    """Serializer for temporary products (read-only)"""
-    vendor_name = serializers.CharField(source='vendor.get_full_name', read_only=True)
-    vendor_business = serializers.CharField(source='vendor.business_name', read_only=True)
-    category_name = serializers.CharField(source='category.name', read_only=True)
-    discounted_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
-    
-    class Meta:
-        model = TempProduct
-        fields = [
-            'id', 'name', 'description', 'model', 'brand',
-            'category', 'category_name', 'price', 'quantity',
-            'discount_percentage', 'discounted_price', 'image',
-            'image_url', 'sku', 'weight', 'dimensions',
-            'vendor_name', 'vendor_business', 'status',
-            'rejection_reason', 'created_at', 'updated_at'
-        ]
-        read_only_fields = fields
 
 class ProductCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating approved products"""

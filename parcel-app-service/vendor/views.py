@@ -16,7 +16,7 @@ from .serializers import (
 )
 from email_service.services import EmailService
 from core.tokens import account_activation_token
-from authentication.models import TempVendorUser, VendorUser
+from authentication.models import VendorUser
 
 class TempVendorRegistrationView(APIView):
     permission_classes = [AllowAny]
@@ -125,17 +125,11 @@ def activate_vendor(request, uidb64, token):
         uid = force_str(urlsafe_base64_decode(uidb64))
         vendor = VendorUser.objects.get(pk=uid)
     except (TypeError, ValueError, OverflowError, VendorUser.DoesNotExist):
-        try:
-            vendor = TempVendorUser.objects.get(pk=uid)
-        except TempVendorUser.DoesNotExist:
-            vendor = None
+        vendor = None
     
     if vendor is not None and account_activation_token.check_token(vendor, token):
         vendor.is_email_verified = True
-        if isinstance(vendor, VendorUser):
-            vendor.approval_status = 'pending'
-        else:
-            vendor.status = 'verified'
+        vendor.approval_status = 'pending'
         vendor.save()
         return render(request, "parcel_backends/activation_page.html", {
             "message": "Your vendor account has been activated successfully. Awaiting approval."
@@ -151,10 +145,7 @@ def vendor_reset(request, uidb64, token):
         uid = force_str(urlsafe_base64_decode(uidb64))
         vendor = VendorUser.objects.get(pk=uid)
     except (TypeError, ValueError, OverflowError, VendorUser.DoesNotExist):
-        try:
-            vendor = TempVendorUser.objects.get(pk=uid)
-        except TempVendorUser.DoesNotExist:
-            vendor = None
+        vendor = None
     
     if vendor is not None and account_activation_token.check_token(vendor, token):
         return render(request, "parcel_backends/password_reset_page.html", {
