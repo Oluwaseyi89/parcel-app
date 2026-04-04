@@ -49,9 +49,9 @@ Sample request object:
     "Authorization": "Bearer <token>"
   },
   "query": {
-    "search": "iphone",
-    "category": "Electronics",
-    "status": "active",
+    "query": "iphone",
+    "category": "electronics",
+    "sort_by": "newest",
     "page": 1
   },
   "body": null
@@ -62,22 +62,28 @@ Sample response object:
 ```json
 {
   "status": "success",
-  "data": {
-    "count": 2,
-    "next": null,
-    "previous": null,
-    "results": [
-      {
-        "id": 15,
-        "prod_name": "iPhone 13",
-        "prod_model": "A2633",
-        "prod_price": 780000,
-        "prod_qty": 7,
-        "prod_disc": 5,
-        "status": "active",
-        "vendor_email": "vendor1@example.com"
-      }
-    ]
+  "data": [
+    {
+      "id": 15,
+      "name": "iPhone 13",
+      "slug": "iphone-13-171225",
+      "brand": "Apple",
+      "model": "A2633",
+      "price": "780000.00",
+      "quantity": 7,
+      "discount_percentage": "5.00",
+      "status": "active",
+      "approval_status": "approved",
+      "vendor": 3,
+      "vendor_name": "Ada Vendor",
+      "category_name": "Electronics"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "page_size": 20,
+    "total_count": 2,
+    "total_pages": 1
   }
 }
 ```
@@ -103,15 +109,17 @@ Sample response object:
   "status": "success",
   "data": {
     "id": 15,
-    "prod_name": "iPhone 13",
-    "prod_model": "A2633",
-    "prod_desc": "128GB, Blue",
-    "prod_price": 780000,
-    "prod_qty": 7,
-    "prod_disc": 5,
-    "category": "Electronics",
+    "name": "iPhone 13",
+    "model": "A2633",
+    "description": "128GB, Blue",
+    "price": "780000.00",
+    "quantity": 7,
+    "discount_percentage": "5.00",
+    "category_name": "Electronics",
     "status": "active",
-    "vendor_email": "vendor1@example.com"
+    "approval_status": "approved",
+    "vendor": 3,
+    "vendor_name": "Ada Vendor"
   }
 }
 ```
@@ -125,18 +133,21 @@ Sample request object:
   "url": "/product/products/create/",
   "headers": {
     "Authorization": "Bearer <token>",
-    "Content-Type": "application/json"
+    "Content-Type": "multipart/form-data"
   },
   "query": {},
   "body": {
-    "vendor_email": "vendor1@example.com",
-    "prod_name": "Samsung S22",
-    "prod_model": "SM-S901B",
-    "prod_desc": "8GB RAM, 256GB",
-    "prod_price": 620000,
-    "prod_qty": 12,
-    "prod_disc": 10,
-    "category": "Electronics"
+    "name": "Samsung S22",
+    "description": "8GB RAM, 256GB",
+    "model": "SM-S901B",
+    "brand": "Samsung",
+    "category": 1,
+    "price": "620000.00",
+    "quantity": 12,
+    "discount_percentage": "10.00",
+    "weight": "0.18",
+    "dimensions": "14x7x0.8 cm",
+    "image": "<binary_file>"
   }
 }
 ```
@@ -148,7 +159,8 @@ Sample response object:
   "message": "Product created successfully and submitted for approval",
   "data": {
     "id": 41,
-    "prod_name": "Samsung S22",
+    "name": "Samsung S22",
+    "status": "active",
     "approval_status": "pending"
   }
 }
@@ -179,15 +191,16 @@ Sample response object:
     "approved": [
       {
         "id": 15,
-        "prod_name": "iPhone 13",
-        "prod_price": 780000,
+        "name": "iPhone 13",
+        "price": "780000.00",
+        "approval_status": "approved",
         "status": "active"
       }
     ],
     "pending": [
       {
         "id": 103,
-        "prod_name": "Infinix Note 30",
+        "name": "Infinix Note 30",
         "approval_status": "pending"
       }
     ]
@@ -208,9 +221,9 @@ Sample request object:
   },
   "query": {},
   "body": {
-    "prod_price": 760000,
-    "prod_qty": 10,
-    "prod_disc": 8
+    "price": "760000.00",
+    "quantity": 10,
+    "discount_percentage": "8.00"
   }
 }
 ```
@@ -222,9 +235,9 @@ Sample response object:
   "message": "Product updated successfully",
   "data": {
     "id": 15,
-    "prod_price": 760000,
-    "prod_qty": 10,
-    "prod_disc": 8
+    "price": "760000.00",
+    "quantity": 10,
+    "discount_percentage": "8.00"
   }
 }
 ```
@@ -293,6 +306,8 @@ Sample response object:
 
 ### 8) GET /product/temp-products/
 
+Note: despite this legacy route name, records come from the primary `Product` table using `approval_status` lifecycle.
+
 Sample request object:
 ```json
 {
@@ -315,8 +330,8 @@ Sample response object:
   "data": [
     {
       "id": 103,
-      "vendor_email": "vendor2@example.com",
-      "prod_name": "Infinix Note 30",
+      "name": "Infinix Note 30",
+      "vendor": 7,
       "approval_status": "pending"
     }
   ]
@@ -347,8 +362,10 @@ Sample response object:
   "status": "success",
   "message": "Product approved successfully",
   "data": {
-    "temp_product_id": 103,
-    "approved_product_id": 57
+    "id": 103,
+    "name": "Infinix Note 30",
+    "approval_status": "approved",
+    "status": "active"
   }
 }
 ```
@@ -373,10 +390,22 @@ Sample response object:
 {
   "status": "success",
   "data": {
-    "total_products": 185,
-    "active_products": 160,
-    "low_stock": 9,
-    "out_of_stock": 3
+    "low_stock": [
+      {
+        "id": 88,
+        "name": "USB-C Cable",
+        "quantity": 4,
+        "status": "active"
+      }
+    ],
+    "out_of_stock": [
+      {
+        "id": 92,
+        "name": "Laptop Stand",
+        "quantity": 0,
+        "status": "out_of_stock"
+      }
+    ]
   }
 }
 ```
@@ -1599,15 +1628,24 @@ Sample request object:
   "method": "POST",
   "url": "/vendors/register/",
   "headers": {
-    "Content-Type": "application/json"
+    "Content-Type": "multipart/form-data"
   },
   "query": {},
   "body": {
-    "vendor_name": "TechHub",
-    "vendor_email": "vendor1@example.com",
-    "vendor_phone": "08011112222",
-    "vendor_address": "12 Marina, Lagos",
-    "password": "VendorPass123!"
+    "email": "vendor1@example.com",
+    "password": "VendorPass123!",
+    "confirm_password": "VendorPass123!",
+    "first_name": "Ada",
+    "last_name": "Vendor",
+    "phone": "08011112222",
+    "business_country": "Nigeria",
+    "business_state": "Lagos",
+    "business_street": "12 Marina",
+    "business_category": "Electronics",
+    "cac_reg_no": "RC1234567",
+    "nin": "12345678901",
+    "policy_accepted": true,
+    "photo": "<binary_file>"
   }
 }
 ```
@@ -1616,10 +1654,7 @@ Sample response object:
 ```json
 {
   "status": "success",
-  "message": "Registration successful. Activation email sent to vendor1@example.com",
-  "data": {
-    "vendor_email": "vendor1@example.com"
-  }
+  "message": "Registration successful. Activation email sent to vendor1@example.com"
 }
 ```
 
@@ -1635,7 +1670,7 @@ Sample request object:
   },
   "query": {},
   "body": {
-    "vendor_email": "vendor1@example.com",
+    "email": "vendor1@example.com",
     "password": "VendorPass123!"
   }
 }
@@ -1647,10 +1682,12 @@ Sample response object:
   "status": "success",
   "message": "Login successful",
   "data": {
-    "token": "eyJhbGciOi...",
+    "session_token": "B7rKQfX9r9xX...",
     "vendor": {
-      "vendor_email": "vendor1@example.com",
-      "vendor_name": "TechHub"
+      "email": "vendor1@example.com",
+      "first_name": "Ada",
+      "last_name": "Vendor",
+      "approval_status": "approved"
     }
   }
 }
@@ -1676,15 +1713,23 @@ Sample response object:
 {
   "status": "success",
   "data": {
-    "vendor_name": "TechHub",
-    "vendor_email": "vendor1@example.com",
-    "vendor_phone": "08011112222",
-    "vendor_address": "12 Marina, Lagos"
+    "id": 11,
+    "email": "vendor1@example.com",
+    "first_name": "Ada",
+    "last_name": "Vendor",
+    "phone": "08011112222",
+    "business_country": "Nigeria",
+    "business_state": "Lagos",
+    "business_street": "12 Marina",
+    "is_approved": true,
+    "approval_status": "approved"
   }
 }
 ```
 
 ### 4) GET /vendors/temp/list/
+
+Note: legacy path name; this lists pending records from the primary `VendorUser` table.
 
 Sample request object:
 ```json
@@ -1706,16 +1751,18 @@ Sample response object:
   "data": [
     {
       "id": 11,
-      "vendor_email": "pendingvendor@example.com",
-      "vendor_name": "Pending Shop",
+      "email": "pendingvendor@example.com",
+      "first_name": "Pending",
+      "last_name": "Vendor",
       "is_email_verified": true,
-      "is_approved": false
+      "is_approved": false,
+      "approval_status": "pending"
     }
   ]
 }
 ```
 
-### 5) POST /vendors/approve/{temp_vendor_id}/
+### 5) POST /vendors/approve/{vendor_id}/
 
 Sample request object:
 ```json
@@ -1723,13 +1770,10 @@ Sample request object:
   "method": "POST",
   "url": "/vendors/approve/11/",
   "headers": {
-    "Authorization": "Bearer <token>",
-    "Content-Type": "application/json"
+    "Authorization": "Bearer <token>"
   },
   "query": {},
-  "body": {
-    "approve": true
-  }
+  "body": null
 }
 ```
 
@@ -1739,8 +1783,10 @@ Sample response object:
   "status": "success",
   "message": "Vendor pendingvendor@example.com approved successfully",
   "data": {
-    "temp_vendor_id": 11,
-    "approved": true
+    "id": 11,
+    "email": "pendingvendor@example.com",
+    "is_approved": true,
+    "approval_status": "approved"
   }
 }
 ```
@@ -1769,9 +1815,11 @@ Sample response object:
   "data": [
     {
       "id": 3,
-      "vendor_name": "TechHub",
-      "vendor_email": "vendor1@example.com",
-      "is_active": true
+      "email": "vendor1@example.com",
+      "first_name": "Ada",
+      "last_name": "Vendor",
+      "status": "active",
+      "is_approved": true
     }
   ]
 }
@@ -1789,15 +1837,26 @@ Sample request object:
   "method": "POST",
   "url": "/couriers/register/",
   "headers": {
-    "Content-Type": "application/json"
+    "Content-Type": "multipart/form-data"
   },
   "query": {},
   "body": {
-    "courier_name": "Rider One",
-    "courier_email": "rider@example.com",
-    "phone_no": "08033334444",
+    "email": "rider@example.com",
+    "first_name": "Rider",
+    "last_name": "One",
+    "phone": "08033334444",
     "password": "CourierPass123!",
-    "vehicle_type": "bike"
+    "confirm_password": "CourierPass123!",
+    "business_country": "Nigeria",
+    "business_state": "Lagos",
+    "business_street": "Yaba",
+    "cac_reg_no": "RC987654",
+    "nin": "10987654321",
+    "vehicle_type": "bike",
+    "vehicle_registration": "LAG-812-RD",
+    "service_area": "Lagos Mainland",
+    "policy_accepted": true,
+    "photo": "<binary_file>"
   }
 }
 ```
@@ -1806,10 +1865,7 @@ Sample response object:
 ```json
 {
   "status": "success",
-  "message": "Registration successful. Activation email sent to rider@example.com",
-  "data": {
-    "courier_email": "rider@example.com"
-  }
+  "message": "Registration successful. Activation email sent to rider@example.com"
 }
 ```
 
@@ -1825,7 +1881,7 @@ Sample request object:
   },
   "query": {},
   "body": {
-    "courier_email": "rider@example.com",
+    "email": "rider@example.com",
     "password": "CourierPass123!"
   }
 }
@@ -1837,10 +1893,12 @@ Sample response object:
   "status": "success",
   "message": "Login successful",
   "data": {
-    "token": "eyJhbGciOi...",
+    "session_token": "PK8q3mLmN0a...",
     "courier": {
-      "courier_email": "rider@example.com",
-      "courier_name": "Rider One"
+      "email": "rider@example.com",
+      "first_name": "Rider",
+      "last_name": "One",
+      "approval_status": "approved"
     }
   }
 }
@@ -1866,10 +1924,14 @@ Sample response object:
 {
   "status": "success",
   "data": {
-    "courier_name": "Rider One",
-    "courier_email": "rider@example.com",
-    "phone_no": "08033334444",
-    "vehicle_type": "bike"
+    "id": 20,
+    "email": "rider@example.com",
+    "first_name": "Rider",
+    "last_name": "One",
+    "phone": "08033334444",
+    "vehicle_type": "bike",
+    "status": "active",
+    "is_approved": true
   }
 }
 ```
@@ -1887,7 +1949,6 @@ Sample request object:
   },
   "query": {},
   "body": {
-    "courier_email": "rider@example.com",
     "latitude": 6.5301,
     "longitude": 3.3892
   }
@@ -1898,12 +1959,7 @@ Sample response object:
 ```json
 {
   "status": "success",
-  "message": "Courier location updated",
-  "data": {
-    "courier_email": "rider@example.com",
-    "latitude": 6.5301,
-    "longitude": 3.3892
-  }
+  "message": "Location updated successfully"
 }
 ```
 
@@ -1920,8 +1976,7 @@ Sample request object:
   },
   "query": {},
   "body": {
-    "courier_email": "rider@example.com",
-    "availability_status": "available"
+    "status": "active"
   }
 }
 ```
@@ -1930,11 +1985,7 @@ Sample response object:
 ```json
 {
   "status": "success",
-  "message": "Courier status updated",
-  "data": {
-    "courier_email": "rider@example.com",
-    "availability_status": "available"
-  }
+  "message": "Status updated to active"
 }
 ```
 
@@ -1949,7 +2000,9 @@ Sample request object:
     "Authorization": "Bearer <token>"
   },
   "query": {
-    "state": "Lagos"
+    "lat": 6.5301,
+    "lng": 3.3892,
+    "radius": 10
   },
   "body": null
 }
@@ -1961,17 +2014,21 @@ Sample response object:
   "status": "success",
   "data": [
     {
-      "courier_email": "rider@example.com",
-      "courier_name": "Rider One",
-      "availability_status": "available",
-      "latitude": 6.5301,
-      "longitude": 3.3892
+      "id": 20,
+      "email": "rider@example.com",
+      "first_name": "Rider",
+      "last_name": "One",
+      "status": "active",
+      "current_latitude": "6.530100",
+      "current_longitude": "3.389200"
     }
   ]
 }
 ```
 
 ### 7) GET /couriers/temp/list/
+
+Note: legacy path name; this lists pending records from the primary `CourierUser` table.
 
 Sample request object:
 ```json
@@ -1993,16 +2050,18 @@ Sample response object:
   "data": [
     {
       "id": 20,
-      "courier_email": "pendingrider@example.com",
-      "courier_name": "Pending Rider",
+      "email": "pendingrider@example.com",
+      "first_name": "Pending",
+      "last_name": "Rider",
       "is_email_verified": true,
-      "is_approved": false
+      "is_approved": false,
+      "approval_status": "pending"
     }
   ]
 }
 ```
 
-### 8) POST /couriers/approve/{temp_courier_id}/
+### 8) POST /couriers/approve/{courier_id}/
 
 Sample request object:
 ```json
@@ -2010,13 +2069,10 @@ Sample request object:
   "method": "POST",
   "url": "/couriers/approve/20/",
   "headers": {
-    "Authorization": "Bearer <token>",
-    "Content-Type": "application/json"
+    "Authorization": "Bearer <token>"
   },
   "query": {},
-  "body": {
-    "approve": true
-  }
+  "body": null
 }
 ```
 
@@ -2026,8 +2082,10 @@ Sample response object:
   "status": "success",
   "message": "Courier pendingrider@example.com approved successfully",
   "data": {
-    "temp_courier_id": 20,
-    "approved": true
+    "id": 20,
+    "email": "pendingrider@example.com",
+    "is_approved": true,
+    "approval_status": "approved"
   }
 }
 ```
@@ -2056,9 +2114,11 @@ Sample response object:
   "data": [
     {
       "id": 4,
-      "courier_name": "Rider One",
-      "courier_email": "rider@example.com",
-      "is_active": true
+      "email": "rider@example.com",
+      "first_name": "Rider",
+      "last_name": "One",
+      "status": "active",
+      "is_approved": true
     }
   ]
 }
