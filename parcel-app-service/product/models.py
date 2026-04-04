@@ -111,6 +111,12 @@ class Product(models.Model):
         ('discontinued', 'Discontinued'),
         ('archived', 'Archived'),
     ]
+    APPROVAL_STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+        ('changes_requested', 'Changes Requested'),
+    ]
     
     # Vendor relationship
     vendor = models.ForeignKey(VendorUser, on_delete=models.CASCADE, related_name='products')
@@ -155,6 +161,10 @@ class Product(models.Model):
     sold_count = models.IntegerField(default=0)
     
     # Approval info
+    approval_status = models.CharField(max_length=20, choices=APPROVAL_STATUS_CHOICES, default='pending')
+    rejection_reason = models.TextField(blank=True)
+    submitted_at = models.DateTimeField(default=timezone.now)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
     approved_by = models.ForeignKey('authentication.AdminUser', on_delete=models.SET_NULL, 
                                    null=True, related_name='approved_products')
     approved_at = models.DateTimeField(null=True, blank=True)

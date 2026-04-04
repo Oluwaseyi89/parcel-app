@@ -61,6 +61,7 @@ class CourierService:
             raise ValidationError("Courier already approved")
         
         # Create approved courier
+        review_time = timezone.now()
         courier = CourierUser.objects.create(
             email=temp_courier.email,
             first_name=temp_courier.first_name,
@@ -77,9 +78,12 @@ class CourierService:
             service_area=temp_courier.service_area,
             password=temp_courier.password,  # Copy hashed password
             is_approved=True,
+            approval_status='approved',
+            submitted_at=temp_courier.submitted_at,
+            reviewed_at=review_time,
             status='active',
             approved_by=admin_user,
-            approved_at=timezone.now(),
+            approved_at=review_time,
             role='courier',
             is_email_verified=True,
             is_active=True
@@ -88,6 +92,10 @@ class CourierService:
         # Deactivate temp courier
         temp_courier.is_active = False
         temp_courier.status = 'approved'
+        temp_courier.approval_status = 'approved'
+        temp_courier.reviewed_at = review_time
+        temp_courier.approved_by = admin_user
+        temp_courier.approved_at = review_time
         temp_courier.save()
         
         # Log approval

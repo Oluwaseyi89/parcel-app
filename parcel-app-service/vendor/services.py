@@ -61,6 +61,7 @@ class VendorService:
             raise ValidationError("Vendor already approved")
         
         # Create approved vendor
+        review_time = timezone.now()
         vendor = VendorUser.objects.create(
             email=temp_vendor.email,
             first_name=temp_vendor.first_name,
@@ -75,9 +76,12 @@ class VendorService:
             photo=temp_vendor.photo,
             password=temp_vendor.password,  # Copy hashed password
             is_approved=True,
+            approval_status='approved',
+            submitted_at=temp_vendor.submitted_at,
+            reviewed_at=review_time,
             status='active',
             approved_by=admin_user,
-            approved_at=timezone.now(),
+            approved_at=review_time,
             role='vendor',
             is_email_verified=True,
             is_active=True
@@ -86,6 +90,10 @@ class VendorService:
         # Deactivate temp vendor
         temp_vendor.is_active = False
         temp_vendor.status = 'approved'
+        temp_vendor.approval_status = 'approved'
+        temp_vendor.reviewed_at = review_time
+        temp_vendor.approved_by = admin_user
+        temp_vendor.approved_at = review_time
         temp_vendor.save()
         
         # Log approval

@@ -139,7 +139,8 @@ class ProductSerializer(serializers.ModelSerializer):
             'main_image', 'image_url', 'additional_images',
             'sku', 'weight', 'dimensions', 'attributes',
             'vendor', 'vendor_name', 'vendor_business',
-            'status', 'stock_status', 'is_available', 'is_featured',
+            'status', 'approval_status', 'rejection_reason', 'submitted_at', 'reviewed_at',
+            'stock_status', 'is_available', 'is_featured',
             'views_count', 'sold_count', 'meta_title', 'meta_description',
             'approved_by', 'approved_by_name', 'approved_at',
             'created_at', 'updated_at', 'published_at'
