@@ -72,9 +72,10 @@ class VendorService:
             business_category=temp_vendor.business_category,
             cac_reg_no=temp_vendor.cac_reg_no,
             nin=temp_vendor.nin,
-            photo=temp_vendor.photo.url if temp_vendor.photo else '',
+            photo=temp_vendor.photo,
             password=temp_vendor.password,  # Copy hashed password
             is_approved=True,
+            status='active',
             approved_by=admin_user,
             approved_at=timezone.now(),
             role='vendor',
