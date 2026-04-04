@@ -369,25 +369,6 @@ class BaseVendorUser(BaseUser):
 #         return f"{self.get_full_name()} - {self.status}"
 
 
-class TempVendorUser(BaseVendorUser):
-    STATUS_CHOICES = [
-        ('pending', 'Pending Approval'),
-        ('verified', 'Email Verified'),
-        ('approved', 'Approved'),
-        ('rejected', 'Rejected'),
-    ]
-
-    policy_accepted = models.BooleanField(default=False)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
-
-    approved_by = models.ForeignKey(
-        AdminUser, 
-        on_delete=models.SET_NULL, 
-        null=True, 
-        blank=True, 
-        related_name='approved_temp_vendors'  # CHANGED
-    )
-
 # class VendorUser(BaseVendorUser):
 #     """Approved vendor user"""
 #     STATUS_CHOICES = [
@@ -494,26 +475,6 @@ class BaseCourierUser(BaseUser):
     
 #     def __str__(self):
 #         return f"{self.get_full_name()} - {self.status}"
-
-
-class TempCourierUser(BaseCourierUser):
-    STATUS_CHOICES = [
-        ('pending', 'Pending Approval'),
-        ('verified', 'Email Verified'),
-        ('approved', 'Approved'),
-        ('rejected', 'Rejected'),
-    ]
-
-    policy_accepted = models.BooleanField(default=False)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
-
-    approved_by = models.ForeignKey(
-        AdminUser, 
-        on_delete=models.SET_NULL, 
-        null=True, 
-        blank=True, 
-        related_name='approved_temp_couriers'  # CHANGED
-    )
 
 
 # class CourierUser(BaseCourierUser):
