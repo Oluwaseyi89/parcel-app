@@ -2,7 +2,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelatio
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.contrib.auth.hashers import make_password, check_password
-from datetime import timezone
+from django.utils import timezone
 
 # Add this base abstract model
 class BaseUser(models.Model):
@@ -328,7 +328,17 @@ class BaseVendorUser(BaseUser):
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='vendor')
     
     # Vendor-specific fields
+    APPROVAL_STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+        ('changes_requested', 'Changes Requested'),
+    ]
     is_approved = models.BooleanField(default=False)
+    approval_status = models.CharField(max_length=20, choices=APPROVAL_STATUS_CHOICES, default='pending')
+    rejection_reason = models.TextField(blank=True)
+    submitted_at = models.DateTimeField(default=timezone.now)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
     approved_by = models.ForeignKey(AdminUser, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_vendors')
     approved_at = models.DateTimeField(null=True, blank=True)
     
@@ -440,7 +450,17 @@ class BaseCourierUser(BaseUser):
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='courier')
     
     # Courier-specific fields
+    APPROVAL_STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+        ('changes_requested', 'Changes Requested'),
+    ]
     is_approved = models.BooleanField(default=False)
+    approval_status = models.CharField(max_length=20, choices=APPROVAL_STATUS_CHOICES, default='pending')
+    rejection_reason = models.TextField(blank=True)
+    submitted_at = models.DateTimeField(default=timezone.now)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
     approved_by = models.ForeignKey(AdminUser, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_couriers')
     approved_at = models.DateTimeField(null=True, blank=True)
     

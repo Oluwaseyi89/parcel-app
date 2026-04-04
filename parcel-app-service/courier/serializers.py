@@ -210,10 +210,11 @@ class CourierApprovalSerializer(serializers.ModelSerializer):
             'id', 'email', 'first_name', 'last_name', 'phone',
             'business_country', 'business_state', 'business_street',
             'cac_reg_no', 'nin', 'vehicle_type', 'vehicle_registration',
-            'service_area', 'is_approved', 'approved_by_email',
+            'service_area', 'is_approved', 'approval_status', 'rejection_reason',
+            'submitted_at', 'reviewed_at', 'approved_by_email',
             'approved_by_name', 'approved_at', 'status', 'created_at'
         ]
-        read_only_fields = ['id', 'created_at', 'approved_at']
+        read_only_fields = ['id', 'created_at', 'submitted_at', 'reviewed_at', 'approved_at']
     
     def get_approved_by_name(self, obj):
         if obj.approved_by:
@@ -266,8 +267,9 @@ class CourierProfileSerializer(serializers.ModelSerializer):
             'id', 'email', 'first_name', 'last_name', 'phone',
             'business_country', 'business_state', 'business_street',
             'cac_reg_no', 'nin', 'vehicle_type', 'vehicle_registration',
-            'service_area', 'photo', 'status', 'total_deliveries',
-            'successful_deliveries', 'delivery_success_rate', 'rating',
+            'service_area', 'photo', 'status', 'is_approved',
+            'approval_status', 'rejection_reason', 'submitted_at', 'reviewed_at',
+            'total_deliveries', 'successful_deliveries', 'delivery_success_rate', 'rating',
             'current_latitude', 'current_longitude', 'last_location_update',
             'created_at', 'last_login'
         ]

@@ -69,6 +69,7 @@ class ProductService:
             raise ValidationError('Temporary product not found or already processed')
         
         # Create approved product
+        review_time = timezone.now()
         product_data = {
             'vendor': temp_product.vendor,
             'name': temp_product.name,
@@ -83,9 +84,12 @@ class ProductService:
             'weight': temp_product.weight,
             'dimensions': temp_product.dimensions,
             'sku': temp_product.sku,
+            'approval_status': 'approved',
+            'submitted_at': temp_product.created_at,
+            'reviewed_at': review_time,
             'approved_by': admin_user,
-            'approved_at': timezone.now(),
-            'published_at': timezone.now(),
+            'approved_at': review_time,
+            'published_at': review_time,
         }
         
         product = Product.objects.create(**product_data)

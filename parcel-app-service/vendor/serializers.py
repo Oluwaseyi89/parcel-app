@@ -51,10 +51,11 @@ class VendorApprovalSerializer(serializers.ModelSerializer):
             'id', 'email', 'first_name', 'last_name', 'phone',
             'business_country', 'business_state', 'business_street',
             'business_category', 'cac_reg_no', 'nin', 'is_approved',
+            'approval_status', 'rejection_reason', 'submitted_at', 'reviewed_at',
             'approved_by_email', 'approved_by_name', 'approved_at',
             'status', 'created_at'
         ]
-        read_only_fields = ['id', 'created_at', 'approved_at']
+        read_only_fields = ['id', 'created_at', 'submitted_at', 'reviewed_at', 'approved_at']
     
     def get_approved_by_name(self, obj):
         if obj.approved_by:
@@ -105,7 +106,9 @@ class VendorProfileSerializer(serializers.ModelSerializer):
             'id', 'email', 'first_name', 'last_name', 'phone',
             'business_name', 'business_country', 'business_state',
             'business_street', 'business_category', 'cac_reg_no',
-            'nin', 'photo', 'status', 'created_at', 'last_login'
+            'nin', 'photo', 'status', 'is_approved', 'approval_status',
+            'rejection_reason', 'submitted_at', 'reviewed_at',
+            'created_at', 'last_login'
         ]
         read_only_fields = fields
 
