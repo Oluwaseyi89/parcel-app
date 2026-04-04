@@ -30,7 +30,7 @@ SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '192.168.42.70']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '192.168.42.70']
 
 # Application definition
 
@@ -93,9 +93,15 @@ CSRF_COOKIE_HTTPONLY = True
 
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:3001',
+    'http://127.0.0.1:3001',
     'http://192.168.42.95:3000',
     'http://localhost:8080'
 ]
+
+# Allow browser requests that send cookies/credentials from allowed origins.
+CORS_ALLOW_CREDENTIALS = True
 
 
 # Admin settings
