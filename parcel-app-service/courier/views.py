@@ -16,7 +16,7 @@ from .serializers import (
     CourierLoginSerializer, CourierProfileSerializer,
     CourierLocationUpdateSerializer, CourierStatusUpdateSerializer
 )
-from authentication.models import TempCourierUser, CourierUser
+from authentication.models import CourierUser
 from email_service.services import EmailService
 from core.tokens import account_activation_token
 
@@ -193,17 +193,11 @@ def activate_courier(request, uidb64, token):
         uid = force_str(urlsafe_base64_decode(uidb64))
         courier = CourierUser.objects.get(pk=uid)
     except (TypeError, ValueError, OverflowError, CourierUser.DoesNotExist):
-        try:
-            courier = TempCourierUser.objects.get(pk=uid)
-        except TempCourierUser.DoesNotExist:
-            courier = None
+        courier = None
     
     if courier is not None and account_activation_token.check_token(courier, token):
         courier.is_email_verified = True
-        if isinstance(courier, CourierUser):
-            courier.approval_status = 'pending'
-        else:
-            courier.status = 'verified'
+        courier.approval_status = 'pending'
         courier.save()
         return render(request, "parcel_backends/activation_page.html", {
             "message": "Your courier account has been activated successfully. Awaiting approval."
@@ -219,10 +213,7 @@ def courier_reset(request, uidb64, token):
         uid = force_str(urlsafe_base64_decode(uidb64))
         courier = CourierUser.objects.get(pk=uid)
     except (TypeError, ValueError, OverflowError, CourierUser.DoesNotExist):
-        try:
-            courier = TempCourierUser.objects.get(pk=uid)
-        except TempCourierUser.DoesNotExist:
-            courier = None
+        courier = None
     
     if courier is not None and account_activation_token.check_token(courier, token):
         return render(request, "parcel_backends/password_reset_page.html", {

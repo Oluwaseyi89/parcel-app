@@ -157,7 +157,7 @@
 
 # courier/serializers.py
 from rest_framework import serializers
-from authentication.models import TempCourierUser, CourierUser
+from authentication.models import CourierUser
 from authentication.serializers import BaseUserSerializer
 
 class TempCourierRegistrationSerializer(serializers.ModelSerializer):
@@ -233,35 +233,24 @@ class CourierLoginSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True, required=True)
     
     def validate(self, data):
-        # Check both TempCourierUser and CourierUser
         email = data['email'].lower()
-        
-        # First check approved couriers
+
         try:
             courier = CourierUser.objects.get(email=email, is_active=True)
-            if not courier.check_password(data['password']):
-                raise serializers.ValidationError({'error': 'Invalid credentials.'})
-            
-            if not courier.is_approved:
-                raise serializers.ValidationError({'error': 'Courier account not yet approved.'})
-            
-            data['courier'] = courier
-            return data
-            
         except CourierUser.DoesNotExist:
-            # Check temp couriers
-            try:
-                temp_courier = TempCourierUser.objects.get(email=email, is_active=True)
-                if not temp_courier.check_password(data['password']):
-                    raise serializers.ValidationError({'error': 'Invalid credentials.'})
-                
-                if not temp_courier.is_email_verified:
-                    raise serializers.ValidationError({'error': 'Please verify your email first.'})
-                
-                raise serializers.ValidationError({'error': 'Your account is pending approval.'})
-                
-            except TempCourierUser.DoesNotExist:
-                raise serializers.ValidationError({'error': 'Invalid credentials.'})
+            raise serializers.ValidationError({'error': 'Invalid credentials.'})
+
+        if not courier.check_password(data['password']):
+            raise serializers.ValidationError({'error': 'Invalid credentials.'})
+
+        if not courier.is_email_verified:
+            raise serializers.ValidationError({'error': 'Please verify your email first.'})
+
+        if not courier.is_approved:
+            raise serializers.ValidationError({'error': 'Courier account not yet approved.'})
+
+        data['courier'] = courier
+        return data
 
 class CourierProfileSerializer(serializers.ModelSerializer):
     """Serializer for courier profile"""

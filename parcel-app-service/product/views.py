@@ -1,6 +1,5 @@
 # product/views.py
 from django.shortcuts import render, get_object_or_404
-from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -10,11 +9,11 @@ from rest_framework.pagination import PageNumberPagination
 from authentication.permissions import IsAdminOrSuperAdmin, IsVendorOrAdmin
 from .services import ProductService, CategoryService, InventoryService
 from .serializers import (
-    CategorySerializer, TempProductCreateSerializer, TempProductSerializer,
+    CategorySerializer, TempProductCreateSerializer,
     ProductSerializer, ProductUpdateSerializer, ProductApprovalSerializer,
     ProductSearchSerializer
 )
-from .models import Category, TempProduct, Product
+from .models import Category, Product
 
 class StandardPagination(PageNumberPagination):
     """Standard pagination for product listings"""
@@ -135,30 +134,24 @@ class ProductApprovalView(APIView):
                 data = ProductSerializer(product).data
                 
             elif action == 'reject':
-                rejected_obj = ProductService.reject_temp_product(
+                product = ProductService.reject_temp_product(
                     temp_product_id,
                     request.user,
                     comments,
                     request
                 )
                 message = "Product rejected"
-                if isinstance(rejected_obj, Product):
-                    data = ProductSerializer(rejected_obj).data
-                else:
-                    data = TempProductSerializer(rejected_obj).data
+                data = ProductSerializer(product).data
                 
             else:  # request_changes
-                changed_obj = ProductService.request_product_changes(
+                product = ProductService.request_product_changes(
                     temp_product_id,
                     request.user,
                     comments,
                     request
                 )
                 message = "Changes requested for product"
-                if isinstance(changed_obj, Product):
-                    data = ProductSerializer(changed_obj).data
-                else:
-                    data = TempProductSerializer(changed_obj).data
+                data = ProductSerializer(product).data
             
             return Response({
                 "status": "success",

@@ -2,7 +2,7 @@ from datetime import timedelta
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 from django.db.models import Q, F, Count
-from .models import Category, TempProduct, Product
+from .models import Category, Product
 from authentication.models import AuditLog
 
 class CategoryService:
@@ -59,80 +59,25 @@ class ProductService:
     
     @staticmethod
     def approve_temp_product(temp_product_id, admin_user, request=None):
-        """Approve a product submission, with legacy TempProduct fallback."""
-        # Stage 4 primary path: approve Product in-place.
+        """Approve a product submission on the primary Product lifecycle."""
         try:
             product = Product.objects.get(id=temp_product_id)
-            if product.approval_status not in ['pending', 'changes_requested', 'rejected']:
-                raise ValidationError('Product is already processed')
-
-            review_time = timezone.now()
-            product.approval_status = 'approved'
-            product.rejection_reason = ''
-            product.reviewed_at = review_time
-            product.approved_by = admin_user
-            product.approved_at = review_time
-            product.published_at = review_time
-            product.status = 'active'
-            product.save()
-
-            AuditLog.log_action(
-                user=admin_user,
-                action='update',
-                model_name='Product',
-                object_id=product.id,
-                details={
-                    'action': 'product_approval',
-                    'product_id': product.id,
-                    'product_name': product.name,
-                },
-                request=request
-            )
-
-            return product
         except Product.DoesNotExist:
-            pass
+            raise ValidationError('Product submission not found')
 
-        # Legacy fallback for older TempProduct records.
-        try:
-            temp_product = TempProduct.objects.get(
-                id=temp_product_id, 
-                status='pending'
-            )
-        except TempProduct.DoesNotExist:
-            raise ValidationError('Temporary product not found or already processed')
-        
-        # Create approved product
+        if product.approval_status not in ['pending', 'changes_requested', 'rejected']:
+            raise ValidationError('Product is already processed')
+
         review_time = timezone.now()
-        product_data = {
-            'vendor': temp_product.vendor,
-            'name': temp_product.name,
-            'description': temp_product.description,
-            'model': temp_product.model,
-            'brand': temp_product.brand,
-            'category': temp_product.category,
-            'price': temp_product.price,
-            'quantity': temp_product.quantity,
-            'discount_percentage': temp_product.discount_percentage,
-            'main_image': temp_product.image,
-            'weight': temp_product.weight,
-            'dimensions': temp_product.dimensions,
-            'sku': temp_product.sku,
-            'approval_status': 'approved',
-            'submitted_at': temp_product.created_at,
-            'reviewed_at': review_time,
-            'approved_by': admin_user,
-            'approved_at': review_time,
-            'published_at': review_time,
-        }
-        
-        product = Product.objects.create(**product_data)
-        
-        # Update temp product status
-        temp_product.status = 'approved'
-        temp_product.save()
-        
-        # Log approval
+        product.approval_status = 'approved'
+        product.rejection_reason = ''
+        product.reviewed_at = review_time
+        product.approved_by = admin_user
+        product.approved_at = review_time
+        product.published_at = review_time
+        product.status = 'active'
+        product.save()
+
         AuditLog.log_action(
             user=admin_user,
             action='update',
@@ -140,117 +85,78 @@ class ProductService:
             object_id=product.id,
             details={
                 'action': 'product_approval',
-                'temp_product_id': temp_product_id,
-                'product_name': product.name
+                'product_id': product.id,
+                'product_name': product.name,
             },
             request=request
         )
-        
+
         return product
     
     @staticmethod
     def reject_temp_product(temp_product_id, admin_user, reason, request=None):
-        """Reject a product submission, with legacy TempProduct fallback."""
-        # Stage 4 primary path: reject Product in-place.
+        """Reject a product submission on the primary Product lifecycle."""
         try:
             product = Product.objects.get(id=temp_product_id)
-            if product.approval_status not in ['pending', 'changes_requested']:
-                raise ValidationError('Product is already processed')
-
-            product.approval_status = 'rejected'
-            product.rejection_reason = reason
-            product.reviewed_at = timezone.now()
-            product.approved_by = admin_user
-            product.status = 'archived'
-            product.save()
-
-            AuditLog.log_action(
-                user=admin_user,
-                action='update',
-                model_name='Product',
-                object_id=product.id,
-                details={
-                    'action': 'product_rejection',
-                    'reason': reason,
-                    'product_name': product.name,
-                },
-                request=request
-            )
-
-            return product
         except Product.DoesNotExist:
-            pass
+            raise ValidationError('Product submission not found')
 
-        # Legacy fallback for older TempProduct records.
-        try:
-            temp_product = TempProduct.objects.get(
-                id=temp_product_id,
-                status='pending'
-            )
-        except TempProduct.DoesNotExist:
-            raise ValidationError('Temporary product not found or already processed')
-        
-        temp_product.status = 'rejected'
-        temp_product.rejection_reason = reason
-        temp_product.save()
-        
-        # Log rejection
+        if product.approval_status not in ['pending', 'changes_requested']:
+            raise ValidationError('Product is already processed')
+
+        product.approval_status = 'rejected'
+        product.rejection_reason = reason
+        product.reviewed_at = timezone.now()
+        product.approved_by = admin_user
+        product.status = 'archived'
+        product.save()
+
         AuditLog.log_action(
             user=admin_user,
             action='update',
-            model_name='TempProduct',
-            object_id=temp_product.id,
+            model_name='Product',
+            object_id=product.id,
             details={
                 'action': 'product_rejection',
                 'reason': reason,
-                'product_name': temp_product.name
+                'product_name': product.name,
             },
             request=request
         )
-        
-        return temp_product
+
+        return product
 
     @staticmethod
     def request_product_changes(temp_product_id, admin_user, comments='', request=None):
-        """Request changes on a product submission, with legacy TempProduct fallback."""
-        # Stage 4 primary path: mark Product as changes_requested.
+        """Request changes on a product submission on the primary lifecycle."""
         try:
             product = Product.objects.get(id=temp_product_id)
-            if product.approval_status not in ['pending', 'rejected']:
-                raise ValidationError('Product is already processed')
-
-            product.approval_status = 'changes_requested'
-            product.rejection_reason = comments
-            product.reviewed_at = timezone.now()
-            product.approved_by = admin_user
-            product.save()
-
-            AuditLog.log_action(
-                user=admin_user,
-                action='update',
-                model_name='Product',
-                object_id=product.id,
-                details={
-                    'action': 'product_changes_requested',
-                    'comments': comments,
-                    'product_name': product.name,
-                },
-                request=request
-            )
-
-            return product
         except Product.DoesNotExist:
-            pass
-
-        # Legacy fallback.
-        temp_product = TempProduct.objects.filter(id=temp_product_id).first()
-        if not temp_product:
             raise ValidationError('Product submission not found')
 
-        temp_product.status = 'requires_changes'
-        temp_product.rejection_reason = comments
-        temp_product.save()
-        return temp_product
+        if product.approval_status not in ['pending', 'rejected']:
+            raise ValidationError('Product is already processed')
+
+        product.approval_status = 'changes_requested'
+        product.rejection_reason = comments
+        product.reviewed_at = timezone.now()
+        product.approved_by = admin_user
+        product.save()
+
+        AuditLog.log_action(
+            user=admin_user,
+            action='update',
+            model_name='Product',
+            object_id=product.id,
+            details={
+                'action': 'product_changes_requested',
+                'comments': comments,
+                'product_name': product.name,
+            },
+            request=request
+        )
+
+        return product
     
     @staticmethod
     def search_products(search_params):

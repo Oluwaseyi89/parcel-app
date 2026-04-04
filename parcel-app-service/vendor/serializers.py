@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from authentication.models import TempVendorUser, VendorUser
+from authentication.models import VendorUser
 from authentication.serializers import BaseUserSerializer
 
 class TempVendorRegistrationSerializer(serializers.ModelSerializer):
@@ -74,35 +74,24 @@ class VendorLoginSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True, required=True)
     
     def validate(self, data):
-        # Check both TempVendorUser and VendorUser
         email = data['email'].lower()
-        
-        # First check approved vendors
+
         try:
             vendor = VendorUser.objects.get(email=email, is_active=True)
-            if not vendor.check_password(data['password']):
-                raise serializers.ValidationError({'error': 'Invalid credentials.'})
-            
-            if not vendor.is_approved:
-                raise serializers.ValidationError({'error': 'Vendor account not yet approved.'})
-            
-            data['vendor'] = vendor
-            return data
-            
         except VendorUser.DoesNotExist:
-            # Check temp vendors
-            try:
-                temp_vendor = TempVendorUser.objects.get(email=email, is_active=True)
-                if not temp_vendor.check_password(data['password']):
-                    raise serializers.ValidationError({'error': 'Invalid credentials.'})
-                
-                if not temp_vendor.is_email_verified:
-                    raise serializers.ValidationError({'error': 'Please verify your email first.'})
-                
-                raise serializers.ValidationError({'error': 'Your account is pending approval.'})
-                
-            except TempVendorUser.DoesNotExist:
-                raise serializers.ValidationError({'error': 'Invalid credentials.'})
+            raise serializers.ValidationError({'error': 'Invalid credentials.'})
+
+        if not vendor.check_password(data['password']):
+            raise serializers.ValidationError({'error': 'Invalid credentials.'})
+
+        if not vendor.is_email_verified:
+            raise serializers.ValidationError({'error': 'Please verify your email first.'})
+
+        if not vendor.is_approved:
+            raise serializers.ValidationError({'error': 'Vendor account not yet approved.'})
+
+        data['vendor'] = vendor
+        return data
 
 class VendorProfileSerializer(serializers.ModelSerializer):
     """Serializer for vendor profile"""
