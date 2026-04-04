@@ -32,34 +32,68 @@ class ProductService:
     
     @staticmethod
     def create_temp_product(product_data, vendor, request=None):
-        """Create a temporary product for approval"""
+        """Create a product submission pending approval."""
         from .serializers import TempProductCreateSerializer
         
         serializer = TempProductCreateSerializer(data=product_data, context={'request': request})
         if not serializer.is_valid():
             raise ValidationError(serializer.errors)
         
-        # Add vendor to data
-        product_data['vendor'] = vendor.id
-        
-        temp_product = serializer.save()
+        pending_product = serializer.save()
         
         # Log creation
         if request:
             AuditLog.log_action(
                 user=vendor,
                 action='create',
-                model_name='TempProduct',
-                object_id=temp_product.id,
-                details={'product_name': temp_product.name},
+                model_name='Product',
+                object_id=pending_product.id,
+                details={
+                    'product_name': pending_product.name,
+                    'approval_status': pending_product.approval_status,
+                },
                 request=request
             )
         
-        return temp_product
+        return pending_product
     
     @staticmethod
     def approve_temp_product(temp_product_id, admin_user, request=None):
-        """Approve a temporary product"""
+        """Approve a product submission, with legacy TempProduct fallback."""
+        # Stage 4 primary path: approve Product in-place.
+        try:
+            product = Product.objects.get(id=temp_product_id)
+            if product.approval_status not in ['pending', 'changes_requested', 'rejected']:
+                raise ValidationError('Product is already processed')
+
+            review_time = timezone.now()
+            product.approval_status = 'approved'
+            product.rejection_reason = ''
+            product.reviewed_at = review_time
+            product.approved_by = admin_user
+            product.approved_at = review_time
+            product.published_at = review_time
+            product.status = 'active'
+            product.save()
+
+            AuditLog.log_action(
+                user=admin_user,
+                action='update',
+                model_name='Product',
+                object_id=product.id,
+                details={
+                    'action': 'product_approval',
+                    'product_id': product.id,
+                    'product_name': product.name,
+                },
+                request=request
+            )
+
+            return product
+        except Product.DoesNotExist:
+            pass
+
+        # Legacy fallback for older TempProduct records.
         try:
             temp_product = TempProduct.objects.get(
                 id=temp_product_id, 
@@ -116,7 +150,38 @@ class ProductService:
     
     @staticmethod
     def reject_temp_product(temp_product_id, admin_user, reason, request=None):
-        """Reject a temporary product"""
+        """Reject a product submission, with legacy TempProduct fallback."""
+        # Stage 4 primary path: reject Product in-place.
+        try:
+            product = Product.objects.get(id=temp_product_id)
+            if product.approval_status not in ['pending', 'changes_requested']:
+                raise ValidationError('Product is already processed')
+
+            product.approval_status = 'rejected'
+            product.rejection_reason = reason
+            product.reviewed_at = timezone.now()
+            product.approved_by = admin_user
+            product.status = 'archived'
+            product.save()
+
+            AuditLog.log_action(
+                user=admin_user,
+                action='update',
+                model_name='Product',
+                object_id=product.id,
+                details={
+                    'action': 'product_rejection',
+                    'reason': reason,
+                    'product_name': product.name,
+                },
+                request=request
+            )
+
+            return product
+        except Product.DoesNotExist:
+            pass
+
+        # Legacy fallback for older TempProduct records.
         try:
             temp_product = TempProduct.objects.get(
                 id=temp_product_id,
@@ -144,13 +209,55 @@ class ProductService:
         )
         
         return temp_product
+
+    @staticmethod
+    def request_product_changes(temp_product_id, admin_user, comments='', request=None):
+        """Request changes on a product submission, with legacy TempProduct fallback."""
+        # Stage 4 primary path: mark Product as changes_requested.
+        try:
+            product = Product.objects.get(id=temp_product_id)
+            if product.approval_status not in ['pending', 'rejected']:
+                raise ValidationError('Product is already processed')
+
+            product.approval_status = 'changes_requested'
+            product.rejection_reason = comments
+            product.reviewed_at = timezone.now()
+            product.approved_by = admin_user
+            product.save()
+
+            AuditLog.log_action(
+                user=admin_user,
+                action='update',
+                model_name='Product',
+                object_id=product.id,
+                details={
+                    'action': 'product_changes_requested',
+                    'comments': comments,
+                    'product_name': product.name,
+                },
+                request=request
+            )
+
+            return product
+        except Product.DoesNotExist:
+            pass
+
+        # Legacy fallback.
+        temp_product = TempProduct.objects.filter(id=temp_product_id).first()
+        if not temp_product:
+            raise ValidationError('Product submission not found')
+
+        temp_product.status = 'requires_changes'
+        temp_product.rejection_reason = comments
+        temp_product.save()
+        return temp_product
     
     @staticmethod
     def search_products(search_params):
         """Search products with filters"""
         from .models import Product
         
-        queryset = Product.objects.filter(status='active')
+        queryset = Product.objects.filter(status='active', approval_status='approved')
         
         # Apply filters
         query = search_params.get('query')
@@ -216,16 +323,16 @@ class ProductService:
     @staticmethod
     def get_vendor_products(vendor_id, include_temp=False):
         """Get all products for a vendor"""
-        products = Product.objects.filter(vendor_id=vendor_id, status='active')
+        products = Product.objects.filter(vendor_id=vendor_id, approval_status='approved')
         
         result = {'approved': products}
         
         if include_temp:
-            temp_products = TempProduct.objects.filter(
+            pending_products = Product.objects.filter(
                 vendor_id=vendor_id,
-                status='pending'
+                approval_status='pending'
             )
-            result['pending'] = temp_products
+            result['pending'] = pending_products
         
         return result
     
