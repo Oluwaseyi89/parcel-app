@@ -58,9 +58,9 @@ class TempCourierListView(APIView):
     permission_classes = [IsAuthenticated, IsAdminOrSuperAdmin]
     
     def get(self, request):
-        from authentication.models import TempCourierUser
-        couriers = TempCourierUser.objects.filter(is_active=True)
-        serializer = TempCourierRegistrationSerializer(couriers, many=True)
+        # Stage 3: use primary CourierUser table for pending approvals.
+        couriers = CourierUser.objects.filter(is_active=True, is_approved=False)
+        serializer = CourierApprovalSerializer(couriers, many=True)
         return Response({
             "status": "success",
             "data": serializer.data
@@ -191,13 +191,19 @@ def activate_courier(request, uidb64, token):
     """Activate courier account"""
     try:
         uid = force_str(urlsafe_base64_decode(uidb64))
-        courier = TempCourierUser.objects.get(pk=uid)
-    except (TypeError, ValueError, OverflowError, TempCourierUser.DoesNotExist):
-        courier = None
+        courier = CourierUser.objects.get(pk=uid)
+    except (TypeError, ValueError, OverflowError, CourierUser.DoesNotExist):
+        try:
+            courier = TempCourierUser.objects.get(pk=uid)
+        except TempCourierUser.DoesNotExist:
+            courier = None
     
     if courier is not None and account_activation_token.check_token(courier, token):
         courier.is_email_verified = True
-        courier.status = 'verified'
+        if isinstance(courier, CourierUser):
+            courier.approval_status = 'pending'
+        else:
+            courier.status = 'verified'
         courier.save()
         return render(request, "parcel_backends/activation_page.html", {
             "message": "Your courier account has been activated successfully. Awaiting approval."

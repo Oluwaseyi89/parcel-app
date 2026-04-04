@@ -6,10 +6,10 @@ class TempVendorRegistrationSerializer(serializers.ModelSerializer):
     """Serializer for temporary vendor registration"""
     password = serializers.CharField(write_only=True, required=True, min_length=8)
     confirm_password = serializers.CharField(write_only=True, required=True)
-    policy_accepted = serializers.BooleanField(required=True)
+    policy_accepted = serializers.BooleanField(write_only=True, required=True)
     
     class Meta:
-        model = TempVendorUser
+        model = VendorUser
         fields = [
             'email', 'password', 'confirm_password', 'first_name', 'last_name',
             'phone', 'business_country', 'business_state', 'business_street',
@@ -31,11 +31,17 @@ class TempVendorRegistrationSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         validated_data.pop('confirm_password')
+        validated_data.pop('policy_accepted', None)
         password = validated_data.pop('password')
         
-        vendor = TempVendorUser(**validated_data)
+        vendor = VendorUser(**validated_data)
         vendor.set_password(password)
         vendor.role = 'vendor'  # Set role for authentication
+        vendor.is_approved = False
+        vendor.approval_status = 'pending'
+        vendor.status = 'inactive'
+        vendor.is_email_verified = False
+        vendor.is_active = True
         vendor.save()
         
         return vendor

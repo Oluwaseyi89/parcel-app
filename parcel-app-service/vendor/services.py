@@ -22,8 +22,7 @@ class VendorService:
         
         # Check for existing vendor
         email = vendor_data.get('email', '').lower()
-        if TempVendorUser.objects.filter(email=email).exists() or \
-           VendorUser.objects.filter(email=email).exists():
+        if VendorUser.objects.filter(email=email).exists() or TempVendorUser.objects.filter(email=email).exists():
             raise ValidationError("Vendor with this email already exists")
         
         # Create temporary vendor
@@ -37,9 +36,9 @@ class VendorService:
             AuditLog.log_action(
                 user=vendor,
                 action='create',
-                model_name='TempVendorUser',
+                model_name='VendorUser',
                 object_id=vendor.id,
-                details={'type': 'temp_vendor_registration'},
+                details={'type': 'vendor_registration_pending_approval'},
                 request=request
             )
         
@@ -47,11 +46,49 @@ class VendorService:
     
     @staticmethod
     def approve_vendor(temp_vendor_id, admin_user, request=None):
-        """Approve a temporary vendor"""
+        """Approve a pending vendor account."""
+        # Stage 3 primary path: approve VendorUser directly.
+        try:
+            vendor = VendorUser.objects.get(id=temp_vendor_id, is_active=True)
+
+            if not vendor.is_email_verified:
+                raise ValidationError("Vendor email not verified")
+
+            if vendor.is_approved:
+                return vendor
+
+            review_time = timezone.now()
+            vendor.is_approved = True
+            vendor.approval_status = 'approved'
+            vendor.rejection_reason = ''
+            vendor.reviewed_at = review_time
+            vendor.status = 'active'
+            vendor.approved_by = admin_user
+            vendor.approved_at = review_time
+            vendor.save()
+
+            AuditLog.log_action(
+                user=admin_user,
+                action='update',
+                model_name='VendorUser',
+                object_id=vendor.id,
+                details={
+                    'action': 'vendor_approval',
+                    'vendor_id': vendor.id,
+                    'approved_by': admin_user.email,
+                },
+                request=request
+            )
+
+            return vendor
+        except VendorUser.DoesNotExist:
+            pass
+
+        # Legacy fallback for pre-stage-3 temp records.
         try:
             temp_vendor = TempVendorUser.objects.get(id=temp_vendor_id, is_active=True)
         except TempVendorUser.DoesNotExist:
-            raise ValidationError("Temporary vendor not found")
+            raise ValidationError("Vendor not found")
         
         if not temp_vendor.is_email_verified:
             raise ValidationError("Vendor email not verified")
