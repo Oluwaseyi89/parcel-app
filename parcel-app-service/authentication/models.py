@@ -322,6 +322,7 @@ class BaseVendorUser(BaseUser):
     # Business Documents
     cac_reg_no = models.CharField(max_length=20, blank=True)
     nin = models.CharField(max_length=11, blank=True)
+    photo = models.ImageField(upload_to='vendor-photos/', blank=True, null=True)
 
     # Authorization
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='vendor')
@@ -359,6 +360,16 @@ class BaseVendorUser(BaseUser):
 
 
 class TempVendorUser(BaseVendorUser):
+    STATUS_CHOICES = [
+        ('pending', 'Pending Approval'),
+        ('verified', 'Email Verified'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+
+    policy_accepted = models.BooleanField(default=False)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+
     approved_by = models.ForeignKey(
         AdminUser, 
         on_delete=models.SET_NULL, 
@@ -388,6 +399,14 @@ class TempVendorUser(BaseVendorUser):
 
 
 class VendorUser(BaseVendorUser):
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('suspended', 'Suspended'),
+        ('inactive', 'Inactive'),
+    ]
+
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+
     approved_by = models.ForeignKey(
         AdminUser, 
         on_delete=models.SET_NULL, 
@@ -415,6 +434,7 @@ class BaseCourierUser(BaseUser):
     # Business Documents
     cac_reg_no = models.CharField(max_length=20, blank=True)
     nin = models.CharField(max_length=11, blank=True)
+    photo = models.ImageField(upload_to='courier-photos/', blank=True, null=True)
 
     # Authorization
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='courier')
@@ -457,6 +477,16 @@ class BaseCourierUser(BaseUser):
 
 
 class TempCourierUser(BaseCourierUser):
+    STATUS_CHOICES = [
+        ('pending', 'Pending Approval'),
+        ('verified', 'Email Verified'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+
+    policy_accepted = models.BooleanField(default=False)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+
     approved_by = models.ForeignKey(
         AdminUser, 
         on_delete=models.SET_NULL, 
@@ -524,6 +554,11 @@ class CourierUser(BaseCourierUser):
     
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='offline')
 
+    # Delivery metrics used by profile serializers and dashboards
+    total_deliveries = models.IntegerField(default=0)
+    successful_deliveries = models.IntegerField(default=0)
+    rating = models.DecimalField(max_digits=3, decimal_places=2, default=0.00)
+
     # Location tracking for dispatch allocation and live updates
     current_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     current_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
@@ -543,6 +578,12 @@ class CourierUser(BaseCourierUser):
         from django.utils import timezone
         self.last_location_update = timezone.now()
         self.save(update_fields=['current_latitude', 'current_longitude', 'last_location_update'])
+
+    def update_delivery_stats(self, success=True):
+        self.total_deliveries += 1
+        if success:
+            self.successful_deliveries += 1
+        self.save(update_fields=['total_deliveries', 'successful_deliveries'])
 
 
 
