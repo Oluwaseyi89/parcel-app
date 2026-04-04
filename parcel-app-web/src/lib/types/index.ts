@@ -101,7 +101,7 @@ export interface BankDetails {
 
 export interface ProductsApprovalResponse {
   approved?: Product[];
-  pending?: unknown[];
+  pending?: Product[];
 }
 
 export interface CategoryOption {
