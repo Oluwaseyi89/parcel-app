@@ -2,8 +2,7 @@ from django.contrib.auth.hashers import make_password
 from rest_framework import serializers
 from .models import (
     AdminUser, UserSession, PasswordResetToken, 
-    AuditLog, CustomerUser, VendorUser, CourierUser,
-    TempCourierUser, TempVendorUser
+    AuditLog, CustomerUser, VendorUser, CourierUser
 )
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -675,45 +674,6 @@ class SimpleCourierSerializer(serializers.ModelSerializer):
     class Meta:
         model = CourierUser
         fields = ['id', 'email', 'full_name', 'phone', 'vehicle_type', 'service_area', 'is_approved', 'status']
-        read_only_fields = fields
-    
-    def get_full_name(self, obj):
-        return obj.get_full_name()
-
-class TempVendorUserSerializer(serializers.ModelSerializer):
-    """Serializer for temporary vendor users"""
-    full_name = serializers.SerializerMethodField(read_only=True)
-    status_display = serializers.CharField(source='get_status_display', read_only=True)
-    
-    class Meta:
-        model = TempVendorUser
-        fields = [
-            'id', 'email', 'first_name', 'last_name', 'full_name', 'phone',
-            'business_name', 'business_country', 'business_state', 'business_street',
-            'business_category', 'cac_reg_no', 'nin', 'photo', 'policy_accepted',
-            'status', 'status_display', 'is_active', 'is_email_verified',
-            'created_at', 'updated_at'
-        ]
-        read_only_fields = fields
-    
-    def get_full_name(self, obj):
-        return obj.get_full_name()
-
-class TempCourierUserSerializer(serializers.ModelSerializer):
-    """Serializer for temporary courier users"""
-    full_name = serializers.SerializerMethodField(read_only=True)
-    status_display = serializers.CharField(source='get_status_display', read_only=True)
-    
-    class Meta:
-        model = TempCourierUser
-        fields = [
-            'id', 'email', 'first_name', 'last_name', 'full_name', 'phone',
-            'business_country', 'business_state', 'business_street',
-            'cac_reg_no', 'nin', 'photo', 'policy_accepted',
-            'vehicle_type', 'vehicle_registration', 'service_area',
-            'status', 'status_display', 'is_active', 'is_email_verified',
-            'created_at', 'updated_at'
-        ]
         read_only_fields = fields
     
     def get_full_name(self, obj):
