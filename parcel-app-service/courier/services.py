@@ -29,7 +29,12 @@ class CourierService:
         courier = serializer.save()
         
         # Send activation email
-        EmailService.send_activation_email(courier, request, template='parcel_backends/activate_email_cour.html')
+        EmailService.send_activation_email(
+            courier,
+            request,
+            template_name='emails/email_verification.html',
+            email_type='courier',
+        )
         
         # Log registration
         if request:

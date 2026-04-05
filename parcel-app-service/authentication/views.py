@@ -365,7 +365,12 @@ class CustomerRegistrationView(APIView):
             customer.save()
             
             # Send activation email
-            EmailService.send_activation_email(customer, request)
+            EmailService.send_activation_email(
+                customer,
+                request,
+                template_name='emails/email_verification.html',
+                email_type='customer',
+            )
             
             return Response({
                 "status": "success",

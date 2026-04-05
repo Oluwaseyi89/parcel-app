@@ -31,8 +31,13 @@ class CustomerService:
         customer.role = 'customer'
         customer.save()  # created_at is auto_now_add=True
         
-        # Send activation email using existing EmailService
-        EmailService.send_activation_email(customer, request)
+        # Send activation email using centralized template
+        EmailService.send_activation_email(
+            customer,
+            request,
+            template_name='emails/email_verification.html',
+            email_type='customer',
+        )
         
         # Log registration
         if request:

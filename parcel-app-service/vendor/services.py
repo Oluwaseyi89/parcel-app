@@ -29,7 +29,12 @@ class VendorService:
         vendor = serializer.save()
         
         # Send activation email
-        EmailService.send_activation_email(vendor, request, template='parcel_backends/activate_email_vend.html')
+        EmailService.send_activation_email(
+            vendor,
+            request,
+            template_name='emails/email_verification.html',
+            email_type='vendor',
+        )
         
         # Log registration
         if request:

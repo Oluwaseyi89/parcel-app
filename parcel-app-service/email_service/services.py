@@ -7,9 +7,24 @@ from core.tokens import account_activation_token
 
 class EmailService:
     """Centralized email service for the application"""
+
+    @staticmethod
+    def _resolve_email_type(user, email_type=None):
+        if email_type:
+            return email_type
+        return getattr(user, 'role', 'user')
+
+    @staticmethod
+    def _activation_path(email_type, uid, token):
+        activation_paths = {
+            'vendor': f"/vendors/activate/{uid}/{token}/",
+            'courier': f"/couriers/activate/{uid}/{token}/",
+            'customer': f"/auth/customer/activate/{uid}/{token}/",
+        }
+        return activation_paths.get(email_type, f"/auth/customer/activate/{uid}/{token}/")
     
     @staticmethod
-    def send_activation_email(user, request, template_name, email_type='vendor'):
+    def send_activation_email(user, request, template_name='emails/email_verification.html', email_type=None):
         """
         Send activation email to user
         Args:
@@ -18,23 +33,33 @@ class EmailService:
             template_name: Email template path
             email_type: Type of user ('vendor', 'courier', 'admin')
         """
-        current_site = get_current_site(request)
+        current_site = get_current_site(request) if request else None
+        domain = current_site.domain if current_site else 'localhost:7000'
+        resolved_email_type = EmailService._resolve_email_type(user, email_type)
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        token = account_activation_token.make_token(user)
+        activation_path = EmailService._activation_path(resolved_email_type, uid, token)
+        activation_url = f"http://{domain}{activation_path}"
         
-        if email_type == 'vendor':
+        if resolved_email_type == 'vendor':
             mail_subject = "Activate your Vendor Account"
-        elif email_type == 'courier':
+        elif resolved_email_type == 'courier':
             mail_subject = "Activate your Courier Account"
-        elif email_type == 'admin':
+        elif resolved_email_type == 'admin':
             mail_subject = "Activate your Admin Account"
+        elif resolved_email_type == 'customer':
+            mail_subject = "Activate your Customer Account"
         else:
             mail_subject = "Activate your Account"
         
         message = render_to_string(template_name, {
             'user': user,
-            'domain': current_site.domain,
-            'uid': urlsafe_base64_encode(force_bytes(user.pk)),
-            'token': account_activation_token.make_token(user),
-            'email_type': email_type,
+            'domain': domain,
+            'uid': uid,
+            'token': token,
+            'email_type': resolved_email_type,
+            'activation_path': activation_path,
+            'activation_url': activation_url,
         })
         
         to_email = user.email
