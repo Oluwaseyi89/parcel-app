@@ -110,6 +110,56 @@ A comprehensive Django-based backend service for a multi-vendor e-commerce platf
     python manage.py runserver
 ```
 
+## ☁️ AWS S3 Media Storage
+
+### Required Environment Variables
+```bash
+    USE_S3=True
+    AWS_ACCESS_KEY_ID=your-access-key
+    AWS_SECRET_ACCESS_KEY=your-secret-key
+    AWS_STORAGE_BUCKET_NAME=your-bucket
+    AWS_S3_REGION_NAME=us-east-1
+    AWS_S3_CUSTOM_DOMAIN=your-bucket.s3.us-east-1.amazonaws.com
+    AWS_LOCATION=media
+```
+
+### Security Mode (Recommended: Private Media)
+```bash
+    S3_MEDIA_PUBLIC=False
+    AWS_QUERYSTRING_AUTH=True
+    AWS_S3_ENCRYPTION=AES256
+    AWS_S3_VERIFY=True
+```
+
+### Public Media Mode (Optional)
+Use this only if your bucket policy intentionally allows public read access.
+
+```bash
+    S3_MEDIA_PUBLIC=True
+    AWS_QUERYSTRING_AUTH=False
+```
+
+### Backfill Legacy Local Uploads to S3
+Run this after enabling S3 to migrate existing local files.
+
+```bash
+    # Safe preview
+    python manage.py backfill_media_to_storage --dry-run
+
+    # Real migration
+    python manage.py backfill_media_to_storage
+
+    # Example: partial run by model group
+    python manage.py backfill_media_to_storage --only vendor courier --limit 100
+```
+
+### Stage 6 Validation Checklist
+```bash
+    python manage.py check
+    python manage.py help backfill_media_to_storage
+    python manage.py backfill_media_to_storage --dry-run --only vendor courier product --limit 5
+```
+
 ## 🐳 Docker Deployment
 
 ### Quick Start with Docker Compose
