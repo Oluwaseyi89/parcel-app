@@ -80,7 +80,7 @@ class CourierLoginView(APIView):
     permission_classes = [AllowAny]
     
     def post(self, request):
-        serializer = CourierLoginSerializer(data=request.data)
+        serializer = CourierLoginSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
             courier = serializer.validated_data.get('courier')
             
@@ -104,6 +104,13 @@ class CourierLoginView(APIView):
         
         return Response({
             "status": "error",
+            "message": (
+                str(next(iter(serializer.errors.values()))[0])
+                if serializer.errors and isinstance(next(iter(serializer.errors.values())), (list, tuple))
+                else str(next(iter(serializer.errors.values())))
+                if serializer.errors
+                else "Unable to log in. Please check your email and password and try again."
+            ),
             "errors": serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
 

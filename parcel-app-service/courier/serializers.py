@@ -157,8 +157,13 @@
 
 # courier/serializers.py
 from rest_framework import serializers
+from django.conf import settings
+from django.urls import reverse
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_encode
 from authentication.models import CourierUser
 from authentication.serializers import BaseUserSerializer
+from core.tokens import account_activation_token
 
 class TempCourierRegistrationSerializer(serializers.ModelSerializer):
     """Serializer for temporary courier registration"""
@@ -231,6 +236,19 @@ class CourierLoginSerializer(serializers.Serializer):
     """Serializer for courier login"""
     email = serializers.EmailField(required=True)
     password = serializers.CharField(write_only=True, required=True)
+
+    def _build_dev_verify_url(self, user):
+        request = self.context.get('request')
+        if not settings.DEBUG or request is None:
+            return None
+
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        token = account_activation_token.make_token(user)
+        path = reverse('dev_verify_email', kwargs={'role': 'courier', 'uidb64': uid, 'token': token})
+        try:
+            return request.build_absolute_uri(path)
+        except Exception:
+            return f'http://localhost:7000{path}'
     
     def validate(self, data):
         email = data['email'].lower()
@@ -238,16 +256,23 @@ class CourierLoginSerializer(serializers.Serializer):
         try:
             courier = CourierUser.objects.get(email=email, is_active=True)
         except CourierUser.DoesNotExist:
-            raise serializers.ValidationError({'error': 'Invalid credentials.'})
+            raise serializers.ValidationError({'error': 'The email or password you entered is incorrect.'})
 
         if not courier.check_password(data['password']):
-            raise serializers.ValidationError({'error': 'Invalid credentials.'})
+            raise serializers.ValidationError({'error': 'The email or password you entered is incorrect.'})
 
         if not courier.is_email_verified:
-            raise serializers.ValidationError({'error': 'Please verify your email first.'})
+            verify_url = self._build_dev_verify_url(courier)
+            message = 'Please verify your email first.'
+            if verify_url:
+                message = f'{message} For development, open this link: {verify_url}'
+            payload = {'error': message}
+            if verify_url:
+                payload['verify_url'] = verify_url
+            raise serializers.ValidationError(payload)
 
         if not courier.is_approved:
-            raise serializers.ValidationError({'error': 'Courier account not yet approved.'})
+            raise serializers.ValidationError({'error': 'Your courier account is still under review. Please try again after approval.'})
 
         data['courier'] = courier
         return data

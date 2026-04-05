@@ -1,5 +1,9 @@
 from django.contrib.auth.hashers import make_password
 from rest_framework import serializers
+from django.conf import settings
+from django.urls import reverse
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_encode
 from .models import (
     AdminUser, UserSession, PasswordResetToken, 
     AuditLog, CustomerUser, VendorUser, CourierUser
@@ -9,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 
 from rest_framework import serializers
 from django.contrib.auth.hashers import make_password, check_password
+from core.tokens import account_activation_token
 
 class BaseUserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
@@ -479,6 +484,19 @@ class CustomerLoginSerializer(serializers.Serializer):
         write_only=True,
         style={'input_type': 'password'}
     )
+
+    def _build_dev_verify_url(self, user):
+        request = self.context.get('request')
+        if not settings.DEBUG or request is None:
+            return None
+
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        token = account_activation_token.make_token(user)
+        path = reverse('dev_verify_email', kwargs={'role': 'customer', 'uidb64': uid, 'token': token})
+        try:
+            return request.build_absolute_uri(path)
+        except Exception:
+            return f'http://localhost:7000{path}'
     
     def validate(self, data):
         """Validate login credentials"""
@@ -493,9 +511,14 @@ class CustomerLoginSerializer(serializers.Serializer):
             })
         
         if not customer.is_email_verified:
-            raise serializers.ValidationError({
-                'error': 'Please verify your email before logging in.'
-            })
+            verify_url = self._build_dev_verify_url(customer)
+            message = 'Please verify your email before logging in.'
+            if verify_url:
+                message = f'{message} For development, open this link: {verify_url}'
+            payload = {'error': message}
+            if verify_url:
+                payload['verify_url'] = verify_url
+            raise serializers.ValidationError(payload)
         
         if not customer.check_password(password):
             raise serializers.ValidationError({

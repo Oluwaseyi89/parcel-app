@@ -8,7 +8,7 @@ from .views import (
     staff_login, desk_login, desk_login_external, reg_staff,
     # Add customer views
     CustomerRegistrationView, CustomerLoginView, CustomerProfileView,
-    activate_customer, customer_reset
+    activate_customer, customer_reset, dev_verify_email
 )
 from .views import CustomerResetView, CustomerSaveResetView  # You'll need to create these
 
@@ -47,6 +47,7 @@ urlpatterns = [
     path('customer/register/', CustomerRegistrationView.as_view(), name="customer_register"),
     path('customer/register/mobile/', csrf_exempt(CustomerRegistrationView.as_view()), name="customer_register_mobile"),
     path('customer/activate/<uidb64>/<token>/', activate_customer, name="activate_customer"),
+    path('dev/verify-email/<str:role>/<uidb64>/<token>/', dev_verify_email, name='dev_verify_email'),
     
     # Customer Authentication
     path('customer/login/', CustomerLoginView.as_view(), name="customer_login"),

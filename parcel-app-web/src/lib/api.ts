@@ -38,6 +38,44 @@ function toAbsoluteUrl(path: string): string {
   return `${env.apiBase}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
+function extractApiErrorMessage(body: unknown): string | null {
+  if (!body) return null;
+  if (typeof body === "string") {
+    return body.trim() || null;
+  }
+  if (typeof body !== "object") {
+    return null;
+  }
+
+  const payload = body as {
+    message?: unknown;
+    detail?: unknown;
+    error?: unknown;
+    data?: unknown;
+    errors?: unknown;
+  };
+
+  const direct = [payload.message, payload.detail, payload.error, payload.data]
+    .find((value) => typeof value === "string" && String(value).trim().length > 0);
+  if (typeof direct === "string") {
+    return direct.trim();
+  }
+
+  const errors = payload.errors;
+  if (errors && typeof errors === "object" && !Array.isArray(errors)) {
+    const firstValue = Object.values(errors as Record<string, unknown>)[0];
+    if (Array.isArray(firstValue) && firstValue.length > 0) {
+      const firstItem = firstValue[0];
+      if (typeof firstItem === "string" && firstItem.trim()) return firstItem.trim();
+    }
+    if (typeof firstValue === "string" && firstValue.trim()) {
+      return firstValue.trim();
+    }
+  }
+
+  return null;
+}
+
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const { headers, body, json = true, ...rest } = options;
   const csrftoken = getCookie("csrftoken");
@@ -69,9 +107,9 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     const raw = await res.text().catch(() => "");
     let message = `Request failed (${res.status})`;
     try {
-      const body = JSON.parse(raw) as { message?: string; detail?: string; error?: string };
-      const extracted = body.message ?? body.detail ?? body.error;
-      if (extracted) message = String(extracted);
+      const body = JSON.parse(raw) as unknown;
+      const extracted = extractApiErrorMessage(body);
+      if (extracted) message = extracted;
     } catch {
       if (raw.trim()) message = raw.trim();
     }
