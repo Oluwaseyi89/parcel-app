@@ -3,7 +3,7 @@ import secrets
 from datetime import datetime, timedelta
 from django.contrib.contenttypes.models import ContentType
 from django.shortcuts import render, get_object_or_404
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse, HttpResponse, Http404
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.hashers import make_password, check_password
 from django.utils import timezone
@@ -22,7 +22,7 @@ from .permissions import IsSuperAdmin, IsAdminOrSuperAdmin
 from django.conf import settings
 
 
-from .models import CustomerUser
+from .models import CustomerUser, VendorUser, CourierUser
 from .serializers import (
     CustomerRegistrationSerializer, CustomerLoginSerializer,
     ForgotPasswordSerializer, CustomerPasswordResetSerializer
@@ -150,6 +150,13 @@ class AdminProfileView(APIView):
             })
         return Response({
             "status": "error",
+            "message": (
+                str(next(iter(serializer.errors.values()))[0])
+                if serializer.errors and isinstance(next(iter(serializer.errors.values())), (list, tuple))
+                else str(next(iter(serializer.errors.values())))
+                if serializer.errors
+                else "Unable to log in. Please check your email and password and try again."
+            ),
             "errors": serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
 
@@ -386,7 +393,7 @@ class CustomerLoginView(APIView):
     permission_classes = [AllowAny]
     
     def post(self, request):
-        serializer = CustomerLoginSerializer(data=request.data)
+        serializer = CustomerLoginSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
             email = serializer.validated_data['email']
             password = serializer.validated_data['password']
@@ -497,6 +504,54 @@ def activate_customer(request, uidb64, token):
         return render(request, "parcel_backends/activation_page.html", {
             "message": "The activation link is invalid or expired"
         })
+
+
+def dev_verify_email(request, role, uidb64, token):
+    """Dev-only verification endpoint for quick local testing."""
+    if not settings.DEBUG:
+        raise Http404("This endpoint is only available in development.")
+
+    role_map = {
+        'customer': CustomerUser,
+        'vendor': VendorUser,
+        'courier': CourierUser,
+    }
+
+    model_cls = role_map.get(role)
+    if model_cls is None:
+        return JsonResponse({
+            "status": "error",
+            "message": "Invalid role for email verification."
+        }, status=400)
+
+    try:
+        uid = force_str(urlsafe_base64_decode(uidb64))
+        user = model_cls.objects.get(pk=uid)
+    except (TypeError, ValueError, OverflowError, model_cls.DoesNotExist):
+        return JsonResponse({
+            "status": "error",
+            "message": "Invalid verification link."
+        }, status=400)
+
+    if not account_activation_token.check_token(user, token):
+        return JsonResponse({
+            "status": "error",
+            "message": "Verification link expired or invalid. Please request a new one."
+        }, status=400)
+
+    if not user.is_email_verified:
+        user.is_email_verified = True
+        user.save(update_fields=['is_email_verified'])
+
+    return JsonResponse({
+        "status": "success",
+        "message": f"Email verified successfully for {user.email}. You can now return to login.",
+        "data": {
+            "email": user.email,
+            "role": role,
+            "is_email_verified": user.is_email_verified,
+        }
+    }, status=200)
 
 def customer_reset(request, uidb64, token):
     """Password reset confirmation page"""
