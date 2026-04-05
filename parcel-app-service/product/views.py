@@ -37,7 +37,7 @@ class ProductListView(APIView):
         search_params = serializer.validated_data
         result = ProductService.search_products(search_params)
         
-        product_serializer = ProductSerializer(result['products'], many=True)
+        product_serializer = ProductSerializer(result['products'], many=True, context={'request': request})
         
         return Response({
             "status": "success",
@@ -60,7 +60,7 @@ class ProductDetailView(APIView):
         # Record view
         ProductService.record_product_view(product_id)
         
-        serializer = ProductSerializer(product)
+        serializer = ProductSerializer(product, context={'request': request})
         return Response({
             "status": "success",
             "data": serializer.data
@@ -82,7 +82,7 @@ class ProductCreateView(APIView):
             return Response({
                 "status": "success",
                 "message": "Product created successfully and submitted for approval",
-                "data": ProductSerializer(pending_product).data
+                "data": ProductSerializer(pending_product, context={'request': request}).data
             }, status=status.HTTP_201_CREATED)
             
         except Exception as e:
@@ -102,7 +102,7 @@ class TempProductListView(APIView):
             approval_status=status_filter
         ).select_related('vendor', 'category')
 
-        serializer = ProductSerializer(temp_products, many=True)
+        serializer = ProductSerializer(temp_products, many=True, context={'request': request})
         return Response({
             "status": "success",
             "data": serializer.data
@@ -131,7 +131,7 @@ class ProductApprovalView(APIView):
                     request
                 )
                 message = "Product approved successfully"
-                data = ProductSerializer(product).data
+                data = ProductSerializer(product, context={'request': request}).data
                 
             elif action == 'reject':
                 product = ProductService.reject_temp_product(
@@ -141,7 +141,7 @@ class ProductApprovalView(APIView):
                     request
                 )
                 message = "Product rejected"
-                data = ProductSerializer(product).data
+                data = ProductSerializer(product, context={'request': request}).data
                 
             else:  # request_changes
                 product = ProductService.request_product_changes(
@@ -151,7 +151,7 @@ class ProductApprovalView(APIView):
                     request
                 )
                 message = "Changes requested for product"
-                data = ProductSerializer(product).data
+                data = ProductSerializer(product, context={'request': request}).data
             
             return Response({
                 "status": "success",
@@ -178,14 +178,14 @@ class VendorProductsView(APIView):
                 include_temp=include_temp
             )
             
-            approved_serializer = ProductSerializer(products_data['approved'], many=True)
+            approved_serializer = ProductSerializer(products_data['approved'], many=True, context={'request': request})
             
             response_data = {
                 "approved": approved_serializer.data
             }
             
             if include_temp:
-                pending_serializer = ProductSerializer(products_data['pending'], many=True)
+                pending_serializer = ProductSerializer(products_data['pending'], many=True, context={'request': request})
                 response_data["pending"] = pending_serializer.data
             
             return Response({
@@ -225,7 +225,7 @@ class ProductUpdateView(APIView):
         return Response({
             "status": "success",
             "message": "Product updated successfully",
-            "data": ProductSerializer(updated_product).data
+            "data": ProductSerializer(updated_product, context={'request': request}).data
         })
 
 class CategoryListView(APIView):
@@ -281,8 +281,8 @@ class InventoryStatusView(APIView):
             low_stock = InventoryService.check_low_stock()
             out_of_stock = InventoryService.check_out_of_stock()
         
-        low_stock_serializer = ProductSerializer(low_stock, many=True)
-        out_of_stock_serializer = ProductSerializer(out_of_stock, many=True)
+        low_stock_serializer = ProductSerializer(low_stock, many=True, context={'request': request})
+        out_of_stock_serializer = ProductSerializer(out_of_stock, many=True, context={'request': request})
         
         return Response({
             "status": "success",

@@ -97,7 +97,7 @@ class VendorLoginView(APIView):
                 "status": "success",
                 "message": "Login successful",
                 "data": {
-                    "vendor": VendorProfileSerializer(vendor).data,
+                    "vendor": VendorProfileSerializer(vendor, context={'request': request}).data,
                     "session_token": session.session_token
                 }
             })
@@ -112,7 +112,7 @@ class VendorProfileView(APIView):
     
     def get(self, request):
         # Assuming request.user is authenticated vendor
-        serializer = VendorProfileSerializer(request.user)
+        serializer = VendorProfileSerializer(request.user, context={'request': request})
         return Response({
             "status": "success",
             "data": serializer.data
