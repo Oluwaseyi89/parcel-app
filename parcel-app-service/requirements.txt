@@ -22,3 +22,7 @@ geopy
 folium
 httpx
 Pillow
+
+# AWS S3 Storage dependencies
+django-storages>=1.14.4
+boto3>=1.34.0
