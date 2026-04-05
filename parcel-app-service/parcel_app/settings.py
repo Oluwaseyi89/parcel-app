@@ -21,6 +21,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Load environment variables from a .env file using python-dotenv
 load_dotenv(os.path.join(BASE_DIR, '.env'))
 
+
+def _as_bool(value, default=False):
+    if value is None:
+        return default
+    return str(value).strip().lower() in {'1', 'true', 'yes', 'on'}
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/3.2/howto/deployment/checklist/
 
@@ -58,7 +64,8 @@ INSTALLED_APPS = [
     'corsheaders',
     'django_celery_results',
     'flower',
-    'crispy_forms'
+    'crispy_forms',
+    'storages',
 ]
 
 MIDDLEWARE = [
@@ -207,12 +214,51 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/3.2/howto/static-files/
 
-MEDIA_URL = '/media/'
+USE_S3 = _as_bool(os.getenv('USE_S3'), default=False)
 
-MEDIA_ROOT = os.path.join(BASE_DIR, "media")
+if USE_S3:
+    AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID', '')
+    AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY', '')
+    AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME', '')
+    AWS_S3_REGION_NAME = os.getenv('AWS_S3_REGION_NAME', '')
+    AWS_S3_SIGNATURE_VERSION = os.getenv('AWS_S3_SIGNATURE_VERSION') or 's3v4'
+    AWS_S3_FILE_OVERWRITE = _as_bool(os.getenv('AWS_S3_FILE_OVERWRITE'), default=False)
+
+    # None string should map to Python None for django-storages defaults.
+    _aws_default_acl = os.getenv('AWS_DEFAULT_ACL')
+    AWS_DEFAULT_ACL = None if not _aws_default_acl or _aws_default_acl.lower() == 'none' else _aws_default_acl
+
+    AWS_QUERYSTRING_AUTH = _as_bool(os.getenv('AWS_QUERYSTRING_AUTH'), default=False)
+    AWS_S3_OBJECT_PARAMETERS = {
+        'CacheControl': os.getenv('AWS_S3_CACHE_CONTROL', 'max-age=86400'),
+    }
+
+    AWS_LOCATION = os.getenv('AWS_LOCATION', 'media')
+    AWS_S3_CUSTOM_DOMAIN = os.getenv('AWS_S3_CUSTOM_DOMAIN')
+    AWS_S3_ENDPOINT_URL = os.getenv('AWS_S3_ENDPOINT_URL') or None
+
+    if not AWS_STORAGE_BUCKET_NAME:
+        raise ValueError('USE_S3=True but AWS_STORAGE_BUCKET_NAME is not set.')
+
+    if not AWS_S3_CUSTOM_DOMAIN:
+        AWS_S3_CUSTOM_DOMAIN = f"{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com"
+
+    STORAGES = {
+        'default': {
+            'BACKEND': 'storages.backends.s3boto3.S3Boto3Storage',
+        },
+        'staticfiles': {
+            'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
+        },
+    }
+
+    MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/{AWS_LOCATION}/"
+else:
+    MEDIA_URL = '/media/'
+    MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 STATIC_URL = '/static/'
-STATICFILES_DIRS = (os.path.join(BASE_DIR, "static"),)
+STATICFILES_DIRS = (os.path.join(BASE_DIR, 'static'),)
 
 GEOIP_PATH = os.path.join(BASE_DIR, 'geoip')
 
