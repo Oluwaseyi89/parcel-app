@@ -97,7 +97,7 @@ class CourierLoginView(APIView):
                 "status": "success",
                 "message": "Login successful",
                 "data": {
-                    "courier": CourierProfileSerializer(courier).data,
+                    "courier": CourierProfileSerializer(courier, context={'request': request}).data,
                     "session_token": session.session_token
                 }
             })
@@ -112,7 +112,7 @@ class CourierProfileView(APIView):
     
     def get(self, request):
         # Assuming request.user is authenticated courier
-        serializer = CourierProfileSerializer(request.user)
+        serializer = CourierProfileSerializer(request.user, context={'request': request})
         return Response({
             "status": "success",
             "data": serializer.data
@@ -175,7 +175,7 @@ class AvailableCouriersView(APIView):
                 longitude=float(longitude) if longitude else None,
                 radius_km=int(radius)
             )
-            serializer = CourierProfileSerializer(couriers, many=True)
+            serializer = CourierProfileSerializer(couriers, many=True, context={'request': request})
             return Response({
                 "status": "success",
                 "data": serializer.data
