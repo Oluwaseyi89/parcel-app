@@ -217,6 +217,11 @@ USE_TZ = True
 USE_S3 = _as_bool(os.getenv('USE_S3'), default=False)
 
 if USE_S3:
+    # Backward-compatible default: infer public/private mode from AWS_QUERYSTRING_AUTH
+    # when S3_MEDIA_PUBLIC is not explicitly provided.
+    _legacy_qs_auth_default = _as_bool(os.getenv('AWS_QUERYSTRING_AUTH'), default=False)
+    S3_MEDIA_PUBLIC = _as_bool(os.getenv('S3_MEDIA_PUBLIC'), default=(not _legacy_qs_auth_default))
+
     AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID', '')
     AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY', '')
     AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME', '')
@@ -228,10 +233,20 @@ if USE_S3:
     _aws_default_acl = os.getenv('AWS_DEFAULT_ACL')
     AWS_DEFAULT_ACL = None if not _aws_default_acl or _aws_default_acl.lower() == 'none' else _aws_default_acl
 
-    AWS_QUERYSTRING_AUTH = _as_bool(os.getenv('AWS_QUERYSTRING_AUTH'), default=False)
+    AWS_QUERYSTRING_AUTH = _as_bool(os.getenv('AWS_QUERYSTRING_AUTH'), default=(not S3_MEDIA_PUBLIC))
+    if not S3_MEDIA_PUBLIC and not AWS_QUERYSTRING_AUTH:
+        raise ValueError('S3_MEDIA_PUBLIC=False requires AWS_QUERYSTRING_AUTH=True.')
+
+    AWS_S3_ENCRYPTION = os.getenv('AWS_S3_ENCRYPTION', 'AES256').strip()
     AWS_S3_OBJECT_PARAMETERS = {
         'CacheControl': os.getenv('AWS_S3_CACHE_CONTROL', 'max-age=86400'),
     }
+    if AWS_S3_ENCRYPTION and AWS_S3_ENCRYPTION.lower() != 'none':
+        AWS_S3_OBJECT_PARAMETERS['ServerSideEncryption'] = AWS_S3_ENCRYPTION
+
+    AWS_S3_ADDRESSING_STYLE = os.getenv('AWS_S3_ADDRESSING_STYLE', 'virtual')
+    AWS_S3_URL_PROTOCOL = os.getenv('AWS_S3_URL_PROTOCOL', 'https:')
+    AWS_S3_VERIFY = _as_bool(os.getenv('AWS_S3_VERIFY'), default=True)
 
     AWS_LOCATION = os.getenv('AWS_LOCATION', 'media')
     AWS_S3_CUSTOM_DOMAIN = os.getenv('AWS_S3_CUSTOM_DOMAIN')
@@ -241,7 +256,10 @@ if USE_S3:
         raise ValueError('USE_S3=True but AWS_STORAGE_BUCKET_NAME is not set.')
 
     if not AWS_S3_CUSTOM_DOMAIN:
-        AWS_S3_CUSTOM_DOMAIN = f"{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com"
+        if AWS_S3_REGION_NAME:
+            AWS_S3_CUSTOM_DOMAIN = f"{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com"
+        else:
+            AWS_S3_CUSTOM_DOMAIN = f"{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com"
 
     STORAGES = {
         'default': {
@@ -252,7 +270,7 @@ if USE_S3:
         },
     }
 
-    MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/{AWS_LOCATION}/"
+    MEDIA_URL = f"{AWS_S3_URL_PROTOCOL}//{AWS_S3_CUSTOM_DOMAIN}/{AWS_LOCATION}/"
 else:
     MEDIA_URL = '/media/'
     MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
