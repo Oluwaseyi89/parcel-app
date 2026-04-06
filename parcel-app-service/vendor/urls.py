@@ -16,6 +16,7 @@ urlpatterns = [
     # Vendor Management (Admin only)
     path('temp/list/', TempVendorListView.as_view(), name="temp_vendor_list"),
     path('approve/<int:temp_vendor_id>/', VendorApprovalView.as_view(), name="vendor_approve"),
+    path('moderate/<int:temp_vendor_id>/', VendorApprovalView.as_view(), name="vendor_moderate"),
     path('list/', VendorListView.as_view(), name="vendor_list"),
     
     # Vendor Authentication

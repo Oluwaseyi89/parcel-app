@@ -12,7 +12,7 @@ from authentication.models import AdminUser, UserSession
 from .services import VendorService
 from .serializers import (
     TempVendorRegistrationSerializer, VendorApprovalSerializer,
-    VendorLoginSerializer, VendorProfileSerializer
+    VendorLoginSerializer, VendorProfileSerializer, VendorModerationSerializer
 )
 from email_service.services import EmailService
 from core.tokens import account_activation_token
@@ -39,11 +39,36 @@ class VendorApprovalView(APIView):
     permission_classes = [IsAuthenticated, IsAdminOrSuperAdmin]
     
     def post(self, request, temp_vendor_id):
+        serializer = VendorModerationSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                "status": "error",
+                "errors": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        action = serializer.validated_data.get('action', 'approve')
+        comments = serializer.validated_data.get('comments', '')
+
         try:
-            vendor = VendorService.approve_vendor(temp_vendor_id, request.user, request)
+            vendor = VendorService.moderate_vendor(
+                temp_vendor_id=temp_vendor_id,
+                action=action,
+                admin_user=request.user,
+                comments=comments,
+                request=request,
+            )
+
+            action_message = {
+                'approve': 'approved',
+                'reject': 'rejected',
+                'suspend': 'suspended',
+                'reactivate': 'reactivated',
+                'request_changes': 'marked for changes',
+            }.get(action, 'updated')
+
             return Response({
                 "status": "success",
-                "message": f"Vendor {vendor.email} approved successfully",
+                "message": f"Vendor {vendor.email} {action_message} successfully",
                 "data": VendorApprovalSerializer(vendor).data
             })
         except Exception as e:
