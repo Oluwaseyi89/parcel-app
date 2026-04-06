@@ -1,16 +1,61 @@
-# React + Vite
+# Parcel Admin
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Parcel Admin is the operations console for moderation, dispatch, complaints, banking, orders, and access control workflows in the Parcel platform.
 
-Currently, two official plugins are available:
+## Requirements
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Node.js 20+
+- npm 10+
 
-## React Compiler
+## Local Setup
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+1. Install dependencies:
 
-## Expanding the ESLint configuration
+	```bash
+	npm install
+	```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+2. Create a local environment file:
+
+	```bash
+	cp .env.example .env
+	```
+
+3. Start the development server:
+
+	```bash
+	npm run dev
+	```
+
+## Environment
+
+The app currently requires one deployment variable:
+
+- `VITE_API_BASE_URL`: Base URL for the Django admin API, for example `http://localhost:7000` in development or `https://api.example.com` in production.
+
+Reference: [.env.example](/home/seyi/Documents/parcel-app/parcel-app-admin/.env.example)
+
+## Quality Checks
+
+- `npm run lint`: ESLint validation
+- `npm run test`: Run unit and integration regression tests with Vitest
+- `npm run test:watch`: Run tests in watch mode during development
+- `npm run build`: Produce the production bundle with Vite
+- `npm run check`: Full release gate that runs lint, tests, and build in sequence
+
+## Regression Coverage
+
+The release baseline includes tests for:
+
+- auth guard bootstrap and protected-route behavior
+- moderation action success and rollback paths
+- API request error parsing and header handling
+
+## Deployment Baseline
+
+Before deployment, verify all of the following:
+
+1. `.env` or hosting environment variables define `VITE_API_BASE_URL` for the target backend.
+2. `npm run check` passes locally or in CI.
+3. The generated bundle from `npm run build` is published from `dist/`.
+4. The target backend allows the admin origin and `X-Session-Token` header.

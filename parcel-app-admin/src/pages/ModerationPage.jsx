@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import TableStateRows from '../components/common/TableStateRows'
-import { useToast } from '../components/common/ToastProvider'
+import useToast from '../hooks/useToast'
 import useOptimisticMutation from '../hooks/useOptimisticMutation'
 import { apiRequest } from '../services/api'
 
@@ -75,6 +75,7 @@ export default function ModerationPage({ token }) {
   const [statusFilter, setStatusFilter] = useState('pending')
   const [data, setData] = useState({ vendors: [], couriers: [], products: [], summary: {} })
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [actionReason, setActionReason] = useState('')
@@ -90,6 +91,7 @@ export default function ModerationPage({ token }) {
   async function loadQueue() {
     try {
       setIsLoading(true)
+      setLoadError('')
       setError('')
       const params = new URLSearchParams({
         type: queueType,
@@ -101,8 +103,10 @@ export default function ModerationPage({ token }) {
       })
       setData(payload?.data || { vendors: [], couriers: [], products: [], summary: {} })
     } catch (err) {
-      setError(err.message || 'Failed to load moderation queue.')
-      toast.error(err.message || 'Failed to load moderation queue.')
+      const message = err.message || 'Failed to load moderation queue.'
+      setLoadError(message)
+      setError(message)
+      toast.error(message)
     } finally {
       setIsLoading(false)
     }
@@ -164,6 +168,8 @@ export default function ModerationPage({ token }) {
       })
 
       await loadQueue()
+    } catch {
+      // Errors are surfaced via the optimistic mutation callbacks.
     } finally {
       setIsSubmitting(false)
     }
@@ -226,7 +232,7 @@ export default function ModerationPage({ token }) {
           onAction={handleModerationAction}
           isSubmitting={isSubmitting || isMutating}
           isLoading={isLoading}
-          error={error}
+          error={loadError}
           onRetry={loadQueue}
           columns={[
             { key: 'name', label: 'Name', render: (row) => `${row.first_name || ''} ${row.last_name || ''}`.trim() || 'n/a' },
@@ -246,7 +252,7 @@ export default function ModerationPage({ token }) {
           onAction={handleModerationAction}
           isSubmitting={isSubmitting || isMutating}
           isLoading={isLoading}
-          error={error}
+          error={loadError}
           onRetry={loadQueue}
           columns={[
             { key: 'name', label: 'Name', render: (row) => `${row.first_name || ''} ${row.last_name || ''}`.trim() || 'n/a' },
@@ -267,7 +273,7 @@ export default function ModerationPage({ token }) {
           onAction={handleModerationAction}
           isSubmitting={isSubmitting || isMutating}
           isLoading={isLoading}
-          error={error}
+          error={loadError}
           onRetry={loadQueue}
           columns={[
             { key: 'name', label: 'Product', render: (row) => row.name || 'n/a' },

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useToast } from '../components/common/ToastProvider'
+import useToast from '../hooks/useToast'
 import { apiRequest } from '../services/api'
 import { API_BASE_URL } from '../config/constants'
 

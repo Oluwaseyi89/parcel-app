@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import PaginationControls from '../components/common/PaginationControls'
 import TableStateRows from '../components/common/TableStateRows'
-import { useToast } from '../components/common/ToastProvider'
+import useToast from '../hooks/useToast'
 import { apiRequest } from '../services/api'
 import { paginateLocal } from '../services/pagination'
 
