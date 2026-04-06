@@ -73,6 +73,26 @@ class VendorApprovalSerializer(serializers.ModelSerializer):
             return obj.approved_by.get_full_name()
         return None
 
+
+class VendorModerationSerializer(serializers.Serializer):
+    action = serializers.ChoiceField(
+        choices=['approve', 'reject', 'suspend', 'reactivate', 'request_changes'],
+        required=False,
+        default='approve'
+    )
+    comments = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, data):
+        action = data.get('action', 'approve')
+        comments = (data.get('comments') or '').strip()
+
+        if action in ['reject', 'request_changes'] and not comments:
+            raise serializers.ValidationError({
+                'comments': 'Comments are required for reject and request_changes actions.'
+            })
+
+        return data
+
 class VendorLoginSerializer(serializers.Serializer):
     """Serializer for vendor login"""
     email = serializers.EmailField(required=True)

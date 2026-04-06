@@ -51,26 +51,63 @@ class VendorService:
     
     @staticmethod
     def approve_vendor(temp_vendor_id, admin_user, request=None):
-        """Approve a pending vendor account."""
+        """Backward-compatible approve wrapper."""
+        return VendorService.moderate_vendor(
+            temp_vendor_id=temp_vendor_id,
+            action='approve',
+            admin_user=admin_user,
+            comments='',
+            request=request,
+        )
+
+    @staticmethod
+    def moderate_vendor(temp_vendor_id, action, admin_user, comments='', request=None):
+        """Moderate vendor account using supported admin actions."""
         try:
             vendor = VendorUser.objects.get(id=temp_vendor_id, is_active=True)
         except VendorUser.DoesNotExist:
             raise ValidationError("Vendor not found")
 
-        if not vendor.is_email_verified:
+        if action in ['approve', 'request_changes'] and not vendor.is_email_verified:
             raise ValidationError("Vendor email not verified")
 
-        if vendor.is_approved:
-            return vendor
-
         review_time = timezone.now()
-        vendor.is_approved = True
-        vendor.approval_status = 'approved'
-        vendor.rejection_reason = ''
+
+        if action == 'approve':
+            vendor.is_approved = True
+            vendor.approval_status = 'approved'
+            vendor.rejection_reason = ''
+            vendor.status = 'active'
+            vendor.approved_by = admin_user
+            vendor.approved_at = review_time
+        elif action == 'reject':
+            vendor.is_approved = False
+            vendor.approval_status = 'rejected'
+            vendor.rejection_reason = comments
+            vendor.status = 'inactive'
+            vendor.approved_by = admin_user
+        elif action == 'request_changes':
+            vendor.is_approved = False
+            vendor.approval_status = 'changes_requested'
+            vendor.rejection_reason = comments
+            vendor.status = 'inactive'
+            vendor.approved_by = admin_user
+        elif action == 'suspend':
+            vendor.status = 'suspended'
+            vendor.approved_by = admin_user
+        elif action == 'reactivate':
+            vendor.status = 'active'
+            vendor.is_approved = True
+            if vendor.approval_status in ['rejected', 'changes_requested', 'pending']:
+                vendor.approval_status = 'approved'
+            vendor.rejection_reason = ''
+            vendor.approved_by = admin_user
+            if not vendor.approved_at:
+                vendor.approved_at = review_time
+        else:
+            raise ValidationError("Unsupported moderation action")
+
         vendor.reviewed_at = review_time
-        vendor.status = 'active'
-        vendor.approved_by = admin_user
-        vendor.approved_at = review_time
         vendor.save()
 
         AuditLog.log_action(
@@ -79,9 +116,10 @@ class VendorService:
             model_name='VendorUser',
             object_id=vendor.id,
             details={
-                'action': 'vendor_approval',
+                'action': f'vendor_{action}',
                 'vendor_id': vendor.id,
                 'approved_by': admin_user.email,
+                'comments': comments,
             },
             request=request
         )
