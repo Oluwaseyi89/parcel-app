@@ -17,6 +17,7 @@ urlpatterns = [
     # Courier Management (Admin only)
     path('temp/list/', TempCourierListView.as_view(), name="temp_courier_list"),
     path('approve/<int:temp_courier_id>/', CourierApprovalView.as_view(), name="courier_approve"),
+    path('moderate/<int:temp_courier_id>/', CourierApprovalView.as_view(), name="courier_moderate"),
     path('list/', CourierListView.as_view(), name="courier_list"),
     
     # Courier Authentication

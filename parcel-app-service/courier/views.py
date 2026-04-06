@@ -14,7 +14,8 @@ from .services import CourierService
 from .serializers import (
     TempCourierRegistrationSerializer, CourierApprovalSerializer,
     CourierLoginSerializer, CourierProfileSerializer,
-    CourierLocationUpdateSerializer, CourierStatusUpdateSerializer
+    CourierLocationUpdateSerializer, CourierStatusUpdateSerializer,
+    CourierModerationSerializer
 )
 from authentication.models import CourierUser
 from email_service.services import EmailService
@@ -41,11 +42,36 @@ class CourierApprovalView(APIView):
     permission_classes = [IsAuthenticated, IsAdminOrSuperAdmin]
     
     def post(self, request, temp_courier_id):
+        serializer = CourierModerationSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                "status": "error",
+                "errors": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        action = serializer.validated_data.get('action', 'approve')
+        comments = serializer.validated_data.get('comments', '')
+
         try:
-            courier = CourierService.approve_courier(temp_courier_id, request.user, request)
+            courier = CourierService.moderate_courier(
+                temp_courier_id=temp_courier_id,
+                action=action,
+                admin_user=request.user,
+                comments=comments,
+                request=request,
+            )
+
+            action_message = {
+                'approve': 'approved',
+                'reject': 'rejected',
+                'suspend': 'suspended',
+                'reactivate': 'reactivated',
+                'request_changes': 'marked for changes',
+            }.get(action, 'updated')
+
             return Response({
                 "status": "success",
-                "message": f"Courier {courier.email} approved successfully",
+                "message": f"Courier {courier.email} {action_message} successfully",
                 "data": CourierApprovalSerializer(courier).data
             })
         except Exception as e:
