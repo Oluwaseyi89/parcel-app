@@ -272,6 +272,84 @@ a {
   font-size: 0.9rem;
 }
 
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin: 24px 0;
+}
+
+.metric-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 18px;
+  border-top: 4px solid #ca520c;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.metric-label {
+  font-size: 0.85rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+}
+
+.metric-value {
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1;
+}
+
+.metric-sub {
+  margin-top: 8px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.activity-section {
+  margin-top: 28px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.activity-section h3 {
+  margin: 0 0 14px;
+  font-size: 1.1rem;
+  color: var(--ink);
+}
+
+.activity-list {
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.activity-list li {
+  padding: 10px 12px;
+  background: #f9f8f6;
+  border-left: 3px solid #ca520c;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+@media (max-width: 980px) {
+  .metrics-grid {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+  }
+
+  .metric-value {
+    font-size: 1.8rem;
+  }
+}
+
 @media (max-width: 980px) {
   .admin-shell {
     grid-template-columns: 1fr;
