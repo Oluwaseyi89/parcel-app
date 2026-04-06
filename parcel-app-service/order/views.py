@@ -1,5 +1,6 @@
 # order/views.py
 from django.shortcuts import render, get_object_or_404
+import secrets
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -7,6 +8,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.pagination import PageNumberPagination
 from django.db.models import Q
 from authentication.permissions import IsAdminOrSuperAdmin, IsVendorOrAdmin, IsCourierOrAdmin
+from django.conf import settings
 from .services import OrderService, PaymentService, ShippingService
 from .serializers import (
     OrderSerializer, OrderCreateSerializer, OrderItemSerializer,
@@ -249,9 +251,35 @@ class PaymentInitiateView(APIView):
 
 class PaymentVerifyView(APIView):
     """Verify payment completion"""
-    permission_classes = [AllowAny]  # Payment webhooks might not have auth
+    permission_classes = [AllowAny]
+
+    @staticmethod
+    def _is_admin_user(user):
+        return bool(
+            getattr(user, 'is_authenticated', False) and
+            getattr(user, 'role', None) in ['admin', 'super_admin']
+        )
+
+    @staticmethod
+    def _is_trusted_internal_call(request):
+        expected = getattr(settings, 'PAYMENT_SYNC_TOKEN', '')
+        if not expected:
+            return False
+
+        provided = (
+            request.headers.get('X-Internal-Service-Token') or
+            request.META.get('HTTP_X_INTERNAL_SERVICE_TOKEN') or
+            ''
+        )
+        return secrets.compare_digest(str(provided), str(expected))
     
     def post(self, request, reference):
+        if not (self._is_admin_user(request.user) or self._is_trusted_internal_call(request)):
+            return Response({
+                "status": "error",
+                "message": "Forbidden"
+            }, status=status.HTTP_403_FORBIDDEN)
+
         try:
             payment = PaymentService.verify_payment(
                 reference,

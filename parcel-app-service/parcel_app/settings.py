@@ -290,6 +290,9 @@ EMAIL_FILE_PATH = os.path.join(BASE_DIR, 'parcel_backends/messages')
 
 RECIPIENT_ADDRESS = os.getenv('RECIPIENT_ADDRESS')
 
+# Shared token for trusted internal payment status sync calls.
+PAYMENT_SYNC_TOKEN = os.getenv('PAYMENT_SYNC_TOKEN', '')
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/3.2/ref/settings/#default-auto-field
 
