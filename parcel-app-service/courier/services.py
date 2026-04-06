@@ -51,26 +51,63 @@ class CourierService:
     
     @staticmethod
     def approve_courier(temp_courier_id, admin_user, request=None):
-        """Approve a pending courier account."""
+        """Backward-compatible approve wrapper."""
+        return CourierService.moderate_courier(
+            temp_courier_id=temp_courier_id,
+            action='approve',
+            admin_user=admin_user,
+            comments='',
+            request=request,
+        )
+
+    @staticmethod
+    def moderate_courier(temp_courier_id, action, admin_user, comments='', request=None):
+        """Moderate courier account using supported admin actions."""
         try:
             courier = CourierUser.objects.get(id=temp_courier_id, is_active=True)
         except CourierUser.DoesNotExist:
             raise ValidationError("Courier not found")
 
-        if not courier.is_email_verified:
+        if action in ['approve', 'request_changes'] and not courier.is_email_verified:
             raise ValidationError("Courier email not verified")
 
-        if courier.is_approved:
-            return courier
-
         review_time = timezone.now()
-        courier.is_approved = True
-        courier.approval_status = 'approved'
-        courier.rejection_reason = ''
+
+        if action == 'approve':
+            courier.is_approved = True
+            courier.approval_status = 'approved'
+            courier.rejection_reason = ''
+            courier.status = 'active'
+            courier.approved_by = admin_user
+            courier.approved_at = review_time
+        elif action == 'reject':
+            courier.is_approved = False
+            courier.approval_status = 'rejected'
+            courier.rejection_reason = comments
+            courier.status = 'inactive'
+            courier.approved_by = admin_user
+        elif action == 'request_changes':
+            courier.is_approved = False
+            courier.approval_status = 'changes_requested'
+            courier.rejection_reason = comments
+            courier.status = 'inactive'
+            courier.approved_by = admin_user
+        elif action == 'suspend':
+            courier.status = 'suspended'
+            courier.approved_by = admin_user
+        elif action == 'reactivate':
+            courier.status = 'active'
+            courier.is_approved = True
+            if courier.approval_status in ['rejected', 'changes_requested', 'pending']:
+                courier.approval_status = 'approved'
+            courier.rejection_reason = ''
+            courier.approved_by = admin_user
+            if not courier.approved_at:
+                courier.approved_at = review_time
+        else:
+            raise ValidationError("Unsupported moderation action")
+
         courier.reviewed_at = review_time
-        courier.status = 'active'
-        courier.approved_by = admin_user
-        courier.approved_at = review_time
         courier.save()
 
         AuditLog.log_action(
@@ -79,9 +116,10 @@ class CourierService:
             model_name='CourierUser',
             object_id=courier.id,
             details={
-                'action': 'courier_approval',
+                'action': f'courier_{action}',
                 'courier_id': courier.id,
                 'approved_by': admin_user.email,
+                'comments': comments,
             },
             request=request
         )
