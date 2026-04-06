@@ -27,6 +27,7 @@ from django.conf import settings
 from .models import CustomerUser, VendorUser, CourierUser
 from product.models import Product
 from order.models import Order
+from dispatch.models import Dispatch
 from .serializers import (
     CustomerRegistrationSerializer, CustomerLoginSerializer,
     ForgotPasswordSerializer, CustomerPasswordResetSerializer,
@@ -673,6 +674,197 @@ class AdminOrderStatusUpdateView(APIView):
                 "status": order.status,
                 "internal_notes": order.internal_notes,
             }
+        })
+
+
+class AdminDispatchListView(APIView):
+    """Admin dispatch management endpoint (list/create)."""
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
+    permission_classes = [IsAdminOrSuperAdmin]
+
+    def get(self, request):
+        queryset = Dispatch.objects.select_related('order', 'courier', 'order__customer').all().order_by('-created_at')
+
+        search = request.query_params.get('search')
+        if search:
+            queryset = queryset.filter(
+                Q(tracking_number__icontains=search) |
+                Q(order__order_number__icontains=search) |
+                Q(order__customer__email__icontains=search)
+            )
+
+        status_filter = request.query_params.get('status')
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+
+        data = [self._serialize_dispatch(item) for item in queryset[:100]]
+        return Response({
+            "status": "success",
+            "data": data
+        })
+
+    def post(self, request):
+        order_id = request.data.get('order_id')
+        admin_notes = str(request.data.get('admin_notes', '')).strip()
+
+        if not order_id:
+            return Response({
+                "status": "error",
+                "message": "order_id is required."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        order = get_object_or_404(Order, pk=order_id)
+        if hasattr(order, 'dispatch'):
+            return Response({
+                "status": "error",
+                "message": "Dispatch already exists for this order."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        dispatch = Dispatch.objects.create(order=order, admin_notes=admin_notes)
+        return Response({
+            "status": "success",
+            "message": "Dispatch created successfully",
+            "data": self._serialize_dispatch(dispatch)
+        }, status=status.HTTP_201_CREATED)
+
+    @staticmethod
+    def _serialize_dispatch(item):
+        return {
+            "id": item.id,
+            "tracking_number": item.tracking_number,
+            "status": item.status,
+            "courier": {
+                "id": getattr(item.courier, 'id', None) if getattr(item, 'courier', None) else None,
+                "email": getattr(item.courier, 'email', '') if getattr(item, 'courier', None) else '',
+                "name": item.courier.get_full_name() if getattr(item, 'courier', None) else '',
+            },
+            "order": {
+                "id": item.order.id,
+                "order_number": item.order.order_number,
+                "status": item.order.status,
+                "customer_email": getattr(item.order.customer, 'email', ''),
+            },
+            "estimated_delivery_time": item.estimated_delivery_time,
+            "assigned_at": item.assigned_at,
+            "created_at": item.created_at,
+            "admin_notes": item.admin_notes,
+        }
+
+
+class AdminDispatchStatusUpdateView(APIView):
+    """Admin dispatch status update endpoint."""
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
+    permission_classes = [IsAdminOrSuperAdmin]
+
+    def patch(self, request, pk):
+        dispatch = get_object_or_404(Dispatch, pk=pk)
+        next_status = str(request.data.get('status', '')).strip()
+
+        valid_statuses = [choice[0] for choice in Dispatch.STATUS_CHOICES]
+        if next_status not in valid_statuses:
+            return Response({
+                "status": "error",
+                "message": "Invalid dispatch status."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        notes = str(request.data.get('notes', '')).strip()
+        dispatch.update_status(next_status, notes=notes)
+        if notes:
+            dispatch.admin_notes = (dispatch.admin_notes + "\n" + notes).strip() if dispatch.admin_notes else notes
+            dispatch.save(update_fields=['admin_notes'])
+
+        return Response({
+            "status": "success",
+            "message": f"Dispatch status updated to {next_status}",
+            "data": {
+                "id": dispatch.id,
+                "tracking_number": dispatch.tracking_number,
+                "status": dispatch.status,
+            }
+        })
+
+
+class AdminDispatchAssignView(APIView):
+    """Admin dispatch assign courier endpoint."""
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
+    permission_classes = [IsAdminOrSuperAdmin]
+
+    def patch(self, request, pk):
+        dispatch = get_object_or_404(Dispatch, pk=pk)
+        courier_id = request.data.get('courier_id')
+        if not courier_id:
+            return Response({
+                "status": "error",
+                "message": "courier_id is required."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        courier = get_object_or_404(CourierUser, pk=courier_id)
+        notes = str(request.data.get('notes', '')).strip()
+        dispatch.assign_courier(courier, notes=notes)
+
+        return Response({
+            "status": "success",
+            "message": "Courier assigned successfully",
+            "data": {
+                "id": dispatch.id,
+                "tracking_number": dispatch.tracking_number,
+                "status": dispatch.status,
+                "courier": {
+                    "id": courier.id,
+                    "email": courier.email,
+                    "name": courier.get_full_name(),
+                }
+            }
+        })
+
+
+class AdminDispatchReadyOrdersView(APIView):
+    """Admin dispatch ready order queue endpoint."""
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
+    permission_classes = [IsAdminOrSuperAdmin]
+
+    def get(self, request):
+        queryset = Order.objects.select_related('customer').filter(status='ready').order_by('-created_at')
+        data = []
+        for order in queryset[:100]:
+            if hasattr(order, 'dispatch'):
+                continue
+            data.append({
+                "id": order.id,
+                "order_number": order.order_number,
+                "customer_email": getattr(order.customer, 'email', ''),
+                "total_amount": str(order.total_amount),
+                "payment_status": order.payment_status,
+                "created_at": order.created_at,
+            })
+
+        return Response({
+            "status": "success",
+            "data": data
+        })
+
+
+class AdminCourierListView(APIView):
+    """Admin courier list endpoint for dispatch assignment."""
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
+    permission_classes = [IsAdminOrSuperAdmin]
+
+    def get(self, request):
+        queryset = CourierUser.objects.filter(is_active=True).exclude(status='inactive').order_by('-created_at')[:100]
+        data = [
+            {
+                "id": courier.id,
+                "email": courier.email,
+                "name": courier.get_full_name(),
+                "status": courier.status,
+                "service_area": courier.service_area,
+            }
+            for courier in queryset
+        ]
+
+        return Response({
+            "status": "success",
+            "data": data
         })
 
 
