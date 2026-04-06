@@ -198,8 +198,16 @@ class AdminUserListView(APIView):
     authentication_classes = [SessionAuthentication, BasicAuthentication]
     permission_classes = [IsSuperAdmin]
     
-    def get(self, request):
-        admins = AdminUser.objects.all()
+    def get(self, request, pk=None):
+        if pk is not None:
+            admin_user = get_object_or_404(AdminUser, pk=pk)
+            serializer = AdminUserSerializer(admin_user)
+            return Response({
+                "status": "success",
+                "data": serializer.data
+            })
+
+        admins = AdminUser.objects.all().order_by('-created_at')
         serializer = AdminUserSerializer(admins, many=True)
         return Response({
             "status": "success",
@@ -220,6 +228,51 @@ class AdminUserListView(APIView):
             "status": "error",
             "errors": serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
+
+    def patch(self, request, pk=None):
+        if pk is None:
+            return Response({
+                "status": "error",
+                "message": "Admin id is required."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        admin_user = get_object_or_404(AdminUser, pk=pk)
+        serializer = AdminUserSerializer(admin_user, data=request.data, partial=True)
+        if not serializer.is_valid():
+            return Response({
+                "status": "error",
+                "errors": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer.save()
+        return Response({
+            "status": "success",
+            "message": "Admin user updated successfully",
+            "data": serializer.data
+        })
+
+    def delete(self, request, pk=None):
+        if pk is None:
+            return Response({
+                "status": "error",
+                "message": "Admin id is required."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        admin_user = get_object_or_404(AdminUser, pk=pk)
+
+        if request.user.id == admin_user.id:
+            return Response({
+                "status": "error",
+                "message": "You cannot deactivate your own admin account."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        admin_user.is_active = False
+        admin_user.save(update_fields=['is_active'])
+
+        return Response({
+            "status": "success",
+            "message": f"Admin user {admin_user.email} deactivated successfully"
+        })
 
 
 class AdminCustomerListView(APIView):
