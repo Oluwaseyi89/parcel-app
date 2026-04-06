@@ -59,23 +59,60 @@ class ProductService:
     
     @staticmethod
     def approve_temp_product(temp_product_id, admin_user, request=None):
-        """Approve a product submission on the primary Product lifecycle."""
+        """Backward-compatible approve wrapper."""
+        return ProductService.moderate_product(
+            temp_product_id=temp_product_id,
+            action='approve',
+            admin_user=admin_user,
+            comments='',
+            request=request,
+        )
+
+    @staticmethod
+    def moderate_product(temp_product_id, action, admin_user, comments='', request=None):
+        """Moderate product submission using supported admin actions."""
         try:
             product = Product.objects.get(id=temp_product_id)
         except Product.DoesNotExist:
             raise ValidationError('Product submission not found')
 
-        if product.approval_status not in ['pending', 'changes_requested', 'rejected']:
-            raise ValidationError('Product is already processed')
-
         review_time = timezone.now()
-        product.approval_status = 'approved'
-        product.rejection_reason = ''
+        if action == 'approve':
+            if product.approval_status not in ['pending', 'changes_requested', 'rejected']:
+                raise ValidationError('Product is already processed')
+            product.approval_status = 'approved'
+            product.rejection_reason = ''
+            product.approved_at = review_time
+            product.published_at = review_time
+            product.status = 'active'
+        elif action == 'reject':
+            if product.approval_status not in ['pending', 'changes_requested']:
+                raise ValidationError('Product is already processed')
+            product.approval_status = 'rejected'
+            product.rejection_reason = comments
+            product.status = 'archived'
+        elif action == 'request_changes':
+            if product.approval_status not in ['pending', 'rejected']:
+                raise ValidationError('Product is already processed')
+            product.approval_status = 'changes_requested'
+            product.rejection_reason = comments
+            product.status = 'active'
+        elif action == 'suspend':
+            product.status = 'suspended'
+        elif action == 'reactivate':
+            product.status = 'active'
+            if product.approval_status in ['rejected', 'changes_requested', 'pending']:
+                product.approval_status = 'approved'
+            if not product.approved_at:
+                product.approved_at = review_time
+            if not product.published_at:
+                product.published_at = review_time
+            product.rejection_reason = ''
+        else:
+            raise ValidationError('Unsupported moderation action')
+
         product.reviewed_at = review_time
         product.approved_by = admin_user
-        product.approved_at = review_time
-        product.published_at = review_time
-        product.status = 'active'
         product.save()
 
         AuditLog.log_action(
@@ -84,9 +121,10 @@ class ProductService:
             model_name='Product',
             object_id=product.id,
             details={
-                'action': 'product_approval',
+                'action': f'product_{action}',
                 'product_id': product.id,
                 'product_name': product.name,
+                'comments': comments,
             },
             request=request
         )
