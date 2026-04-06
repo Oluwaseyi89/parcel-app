@@ -114,6 +114,20 @@ CORS_ALLOWED_ORIGINS = [
 # Allow browser requests that send cookies/credentials from allowed origins.
 CORS_ALLOW_CREDENTIALS = True
 
+# Allow custom session token header in CORS preflight requests
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+    'x-session-token',  # Custom header for admin session token
+]
+
 
 # Admin settings
 DEFAULT_SUPER_ADMIN_EMAIL = os.environ.get('SUPER_ADMIN_EMAIL', 'admin@parcel.com')
