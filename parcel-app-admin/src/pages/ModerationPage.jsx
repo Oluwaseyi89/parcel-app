@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react'
+import TableStateRows from '../components/common/TableStateRows'
+import { useToast } from '../components/common/ToastProvider'
+import useOptimisticMutation from '../hooks/useOptimisticMutation'
 import { apiRequest } from '../services/api'
 
-function ModerationSection({ title, rows, kind, columns, onAction, isSubmitting }) {
+function ModerationSection({ title, rows, kind, columns, onAction, isSubmitting, isLoading, error, onRetry }) {
   return (
     <section className="moderation-section">
       <h3>{title}</h3>
@@ -16,12 +19,15 @@ function ModerationSection({ title, rows, kind, columns, onAction, isSubmitting 
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 ? (
-              <tr>
-                <td colSpan={columns.length + 1}>No items in this queue.</td>
-              </tr>
-            ) : (
-              rows.map((row) => (
+            <TableStateRows
+              isLoading={isLoading}
+              error={error}
+              rows={rows}
+              colSpan={columns.length + 1}
+              loadingMessage="Loading moderation items..."
+              emptyMessage="No items in this queue."
+              onRetry={onRetry}
+              renderRow={(row) => (
                 <tr key={`${kind}-${row.id}`}>
                   {columns.map((column) => (
                     <td key={`${kind}-${row.id}-${column.key}`}>{column.render(row)}</td>
@@ -53,8 +59,8 @@ function ModerationSection({ title, rows, kind, columns, onAction, isSubmitting 
                     </button>
                   </td>
                 </tr>
-              ))
-            )}
+              )}
+            />
           </tbody>
         </table>
       </div>
@@ -63,6 +69,8 @@ function ModerationSection({ title, rows, kind, columns, onAction, isSubmitting 
 }
 
 export default function ModerationPage({ token }) {
+  const toast = useToast()
+  const { run: runOptimisticMutation, isMutating } = useOptimisticMutation()
   const [queueType, setQueueType] = useState('all')
   const [statusFilter, setStatusFilter] = useState('pending')
   const [data, setData] = useState({ vendors: [], couriers: [], products: [], summary: {} })
@@ -94,6 +102,7 @@ export default function ModerationPage({ token }) {
       setData(payload?.data || { vendors: [], couriers: [], products: [], summary: {} })
     } catch (err) {
       setError(err.message || 'Failed to load moderation queue.')
+      toast.error(err.message || 'Failed to load moderation queue.')
     } finally {
       setIsLoading(false)
     }
@@ -105,23 +114,56 @@ export default function ModerationPage({ token }) {
   }, [token, queueType, statusFilter])
 
   async function handleModerationAction(type, id, action) {
+    setIsSubmitting(true)
+    setError('')
+    setNotice('')
+
+    const statusByAction = {
+      approve: 'approved',
+      reject: 'rejected',
+      request_changes: 'changes_requested',
+    }
+
     try {
-      setIsSubmitting(true)
-      setError('')
-      setNotice('')
-      const payload = await apiRequest(`/auth/api/moderation/${type}/${id}/`, {
-        method: 'PATCH',
-        token,
-        body: {
-          action,
-          reason: actionReason,
+      await runOptimisticMutation({
+        applyOptimistic: () => {
+          const previous = data
+          const key = type
+          const nextStatus = statusByAction[action] || action
+          setData((prev) => ({
+            ...prev,
+            [key]: (prev?.[key] || []).map((row) =>
+              row.id === id ? { ...row, approval_status: nextStatus } : row,
+            ),
+          }))
+          return previous
+        },
+        rollback: (previous) => {
+          if (previous) {
+            setData(previous)
+          }
+        },
+        mutate: () =>
+          apiRequest(`/auth/api/moderation/${type}/${id}/`, {
+            method: 'PATCH',
+            token,
+            body: {
+              action,
+              reason: actionReason,
+            },
+          }),
+        onSuccess: (payload) => {
+          setNotice(payload?.message || 'Moderation updated successfully.')
+          toast.success(payload?.message || 'Moderation updated successfully.')
+          setActionReason('')
+        },
+        onError: (err) => {
+          setError(err.message || 'Unable to update moderation status.')
+          toast.error(err.message || 'Unable to update moderation status.')
         },
       })
-      setNotice(payload?.message || 'Moderation updated successfully.')
-      setActionReason('')
+
       await loadQueue()
-    } catch (err) {
-      setError(err.message || 'Unable to update moderation status.')
     } finally {
       setIsSubmitting(false)
     }
@@ -176,15 +218,16 @@ export default function ModerationPage({ token }) {
       {error ? <p className="form-error">{error}</p> : null}
       {notice ? <p className="form-success">{notice}</p> : null}
 
-      {isLoading ? <p>Loading moderation queue...</p> : null}
-
-      {(queueType === 'all' || queueType === 'vendors') && !isLoading ? (
+      {queueType === 'all' || queueType === 'vendors' ? (
         <ModerationSection
           title="Vendor Submissions"
           rows={vendors}
           kind="vendors"
           onAction={handleModerationAction}
-          isSubmitting={isSubmitting}
+          isSubmitting={isSubmitting || isMutating}
+          isLoading={isLoading}
+          error={error}
+          onRetry={loadQueue}
           columns={[
             { key: 'name', label: 'Name', render: (row) => `${row.first_name || ''} ${row.last_name || ''}`.trim() || 'n/a' },
             { key: 'email', label: 'Email', render: (row) => row.email || 'n/a' },
@@ -195,13 +238,16 @@ export default function ModerationPage({ token }) {
         />
       ) : null}
 
-      {(queueType === 'all' || queueType === 'couriers') && !isLoading ? (
+      {queueType === 'all' || queueType === 'couriers' ? (
         <ModerationSection
           title="Courier Submissions"
           rows={couriers}
           kind="couriers"
           onAction={handleModerationAction}
-          isSubmitting={isSubmitting}
+          isSubmitting={isSubmitting || isMutating}
+          isLoading={isLoading}
+          error={error}
+          onRetry={loadQueue}
           columns={[
             { key: 'name', label: 'Name', render: (row) => `${row.first_name || ''} ${row.last_name || ''}`.trim() || 'n/a' },
             { key: 'email', label: 'Email', render: (row) => row.email || 'n/a' },
@@ -213,13 +259,16 @@ export default function ModerationPage({ token }) {
         />
       ) : null}
 
-      {(queueType === 'all' || queueType === 'products') && !isLoading ? (
+      {queueType === 'all' || queueType === 'products' ? (
         <ModerationSection
           title="Product Submissions"
           rows={products}
           kind="products"
           onAction={handleModerationAction}
-          isSubmitting={isSubmitting}
+          isSubmitting={isSubmitting || isMutating}
+          isLoading={isLoading}
+          error={error}
+          onRetry={loadQueue}
           columns={[
             { key: 'name', label: 'Product', render: (row) => row.name || 'n/a' },
             { key: 'vendor__email', label: 'Vendor Email', render: (row) => row.vendor__email || 'n/a' },

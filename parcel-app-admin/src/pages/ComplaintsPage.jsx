@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react'
+import PaginationControls from '../components/common/PaginationControls'
+import TableStateRows from '../components/common/TableStateRows'
+import { useToast } from '../components/common/ToastProvider'
 import { apiRequest } from '../services/api'
+import { normalizePaginatedPayload, paginateLocal, withPaginationParams } from '../services/pagination'
 
 export default function ComplaintsPage({ token }) {
+  const toast = useToast()
   const [complaints, setComplaints] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
@@ -14,6 +19,9 @@ export default function ComplaintsPage({ token }) {
   const [resolvedById, setResolvedById] = useState({})
   const [satisfiedById, setSatisfiedById] = useState({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  const [total, setTotal] = useState(0)
 
   function buildQuery() {
     const params = new URLSearchParams()
@@ -28,13 +36,17 @@ export default function ComplaintsPage({ token }) {
     try {
       setIsLoading(true)
       setError('')
-      const payload = await apiRequest(buildQuery(), {
+      const path = withPaginationParams(buildQuery(), page, pageSize)
+      const payload = await apiRequest(path, {
         method: 'GET',
         token,
       })
 
-      const list = Array.isArray(payload?.data) ? payload.data : []
+      const normalized = normalizePaginatedPayload(payload)
+      const localPage = paginateLocal(normalized.items, page, pageSize)
+      const list = normalized.isServerPaginated ? normalized.items : localPage.items
       setComplaints(list)
+      setTotal(normalized.isServerPaginated ? normalized.total : localPage.total)
 
       const resolvedDefaults = {}
       const satisfiedDefaults = {}
@@ -46,6 +58,7 @@ export default function ComplaintsPage({ token }) {
       setSatisfiedById(satisfiedDefaults)
     } catch (err) {
       setError(err.message || 'Failed to load complaints.')
+      toast.error(err.message || 'Failed to load complaints.')
     } finally {
       setIsLoading(false)
     }
@@ -54,7 +67,7 @@ export default function ComplaintsPage({ token }) {
   useEffect(() => {
     loadComplaints()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, resolvedFilter, satisfiedFilter])
+  }, [token, resolvedFilter, satisfiedFilter, page, pageSize])
 
   async function handleUpdateComplaint(complaintId) {
     try {
@@ -71,9 +84,11 @@ export default function ComplaintsPage({ token }) {
       })
 
       setNotice(payload?.message || 'Complaint updated successfully.')
+      toast.success(payload?.message || 'Complaint updated successfully.')
       await loadComplaints()
     } catch (err) {
       setError(err.message || 'Failed to update complaint.')
+      toast.error(err.message || 'Failed to update complaint.')
     } finally {
       setIsSubmitting(false)
     }
@@ -86,7 +101,7 @@ export default function ComplaintsPage({ token }) {
           <h2>Complaints Management</h2>
           <p>Triage customer complaints and track resolution outcomes.</p>
         </div>
-        <div className="complaints-stat-chip">Cases: {complaints.length}</div>
+        <div className="complaints-stat-chip">Cases: {total}</div>
       </div>
 
       <div className="complaints-filters">
@@ -117,6 +132,17 @@ export default function ComplaintsPage({ token }) {
       {error ? <p className="form-error">{error}</p> : null}
       {notice ? <p className="form-success">{notice}</p> : null}
 
+      <PaginationControls
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        onPageChange={setPage}
+        onPageSizeChange={(next) => {
+          setPageSize(next)
+          setPage(1)
+        }}
+      />
+
       <div className="users-table-wrap">
         <table className="users-table">
           <thead>
@@ -132,16 +158,15 @@ export default function ComplaintsPage({ token }) {
             </tr>
           </thead>
           <tbody>
-            {isLoading ? (
-              <tr>
-                <td colSpan="8">Loading complaints...</td>
-              </tr>
-            ) : complaints.length === 0 ? (
-              <tr>
-                <td colSpan="8">No complaints found.</td>
-              </tr>
-            ) : (
-              complaints.map((item) => (
+            <TableStateRows
+              isLoading={isLoading}
+              error={error}
+              rows={complaints}
+              colSpan={8}
+              loadingMessage="Loading complaints..."
+              emptyMessage="No complaints found."
+              onRetry={loadComplaints}
+              renderRow={(item) => (
                 <tr key={item.id}>
                   <td>{item.customer_email || 'n/a'}</td>
                   <td>{item.complaint_subject || 'n/a'}</td>
@@ -189,8 +214,8 @@ export default function ComplaintsPage({ token }) {
                     </button>
                   </td>
                 </tr>
-              ))
-            )}
+              )}
+            />
           </tbody>
         </table>
       </div>

@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
+import PaginationControls from '../components/common/PaginationControls'
+import TableStateRows from '../components/common/TableStateRows'
 import { apiRequest } from '../services/api'
+import { normalizePaginatedPayload, paginateLocal, withPaginationParams } from '../services/pagination'
+import { useToast } from '../components/common/ToastProvider'
 
 const DISPATCH_STATUSES = [
   'pending',
@@ -13,6 +17,7 @@ const DISPATCH_STATUSES = [
 ]
 
 export default function DispatchPage({ token }) {
+  const toast = useToast()
   const [dispatches, setDispatches] = useState([])
   const [couriers, setCouriers] = useState([])
   const [readyOrders, setReadyOrders] = useState([])
@@ -31,6 +36,9 @@ export default function DispatchPage({ token }) {
   const [notesByDispatch, setNotesByDispatch] = useState({})
   const [courierByDispatch, setCourierByDispatch] = useState({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  const [total, setTotal] = useState(0)
 
   const readyOrderOptions = useMemo(
     () => readyOrders.map((order) => ({ value: String(order.id), label: `${order.order_number} (${order.customer_email || 'n/a'})` })),
@@ -49,14 +57,18 @@ export default function DispatchPage({ token }) {
     if (search.trim()) params.set('search', search.trim())
     if (statusFilter) params.set('status', statusFilter)
     const query = params.toString()
-    const path = query ? `/auth/api/dispatches/?${query}` : '/auth/api/dispatches/'
+    const basePath = query ? `/auth/api/dispatches/?${query}` : '/auth/api/dispatches/'
+    const path = withPaginationParams(basePath, page, pageSize)
 
     const payload = await apiRequest(path, {
       method: 'GET',
       token,
     })
-    const list = Array.isArray(payload?.data) ? payload.data : []
+    const normalized = normalizePaginatedPayload(payload)
+    const localPage = paginateLocal(normalized.items, page, pageSize)
+    const list = normalized.isServerPaginated ? normalized.items : localPage.items
     setDispatches(list)
+    setTotal(normalized.isServerPaginated ? normalized.total : localPage.total)
 
     const statusDefaults = {}
     const courierDefaults = {}
@@ -96,6 +108,7 @@ export default function DispatchPage({ token }) {
       }
     } catch (err) {
       setError(err.message || 'Failed to load dispatch data.')
+      toast.error(err.message || 'Failed to load dispatch data.')
     } finally {
       setIsLoading(false)
     }
@@ -110,7 +123,7 @@ export default function DispatchPage({ token }) {
     if (!token) return
     loadDispatches().catch((err) => setError(err.message || 'Failed to load dispatches.'))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter])
+  }, [statusFilter, page, pageSize])
 
   async function handleCreateDispatch() {
     if (!selectedReadyOrderId) return
@@ -129,10 +142,12 @@ export default function DispatchPage({ token }) {
       })
 
       setNotice(payload?.message || 'Dispatch created successfully.')
+      toast.success(payload?.message || 'Dispatch created successfully.')
       setCreateNote('')
       await loadAll()
     } catch (err) {
       setError(err.message || 'Failed to create dispatch.')
+      toast.error(err.message || 'Failed to create dispatch.')
     } finally {
       setIsSubmitting(false)
     }
@@ -155,9 +170,11 @@ export default function DispatchPage({ token }) {
         },
       })
       setNotice(payload?.message || 'Courier assigned successfully.')
+      toast.success(payload?.message || 'Courier assigned successfully.')
       await loadAll()
     } catch (err) {
       setError(err.message || 'Failed to assign courier.')
+      toast.error(err.message || 'Failed to assign courier.')
     } finally {
       setIsSubmitting(false)
     }
@@ -180,9 +197,11 @@ export default function DispatchPage({ token }) {
         },
       })
       setNotice(payload?.message || 'Dispatch status updated successfully.')
+      toast.success(payload?.message || 'Dispatch status updated successfully.')
       await loadAll()
     } catch (err) {
       setError(err.message || 'Failed to update dispatch status.')
+      toast.error(err.message || 'Failed to update dispatch status.')
     } finally {
       setIsSubmitting(false)
     }
@@ -195,7 +214,7 @@ export default function DispatchPage({ token }) {
           <h2>Dispatch Management</h2>
           <p>Create dispatches, assign couriers, and drive last-mile operations.</p>
         </div>
-        <div className="dispatch-stat-chip">Dispatches: {dispatches.length}</div>
+        <div className="dispatch-stat-chip">Dispatches: {total}</div>
       </div>
 
       <section className="dispatch-create-section">
@@ -245,6 +264,17 @@ export default function DispatchPage({ token }) {
       {error ? <p className="form-error">{error}</p> : null}
       {notice ? <p className="form-success">{notice}</p> : null}
 
+      <PaginationControls
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        onPageChange={setPage}
+        onPageSizeChange={(next) => {
+          setPageSize(next)
+          setPage(1)
+        }}
+      />
+
       <div className="users-table-wrap">
         <table className="users-table">
           <thead>
@@ -258,16 +288,15 @@ export default function DispatchPage({ token }) {
             </tr>
           </thead>
           <tbody>
-            {isLoading ? (
-              <tr>
-                <td colSpan="6">Loading dispatches...</td>
-              </tr>
-            ) : dispatches.length === 0 ? (
-              <tr>
-                <td colSpan="6">No dispatches found.</td>
-              </tr>
-            ) : (
-              dispatches.map((dispatch) => (
+            <TableStateRows
+              isLoading={isLoading}
+              error={error}
+              rows={dispatches}
+              colSpan={6}
+              loadingMessage="Loading dispatches..."
+              emptyMessage="No dispatches found."
+              onRetry={loadDispatches}
+              renderRow={(dispatch) => (
                 <tr key={dispatch.id}>
                   <td>{dispatch.tracking_number}</td>
                   <td>
@@ -345,8 +374,8 @@ export default function DispatchPage({ token }) {
                     </div>
                   </td>
                 </tr>
-              ))
-            )}
+              )}
+            />
           </tbody>
         </table>
       </div>

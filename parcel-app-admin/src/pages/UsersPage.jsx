@@ -1,18 +1,30 @@
 import { useEffect, useState } from 'react'
+import PaginationControls from '../components/common/PaginationControls'
+import TableStateRows from '../components/common/TableStateRows'
+import { useToast } from '../components/common/ToastProvider'
 import { apiRequest } from '../services/api'
+import { normalizePaginatedPayload, paginateLocal, withPaginationParams } from '../services/pagination'
 
 export default function UsersPage({ token, role }) {
+  const toast = useToast()
   const canManageAdmins = role === 'super_admin'
   const [activeTab, setActiveTab] = useState(canManageAdmins ? 'admins' : 'customers')
 
   const [admins, setAdmins] = useState([])
   const [customers, setCustomers] = useState([])
+  const [adminTotal, setAdminTotal] = useState(0)
+  const [customerTotal, setCustomerTotal] = useState(0)
 
   const [isLoadingAdmins, setIsLoadingAdmins] = useState(false)
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(false)
   const [adminError, setAdminError] = useState('')
   const [customerError, setCustomerError] = useState('')
   const [adminNotice, setAdminNotice] = useState('')
+
+  const [adminPage, setAdminPage] = useState(1)
+  const [adminPageSize, setAdminPageSize] = useState(10)
+  const [customerPage, setCustomerPage] = useState(1)
+  const [customerPageSize, setCustomerPageSize] = useState(10)
 
   const [customerSearch, setCustomerSearch] = useState('')
   const [customerActiveFilter, setCustomerActiveFilter] = useState('all')
@@ -28,7 +40,7 @@ export default function UsersPage({ token, role }) {
   })
   const [isCreatingAdmin, setIsCreatingAdmin] = useState(false)
 
-  const customersTotal = customers.length
+  const customersTotal = customerTotal
   const customersVerified = customers.filter((customer) => customer.is_email_verified).length
 
   function formatDate(value) {
@@ -64,9 +76,19 @@ export default function UsersPage({ token, role }) {
         method: 'GET',
         token,
       })
-      setAdmins(Array.isArray(payload?.data) ? payload.data : [])
+      const normalized = normalizePaginatedPayload(payload?.data)
+      if (normalized) {
+        setAdmins(normalized.items)
+        setAdminTotal(normalized.total)
+      } else {
+        const base = Array.isArray(payload?.data) ? payload.data : []
+        const paginated = paginateLocal(base, adminPage, adminPageSize)
+        setAdmins(paginated.items)
+        setAdminTotal(paginated.total)
+      }
     } catch (error) {
       setAdminError(error.message || 'Failed to load admin accounts.')
+      toast.error(error.message || 'Failed to load admin accounts.')
     } finally {
       setIsLoadingAdmins(false)
     }
@@ -76,13 +98,24 @@ export default function UsersPage({ token, role }) {
     try {
       setIsLoadingCustomers(true)
       setCustomerError('')
-      const payload = await apiRequest(buildCustomerQuery(), {
+      const endpoint = withPaginationParams(buildCustomerQuery(), customerPage, customerPageSize)
+      const payload = await apiRequest(endpoint, {
         method: 'GET',
         token,
       })
-      setCustomers(Array.isArray(payload?.data) ? payload.data : [])
+      const normalized = normalizePaginatedPayload(payload?.data)
+      if (normalized) {
+        setCustomers(normalized.items)
+        setCustomerTotal(normalized.total)
+      } else {
+        const base = Array.isArray(payload?.data) ? payload.data : []
+        const paginated = paginateLocal(base, customerPage, customerPageSize)
+        setCustomers(paginated.items)
+        setCustomerTotal(paginated.total)
+      }
     } catch (error) {
       setCustomerError(error.message || 'Failed to load customers.')
+      toast.error(error.message || 'Failed to load customers.')
     } finally {
       setIsLoadingCustomers(false)
     }
@@ -93,12 +126,12 @@ export default function UsersPage({ token, role }) {
       loadAdmins()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, canManageAdmins])
+  }, [token, canManageAdmins, adminPage, adminPageSize])
 
   useEffect(() => {
     loadCustomers()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, customerActiveFilter, customerVerifiedFilter])
+  }, [token, customerActiveFilter, customerVerifiedFilter, customerPage, customerPageSize])
 
   async function handleCreateAdmin(event) {
     event.preventDefault()
@@ -116,6 +149,7 @@ export default function UsersPage({ token, role }) {
       })
 
       setAdminNotice(payload?.message || 'Admin user created successfully.')
+      toast.success(payload?.message || 'Admin user created successfully.')
       setNewAdmin({
         email: '',
         first_name: '',
@@ -128,6 +162,7 @@ export default function UsersPage({ token, role }) {
       await loadAdmins()
     } catch (error) {
       setAdminError(error.message || 'Unable to create admin user.')
+      toast.error(error.message || 'Unable to create admin user.')
     } finally {
       setIsCreatingAdmin(false)
     }
@@ -144,9 +179,11 @@ export default function UsersPage({ token, role }) {
         token,
       })
       setAdminNotice(payload?.message || 'Admin account deactivated.')
+      toast.success(payload?.message || 'Admin account deactivated.')
       await loadAdmins()
     } catch (error) {
       setAdminError(error.message || 'Unable to deactivate admin account.')
+      toast.error(error.message || 'Unable to deactivate admin account.')
     }
   }
 
@@ -162,9 +199,11 @@ export default function UsersPage({ token, role }) {
           is_email_verified: true,
         },
       })
+      toast.success('Customer verified successfully.')
       await loadCustomers()
     } catch (error) {
       setCustomerError(error.message || 'Unable to update customer.')
+      toast.error(error.message || 'Unable to update customer.')
     }
   }
 
@@ -186,7 +225,7 @@ export default function UsersPage({ token, role }) {
           </div>
           <div className="users-stat-card">
             <p className="users-stat-label">Admin Accounts</p>
-            <p className="users-stat-value">{admins.length}</p>
+            <p className="users-stat-value">{adminTotal}</p>
           </div>
         </div>
       </div>
@@ -280,16 +319,15 @@ export default function UsersPage({ token, role }) {
                 </tr>
               </thead>
               <tbody>
-                {isLoadingAdmins ? (
-                  <tr>
-                    <td colSpan="6">Loading admin accounts...</td>
-                  </tr>
-                ) : admins.length === 0 ? (
-                  <tr>
-                    <td colSpan="6">No admin accounts found.</td>
-                  </tr>
-                ) : (
-                  admins.map((admin) => (
+                <TableStateRows
+                  isLoading={isLoadingAdmins}
+                  error={adminError}
+                  rows={admins}
+                  colSpan={6}
+                  loadingMessage="Loading admin accounts..."
+                  emptyMessage="No admin accounts found."
+                  onRetry={loadAdmins}
+                  renderRow={(admin) => (
                     <tr key={admin.id}>
                       <td>{admin.full_name || `${admin.first_name || ''} ${admin.last_name || ''}`.trim() || 'n/a'}</td>
                       <td>{admin.email}</td>
@@ -310,11 +348,22 @@ export default function UsersPage({ token, role }) {
                         )}
                       </td>
                     </tr>
-                  ))
-                )}
+                  )}
+                />
               </tbody>
             </table>
           </div>
+          <PaginationControls
+            page={adminPage}
+            pageSize={adminPageSize}
+            total={adminTotal}
+            pageSizeOptions={[10, 20, 50]}
+            onPageChange={setAdminPage}
+            onPageSizeChange={(size) => {
+              setAdminPageSize(size)
+              setAdminPage(1)
+            }}
+          />
         </section>
       ) : null}
 
@@ -344,7 +393,14 @@ export default function UsersPage({ token, role }) {
               <option value="true">Verified</option>
               <option value="false">Unverified</option>
             </select>
-            <button type="button" className="ghost-btn" onClick={loadCustomers}>
+            <button
+              type="button"
+              className="ghost-btn"
+              onClick={() => {
+                setCustomerPage(1)
+                loadCustomers()
+              }}
+            >
               Apply Filters
             </button>
           </div>
@@ -365,16 +421,15 @@ export default function UsersPage({ token, role }) {
                 </tr>
               </thead>
               <tbody>
-                {isLoadingCustomers ? (
-                  <tr>
-                    <td colSpan="7">Loading customers...</td>
-                  </tr>
-                ) : customers.length === 0 ? (
-                  <tr>
-                    <td colSpan="7">No customers matched your filters.</td>
-                  </tr>
-                ) : (
-                  customers.map((customer) => (
+                <TableStateRows
+                  isLoading={isLoadingCustomers}
+                  error={customerError}
+                  rows={customers}
+                  colSpan={7}
+                  loadingMessage="Loading customers..."
+                  emptyMessage="No customers matched your filters."
+                  onRetry={loadCustomers}
+                  renderRow={(customer) => (
                     <tr key={customer.id}>
                       <td>{customer.full_name || `${customer.first_name || ''} ${customer.last_name || ''}`.trim() || 'n/a'}</td>
                       <td>{customer.email}</td>
@@ -396,11 +451,22 @@ export default function UsersPage({ token, role }) {
                         )}
                       </td>
                     </tr>
-                  ))
-                )}
+                  )}
+                />
               </tbody>
             </table>
           </div>
+          <PaginationControls
+            page={customerPage}
+            pageSize={customerPageSize}
+            total={customerTotal}
+            pageSizeOptions={[10, 20, 50]}
+            onPageChange={setCustomerPage}
+            onPageSizeChange={(size) => {
+              setCustomerPageSize(size)
+              setCustomerPage(1)
+            }}
+          />
         </section>
       ) : null}
     </div>

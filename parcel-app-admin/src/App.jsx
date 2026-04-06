@@ -1,11 +1,14 @@
 import { BrowserRouter } from 'react-router-dom'
 import AppRoutes from './AppRoutes'
+import { ToastProvider } from './components/common/ToastProvider'
 
 function App() {
   return (
-    <BrowserRouter>
-      <AppRoutes />
-    </BrowserRouter>
+    <ToastProvider>
+      <BrowserRouter>
+        <AppRoutes />
+      </BrowserRouter>
+    </ToastProvider>
   )
 }
 

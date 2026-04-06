@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
+import PaginationControls from '../components/common/PaginationControls'
+import TableStateRows from '../components/common/TableStateRows'
+import { useToast } from '../components/common/ToastProvider'
 import { apiRequest } from '../services/api'
+import { paginateLocal } from '../services/pagination'
 
 export default function BankingPage({ token }) {
+  const toast = useToast()
   const [vendors, setVendors] = useState([])
   const [couriers, setCouriers] = useState([])
   const [activeType, setActiveType] = useState('all')
@@ -11,6 +16,8 @@ export default function BankingPage({ token }) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
 
   const [formByKey, setFormByKey] = useState({})
 
@@ -19,6 +26,8 @@ export default function BankingPage({ token }) {
     if (activeType === 'couriers') return couriers
     return [...vendors, ...couriers]
   }, [activeType, vendors, couriers])
+
+  const pagedRows = useMemo(() => paginateLocal(visibleRows, page, pageSize), [visibleRows, page, pageSize])
 
   async function loadBanking() {
     try {
@@ -55,6 +64,7 @@ export default function BankingPage({ token }) {
       setFormByKey(defaults)
     } catch (err) {
       setError(err.message || 'Failed to load banking records.')
+      toast.error(err.message || 'Failed to load banking records.')
     } finally {
       setIsLoading(false)
     }
@@ -97,9 +107,11 @@ export default function BankingPage({ token }) {
       })
 
       setNotice(payload?.message || 'Banking record updated successfully.')
+      toast.success(payload?.message || 'Banking record updated successfully.')
       await loadBanking()
     } catch (err) {
       setError(err.message || 'Failed to update banking record.')
+      toast.error(err.message || 'Failed to update banking record.')
     } finally {
       setIsSubmitting(false)
     }
@@ -147,6 +159,17 @@ export default function BankingPage({ token }) {
       {error ? <p className="form-error">{error}</p> : null}
       {notice ? <p className="form-success">{notice}</p> : null}
 
+      <PaginationControls
+        page={page}
+        pageSize={pageSize}
+        total={visibleRows.length}
+        onPageChange={setPage}
+        onPageSizeChange={(next) => {
+          setPageSize(next)
+          setPage(1)
+        }}
+      />
+
       <div className="users-table-wrap">
         <table className="users-table">
           <thead>
@@ -162,16 +185,15 @@ export default function BankingPage({ token }) {
             </tr>
           </thead>
           <tbody>
-            {isLoading ? (
-              <tr>
-                <td colSpan="8">Loading banking records...</td>
-              </tr>
-            ) : visibleRows.length === 0 ? (
-              <tr>
-                <td colSpan="8">No banking records found.</td>
-              </tr>
-            ) : (
-              visibleRows.map((row) => {
+            <TableStateRows
+              isLoading={isLoading}
+              error={error}
+              rows={pagedRows.items}
+              colSpan={8}
+              loadingMessage="Loading banking records..."
+              emptyMessage="No banking records found."
+              onRetry={loadBanking}
+              renderRow={(row) => {
                 const key = `${row.type}-${row.id}`
                 const form = formByKey[key] || {}
                 return (
@@ -234,8 +256,8 @@ export default function BankingPage({ token }) {
                     </td>
                   </tr>
                 )
-              })
-            )}
+              }}
+            />
           </tbody>
         </table>
       </div>
