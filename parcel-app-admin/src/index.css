@@ -562,6 +562,68 @@ a {
   flex-wrap: wrap;
 }
 
+.orders-page {
+  display: grid;
+  gap: 16px;
+}
+
+.orders-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.orders-header h2 {
+  margin: 0;
+}
+
+.orders-header p {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+
+.orders-stat-chip {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #fcfaf7;
+  font-size: 0.85rem;
+}
+
+.orders-filters {
+  display: grid;
+  grid-template-columns: 1.4fr 0.8fr 0.8fr auto;
+  gap: 10px;
+}
+
+.orders-filters input,
+.orders-filters select {
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font: inherit;
+}
+
+.order-update-cell {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: 1fr;
+  min-width: 170px;
+}
+
+.order-update-cell input,
+.order-update-cell select {
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.82rem;
+}
+
 @media (max-width: 980px) {
   .metrics-grid {
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -582,6 +644,10 @@ a {
   }
 
   .moderation-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .orders-filters {
     grid-template-columns: 1fr;
   }
 }

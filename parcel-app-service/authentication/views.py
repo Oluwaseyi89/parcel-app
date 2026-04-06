@@ -571,6 +571,111 @@ class AdminModerationActionView(APIView):
         })
 
 
+class AdminOrderListView(APIView):
+    """Admin order management endpoint (list/detail)."""
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
+    permission_classes = [IsAdminOrSuperAdmin]
+
+    def get(self, request, pk=None):
+        if pk is not None:
+            order = get_object_or_404(Order.objects.select_related('customer', 'courier'), pk=pk)
+            return Response({
+                "status": "success",
+                "data": self._serialize_order(order)
+            })
+
+        queryset = Order.objects.select_related('customer', 'courier').all().order_by('-created_at')
+
+        search = request.query_params.get('search')
+        if search:
+            queryset = queryset.filter(
+                Q(order_number__icontains=search) |
+                Q(customer__email__icontains=search) |
+                Q(payment_reference__icontains=search)
+            )
+
+        status_filter = request.query_params.get('status')
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+
+        payment_status_filter = request.query_params.get('payment_status')
+        if payment_status_filter:
+            queryset = queryset.filter(payment_status=payment_status_filter)
+
+        data = [self._serialize_order(order) for order in queryset[:100]]
+        return Response({
+            "status": "success",
+            "data": data
+        })
+
+    @staticmethod
+    def _serialize_order(order):
+        return {
+            "id": order.id,
+            "order_number": order.order_number,
+            "status": order.status,
+            "payment_status": order.payment_status,
+            "payment_method": order.payment_method,
+            "payment_reference": order.payment_reference,
+            "total_amount": str(order.total_amount),
+            "shipping_method": order.shipping_method,
+            "tracking_number": order.tracking_number,
+            "customer": {
+                "id": getattr(order.customer, 'id', None),
+                "email": getattr(order.customer, 'email', ''),
+                "name": order.customer.get_full_name() if getattr(order, 'customer', None) else '',
+            },
+            "courier": {
+                "id": getattr(order.courier, 'id', None) if getattr(order, 'courier', None) else None,
+                "email": getattr(order.courier, 'email', '') if getattr(order, 'courier', None) else '',
+                "name": order.courier.get_full_name() if getattr(order, 'courier', None) else '',
+            },
+            "created_at": order.created_at,
+            "updated_at": order.updated_at,
+            "confirmed_at": order.confirmed_at,
+            "delivered_at": order.delivered_at,
+            "cancelled_at": order.cancelled_at,
+            "internal_notes": order.internal_notes,
+        }
+
+
+class AdminOrderStatusUpdateView(APIView):
+    """Admin order status update endpoint."""
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
+    permission_classes = [IsAdminOrSuperAdmin]
+
+    def patch(self, request, pk):
+        order = get_object_or_404(Order, pk=pk)
+
+        next_status = str(request.data.get('status', '')).strip()
+        notes = str(request.data.get('notes', '')).strip()
+
+        valid_statuses = [choice[0] for choice in Order.STATUS_CHOICES]
+        if next_status not in valid_statuses:
+            return Response({
+                "status": "error",
+                "message": "Invalid order status."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if notes:
+            order.internal_notes = (order.internal_notes + "\n" + notes).strip() if order.internal_notes else notes
+
+        order.update_status(next_status, notes=notes)
+        if notes:
+            order.save(update_fields=['internal_notes'])
+
+        return Response({
+            "status": "success",
+            "message": f"Order status updated to {next_status}",
+            "data": {
+                "id": order.id,
+                "order_number": order.order_number,
+                "status": order.status,
+                "internal_notes": order.internal_notes,
+            }
+        })
+
+
 # ==================== TEMPLATE-BASED VIEWS (LEGACY) ====================
 
 def home(request):
