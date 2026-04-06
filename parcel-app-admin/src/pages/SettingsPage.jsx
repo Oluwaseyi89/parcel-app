@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
+import { useToast } from '../components/common/ToastProvider'
 import { apiRequest } from '../services/api'
 import { API_BASE_URL } from '../config/constants'
 
 export default function SettingsPage({ token, session }) {
+  const toast = useToast()
   const [profile, setProfile] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
 
@@ -40,6 +42,7 @@ export default function SettingsPage({ token, session }) {
       })
     } catch (err) {
       setError(err.message || 'Failed to load profile settings.')
+      toast.error(err.message || 'Failed to load profile settings.')
     } finally {
       setIsLoading(false)
     }
@@ -62,9 +65,11 @@ export default function SettingsPage({ token, session }) {
         body: profileForm,
       })
       setNotice(payload?.message || 'Profile updated successfully.')
+      toast.success(payload?.message || 'Profile updated successfully.')
       await loadProfile()
     } catch (err) {
       setError(err.message || 'Failed to update profile.')
+      toast.error(err.message || 'Failed to update profile.')
     } finally {
       setIsSavingProfile(false)
     }
@@ -82,6 +87,7 @@ export default function SettingsPage({ token, session }) {
         body: passwordForm,
       })
       setNotice(payload?.message || 'Password changed successfully.')
+      toast.success(payload?.message || 'Password changed successfully.')
       setPasswordForm({
         current_password: '',
         new_password: '',
@@ -89,6 +95,7 @@ export default function SettingsPage({ token, session }) {
       })
     } catch (err) {
       setError(err.message || 'Failed to change password.')
+      toast.error(err.message || 'Failed to change password.')
     } finally {
       setIsChangingPassword(false)
     }
@@ -109,7 +116,16 @@ export default function SettingsPage({ token, session }) {
 
       <section className="settings-section">
         <h3>Profile</h3>
-        {isLoading ? <p>Loading profile...</p> : null}
+        {isLoading ? (
+          <p>Loading profile...</p>
+        ) : error && !profile ? (
+          <div>
+            <p className="form-error">{error}</p>
+            <button type="button" className="ghost-btn" onClick={loadProfile}>
+              Retry
+            </button>
+          </div>
+        ) : null}
 
         <form className="settings-form" onSubmit={handleSaveProfile}>
           <label>

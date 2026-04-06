@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useToast } from '../components/common/ToastProvider'
 import { apiRequest } from '../services/api'
 
 function MetricCard({ label, value, total, color }) {
@@ -12,31 +13,32 @@ function MetricCard({ label, value, total, color }) {
 }
 
 export default function DashboardPage({ token }) {
+  const toast = useToast()
   const [metrics, setMetrics] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  useEffect(() => {
-    async function fetchMetrics() {
-      try {
-        setIsLoading(true)
-        setError(null)
-        const payload = await apiRequest('/auth/api/dashboard/metrics/', {
-          method: 'GET',
-          token,
-        })
-        setMetrics(payload?.data || {})
-      } catch (err) {
-        setError(err.message || 'Failed to load dashboard metrics')
-      } finally {
-        setIsLoading(false)
-      }
+  const fetchMetrics = useCallback(async () => {
+    if (!token) return
+    try {
+      setIsLoading(true)
+      setError(null)
+      const payload = await apiRequest('/auth/api/dashboard/metrics/', {
+        method: 'GET',
+        token,
+      })
+      setMetrics(payload?.data || {})
+    } catch (err) {
+      setError(err.message || 'Failed to load dashboard metrics.')
+      toast.error(err.message || 'Failed to load dashboard metrics.')
+    } finally {
+      setIsLoading(false)
     }
+  }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
 
-    if (token) {
-      fetchMetrics()
-    }
-  }, [token])
+  useEffect(() => {
+    fetchMetrics()
+  }, [fetchMetrics])
 
   if (isLoading) {
     return (
@@ -52,6 +54,9 @@ export default function DashboardPage({ token }) {
       <div className="placeholder">
         <h2>Admin Dashboard</h2>
         <p style={{ color: '#b42318' }}>{error}</p>
+        <button type="button" className="ghost-btn" onClick={fetchMetrics}>
+          Retry
+        </button>
       </div>
     )
   }

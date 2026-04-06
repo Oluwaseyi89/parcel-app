@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react'
+import PaginationControls from '../components/common/PaginationControls'
+import TableStateRows from '../components/common/TableStateRows'
 import { apiRequest } from '../services/api'
+import { normalizePaginatedPayload, paginateLocal, withPaginationParams } from '../services/pagination'
+import { useToast } from '../components/common/ToastProvider'
 
 const ORDER_STATUSES = [
   'pending',
@@ -17,10 +21,14 @@ const ORDER_STATUSES = [
 const PAYMENT_STATUSES = ['pending', 'paid', 'partially_paid', 'failed', 'refunded']
 
 export default function OrdersPage({ token }) {
+  const toast = useToast()
   const [orders, setOrders] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  const [total, setTotal] = useState(0)
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -46,22 +54,27 @@ export default function OrdersPage({ token }) {
       if (paymentStatusFilter) params.set('payment_status', paymentStatusFilter)
 
       const query = params.toString()
-      const path = query ? `/auth/api/orders/?${query}` : '/auth/api/orders/'
+      const basePath = query ? `/auth/api/orders/?${query}` : '/auth/api/orders/'
+      const path = withPaginationParams(basePath, page, pageSize)
 
       const payload = await apiRequest(path, {
         method: 'GET',
         token,
       })
-      const list = Array.isArray(payload?.data) ? payload.data : []
-      setOrders(list)
+      const normalized = normalizePaginatedPayload(payload)
+      const localPage = paginateLocal(normalized.items, page, pageSize)
+      const effectiveItems = normalized.isServerPaginated ? normalized.items : localPage.items
+      setOrders(effectiveItems)
+      setTotal(normalized.isServerPaginated ? normalized.total : localPage.total)
 
       const defaults = {}
-      list.forEach((order) => {
+      effectiveItems.forEach((order) => {
         defaults[order.id] = order.status
       })
       setStatusByOrder(defaults)
     } catch (err) {
       setError(err.message || 'Failed to load orders.')
+      toast.error(err.message || 'Failed to load orders.')
     } finally {
       setIsLoading(false)
     }
@@ -70,7 +83,7 @@ export default function OrdersPage({ token }) {
   useEffect(() => {
     loadOrders()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, statusFilter, paymentStatusFilter])
+  }, [token, statusFilter, paymentStatusFilter, page, pageSize])
 
   async function handleUpdateOrder(orderId) {
     const status = statusByOrder[orderId]
@@ -89,9 +102,11 @@ export default function OrdersPage({ token }) {
         },
       })
       setNotice(payload?.message || 'Order updated successfully.')
+      toast.success(payload?.message || 'Order updated successfully.')
       await loadOrders()
     } catch (err) {
       setError(err.message || 'Failed to update order status.')
+      toast.error(err.message || 'Failed to update order status.')
     } finally {
       setIsUpdating(false)
     }
@@ -104,7 +119,7 @@ export default function OrdersPage({ token }) {
           <h2>Orders Management</h2>
           <p>Monitor order lifecycle, payment state, and intervention actions.</p>
         </div>
-        <div className="orders-stat-chip">Total: {orders.length}</div>
+        <div className="orders-stat-chip">Total: {total}</div>
       </div>
 
       <div className="orders-filters">
@@ -141,6 +156,17 @@ export default function OrdersPage({ token }) {
       {error ? <p className="form-error">{error}</p> : null}
       {notice ? <p className="form-success">{notice}</p> : null}
 
+      <PaginationControls
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        onPageChange={setPage}
+        onPageSizeChange={(next) => {
+          setPageSize(next)
+          setPage(1)
+        }}
+      />
+
       <div className="users-table-wrap">
         <table className="users-table">
           <thead>
@@ -155,16 +181,15 @@ export default function OrdersPage({ token }) {
             </tr>
           </thead>
           <tbody>
-            {isLoading ? (
-              <tr>
-                <td colSpan="7">Loading orders...</td>
-              </tr>
-            ) : orders.length === 0 ? (
-              <tr>
-                <td colSpan="7">No orders found for the current filters.</td>
-              </tr>
-            ) : (
-              orders.map((order) => (
+            <TableStateRows
+              isLoading={isLoading}
+              error={error}
+              rows={orders}
+              colSpan={7}
+              loadingMessage="Loading orders..."
+              emptyMessage="No orders found for the current filters."
+              onRetry={loadOrders}
+              renderRow={(order) => (
                 <tr key={order.id}>
                   <td>
                     <strong>{order.order_number}</strong>
@@ -225,8 +250,8 @@ export default function OrdersPage({ token }) {
                     </div>
                   </td>
                 </tr>
-              ))
-            )}
+              )}
+            />
           </tbody>
         </table>
       </div>
