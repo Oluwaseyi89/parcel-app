@@ -817,6 +817,98 @@ a {
   font-size: 0.84rem;
 }
 
+.settings-page {
+  display: grid;
+  gap: 16px;
+}
+
+.settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.settings-header h2 {
+  margin: 0;
+}
+
+.settings-header p {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+
+.settings-chip {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #fcfaf7;
+  font-size: 0.85rem;
+}
+
+.settings-section {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+}
+
+.settings-section h3 {
+  margin: 0;
+}
+
+.settings-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.settings-form label {
+  display: grid;
+  gap: 6px;
+  font-size: 0.9rem;
+  color: #3e4b5c;
+}
+
+.settings-form input,
+.settings-form select {
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font: inherit;
+}
+
+.settings-kv-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.settings-kv-grid > div {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fcfaf7;
+  padding: 10px;
+}
+
+.settings-kv-label {
+  margin: 0;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.settings-kv-value {
+  margin: 6px 0 0;
+  font-size: 0.9rem;
+  color: var(--ink);
+  word-break: break-word;
+}
+
 @media (max-width: 980px) {
   .metrics-grid {
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -854,6 +946,11 @@ a {
   }
 
   .banking-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-form,
+  .settings-kv-grid {
     grid-template-columns: 1fr;
   }
 }
