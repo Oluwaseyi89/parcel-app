@@ -6,6 +6,7 @@ import UnauthorizedPage from './components/auth/UnauthorizedPage'
 import PlaceholderPage from './components/common/PlaceholderPage'
 import ProtectedLayout from './components/layout/ProtectedLayout'
 import DashboardPage from './pages/DashboardPage'
+import ComplaintsPage from './pages/ComplaintsPage'
 import DispatchPage from './pages/DispatchPage'
 import ModerationPage from './pages/ModerationPage'
 import OrdersPage from './pages/OrdersPage'
@@ -136,16 +137,7 @@ export default function AppRoutes() {
         <Route path="moderation" element={<ModerationPage token={session?.token} />} />
         <Route path="orders" element={<OrdersPage token={session?.token} />} />
         <Route path="dispatch" element={<DispatchPage token={session?.token} />} />
-        <Route
-          path="complaints"
-          element={
-            <PlaceholderPage
-              title="Complaints"
-              summary="Complaint triage and resolution tracking."
-              bullets={['Global complaint list', 'Case updates', 'Resolution metrics']}
-            />
-          }
-        />
+        <Route path="complaints" element={<ComplaintsPage token={session?.token} />} />
         <Route
           path="banking"
           element={
