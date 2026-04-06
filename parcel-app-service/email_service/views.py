@@ -5,7 +5,10 @@ from django.contrib.sites.shortcuts import get_current_site
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import IsAuthenticated
+from django.conf import settings
+from django.http import Http404
+from authentication.permissions import IsAdminOrSuperAdmin
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 from core.tokens import account_activation_token
@@ -14,6 +17,9 @@ def email_msg_view(request):
     """
     Preview email templates for testing purposes
     """
+    if not settings.DEBUG:
+        raise Http404("Not found")
+
     current_site = get_current_site(request)
     
     # Example data for preview
@@ -53,7 +59,7 @@ def email_msg_view(request):
 
 class SendTestEmailView(APIView):
     """API endpoint to send test emails"""
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, IsAdminOrSuperAdmin]
     
     def post(self, request):
         email_type = request.data.get('type', 'test')
@@ -91,7 +97,7 @@ class SendTestEmailView(APIView):
 
 class EmailTemplateListView(APIView):
     """List available email templates"""
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated, IsAdminOrSuperAdmin]
     
     def get(self, request):
         templates = [
