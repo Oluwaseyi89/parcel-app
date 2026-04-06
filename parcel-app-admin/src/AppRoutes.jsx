@@ -7,6 +7,7 @@ import PlaceholderPage from './components/common/PlaceholderPage'
 import ProtectedLayout from './components/layout/ProtectedLayout'
 import DashboardPage from './pages/DashboardPage'
 import ComplaintsPage from './pages/ComplaintsPage'
+import BankingPage from './pages/BankingPage'
 import DispatchPage from './pages/DispatchPage'
 import ModerationPage from './pages/ModerationPage'
 import OrdersPage from './pages/OrdersPage'
@@ -138,16 +139,7 @@ export default function AppRoutes() {
         <Route path="orders" element={<OrdersPage token={session?.token} />} />
         <Route path="dispatch" element={<DispatchPage token={session?.token} />} />
         <Route path="complaints" element={<ComplaintsPage token={session?.token} />} />
-        <Route
-          path="banking"
-          element={
-            <PlaceholderPage
-              title="Banking"
-              summary="Vendor and courier payout detail oversight."
-              bullets={['Vendor bank records', 'Courier bank records', 'Update and validation workflow']}
-            />
-          }
-        />
+        <Route path="banking" element={<BankingPage token={session?.token} />} />
         <Route
           path="settings"
           element={

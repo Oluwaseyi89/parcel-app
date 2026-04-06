@@ -769,6 +769,54 @@ a {
   color: var(--muted);
 }
 
+.banking-page {
+  display: grid;
+  gap: 16px;
+}
+
+.banking-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.banking-header h2 {
+  margin: 0;
+}
+
+.banking-header p {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+
+.banking-stat-chip {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #fcfaf7;
+  font-size: 0.85rem;
+}
+
+.banking-filters {
+  display: grid;
+  grid-template-columns: 220px 1fr auto;
+  gap: 10px;
+}
+
+.banking-filters input,
+.banking-filters select,
+.banking-page .users-table input,
+.banking-page .users-table select {
+  width: 100%;
+  padding: 8px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.84rem;
+}
+
 @media (max-width: 980px) {
   .metrics-grid {
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -802,6 +850,10 @@ a {
   }
 
   .complaints-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .banking-filters {
     grid-template-columns: 1fr;
   }
 }
