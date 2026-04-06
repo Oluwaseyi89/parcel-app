@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   BrowserRouter,
   Navigate,
@@ -11,6 +11,8 @@ import {
 } from 'react-router-dom'
 
 const SESSION_KEY = 'parcel_admin_shell_session'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:7000'
+const ALLOWED_ROLES = new Set(['super_admin', 'admin', 'staff', 'operator'])
 
 const NAV_ITEMS = [
   { path: '/dashboard', label: 'Dashboard' },
@@ -41,6 +43,62 @@ function saveSession(session) {
 
 function clearSession() {
   localStorage.removeItem(SESSION_KEY)
+}
+
+function buildApiUrl(path) {
+  return `${API_BASE_URL}${path}`
+}
+
+async function apiRequest(path, options = {}) {
+  const { token, headers = {}, body, ...rest } = options
+  const nextHeaders = {
+    ...headers,
+  }
+
+  if (body !== undefined && !nextHeaders['Content-Type']) {
+    nextHeaders['Content-Type'] = 'application/json'
+  }
+
+  if (token) {
+    nextHeaders['X-Session-Token'] = token
+  }
+
+  const response = await fetch(buildApiUrl(path), {
+    ...rest,
+    headers: nextHeaders,
+    credentials: 'include',
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  })
+
+  const payload = await response.json().catch(() => null)
+  if (!response.ok) {
+    const serverMessage = payload?.message || payload?.error || payload?.errors?.error?.[0]
+    throw new Error(serverMessage || 'Request failed. Please try again.')
+  }
+
+  return payload
+}
+
+function mapSessionFromPayload(payload, fallbackToken = '') {
+  const admin = payload?.admin || payload?.data || {}
+  const sessionToken = payload?.session?.session_token || fallbackToken
+  const role = admin?.role || ''
+
+  return {
+    token: sessionToken,
+    email: admin?.email || '',
+    role,
+    firstName: admin?.first_name || '',
+    lastName: admin?.last_name || '',
+  }
+}
+
+function isSessionValid(session) {
+  if (!session?.token || !session?.email || !session?.role) {
+    return false
+  }
+
+  return ALLOWED_ROLES.has(session.role)
 }
 
 function ProtectedLayout({ session, onLogout }) {
@@ -107,18 +165,28 @@ function LoginPage({ onLogin, session }) {
   const navigate = useNavigate()
   const [email, setEmail] = useState(session?.email || '')
   const [password, setPassword] = useState('')
-  const [role, setRole] = useState(session?.role || 'admin')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
 
   if (session) {
     return <Navigate to="/dashboard" replace />
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault()
-    if (!email || !password) return
+    if (!email || !password || isSubmitting) return
 
-    onLogin({ email, role })
-    navigate('/dashboard', { replace: true })
+    setErrorMessage('')
+    setIsSubmitting(true)
+
+    try {
+      await onLogin({ email, password })
+      navigate('/dashboard', { replace: true })
+    } catch (error) {
+      setErrorMessage(error.message || 'Unable to log in. Please check your credentials.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -126,7 +194,7 @@ function LoginPage({ onLogin, session }) {
       <div className="login-card">
         <p className="login-kicker">parcel operations</p>
         <h2>Admin Sign In</h2>
-        <p>Issue 1 scaffold: protected routes + shell; API integration comes in Issue 2.</p>
+        <p>Issue 2 integration: backend auth/session handshake enabled.</p>
         <form onSubmit={handleSubmit} className="login-form">
           <label>
             Email
@@ -136,6 +204,7 @@ function LoginPage({ onLogin, session }) {
               onChange={(event) => setEmail(event.target.value)}
               placeholder="admin@parcel.com"
               required
+              autoComplete="email"
             />
           </label>
           <label>
@@ -146,17 +215,40 @@ function LoginPage({ onLogin, session }) {
               onChange={(event) => setPassword(event.target.value)}
               placeholder="********"
               required
+              autoComplete="current-password"
             />
           </label>
-          <label>
-            Role
-            <select value={role} onChange={(event) => setRole(event.target.value)}>
-              <option value="admin">admin</option>
-              <option value="super_admin">super_admin</option>
-            </select>
-          </label>
-          <button type="submit" className="primary-btn">Sign In</button>
+          {errorMessage ? <p className="form-error">{errorMessage}</p> : null}
+          <button type="submit" className="primary-btn" disabled={isSubmitting}>
+            {isSubmitting ? 'Signing In...' : 'Sign In'}
+          </button>
         </form>
+      </div>
+    </div>
+  )
+}
+
+function LoadingPage() {
+  return (
+    <div className="login-screen">
+      <div className="login-card">
+        <h2>Loading Session</h2>
+        <p>Validating your admin session...</p>
+      </div>
+    </div>
+  )
+}
+
+function UnauthorizedPage({ onSignOut }) {
+  return (
+    <div className="login-screen">
+      <div className="login-card">
+        <p className="login-kicker">permission required</p>
+        <h2>Access Denied</h2>
+        <p>Your account does not have admin panel permissions.</p>
+        <button type="button" className="primary-btn" onClick={onSignOut}>
+          Return To Login
+        </button>
       </div>
     </div>
   )
@@ -164,23 +256,109 @@ function LoginPage({ onLogin, session }) {
 
 function AppRoutes() {
   const [session, setSession] = useState(() => readSession())
+  const [isBootstrapping, setIsBootstrapping] = useState(true)
+  const [isUnauthorized, setIsUnauthorized] = useState(false)
 
-  function handleLogin(nextSession) {
+  useEffect(() => {
+    let isMounted = true
+
+    async function bootstrapSession() {
+      const existing = readSession()
+      if (!isSessionValid(existing)) {
+        clearSession()
+        if (isMounted) {
+          setSession(null)
+          setIsBootstrapping(false)
+        }
+        return
+      }
+
+      try {
+        const profilePayload = await apiRequest('/auth/api/profile/', {
+          method: 'GET',
+          token: existing.token,
+        })
+
+        const refreshed = mapSessionFromPayload(profilePayload, existing.token)
+        if (!isSessionValid(refreshed)) {
+          throw new Error('Insufficient permissions')
+        }
+
+        saveSession(refreshed)
+        if (isMounted) {
+          setSession(refreshed)
+          setIsUnauthorized(false)
+        }
+      } catch {
+        clearSession()
+        if (isMounted) {
+          setSession(null)
+          setIsUnauthorized(false)
+        }
+      } finally {
+        if (isMounted) {
+          setIsBootstrapping(false)
+        }
+      }
+    }
+
+    bootstrapSession()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  async function handleLogin(credentials) {
+    const payload = await apiRequest('/auth/api/login/', {
+      method: 'POST',
+      body: credentials,
+    })
+
+    const nextSession = mapSessionFromPayload(payload)
+    if (!isSessionValid(nextSession)) {
+      clearSession()
+      setSession(null)
+      setIsUnauthorized(true)
+      throw new Error('Insufficient permissions to access admin panel.')
+    }
+
     saveSession(nextSession)
     setSession(nextSession)
+    setIsUnauthorized(false)
   }
 
-  function handleLogout() {
-    clearSession()
-    setSession(null)
-  }
-
-  const protectedElement = useMemo(() => {
-    if (!session) {
-      return <Navigate to="/login" replace />
+  async function handleLogout() {
+    const sessionToken = session?.token
+    try {
+      if (sessionToken) {
+        await apiRequest('/auth/api/logout/', {
+          method: 'POST',
+          token: sessionToken,
+        })
+      }
+    } catch {
+      // Ignore logout request errors and force local sign-out.
+    } finally {
+      clearSession()
+      setSession(null)
+      setIsUnauthorized(false)
     }
-    return <ProtectedLayout session={session} onLogout={handleLogout} />
-  }, [session])
+  }
+
+  if (isBootstrapping) {
+    return <LoadingPage />
+  }
+
+  if (isUnauthorized) {
+    return <UnauthorizedPage onSignOut={handleLogout} />
+  }
+
+  const protectedElement = session ? (
+    <ProtectedLayout session={session} onLogout={handleLogout} />
+  ) : (
+    <Navigate to="/login" replace />
+  )
 
   return (
     <Routes>
