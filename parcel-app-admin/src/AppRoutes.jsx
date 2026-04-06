@@ -3,7 +3,6 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import LoginPage from './components/auth/LoginPage'
 import LoadingPage from './components/auth/LoadingPage'
 import UnauthorizedPage from './components/auth/UnauthorizedPage'
-import PlaceholderPage from './components/common/PlaceholderPage'
 import ProtectedLayout from './components/layout/ProtectedLayout'
 import DashboardPage from './pages/DashboardPage'
 import ComplaintsPage from './pages/ComplaintsPage'
@@ -11,6 +10,7 @@ import BankingPage from './pages/BankingPage'
 import DispatchPage from './pages/DispatchPage'
 import ModerationPage from './pages/ModerationPage'
 import OrdersPage from './pages/OrdersPage'
+import SettingsPage from './pages/SettingsPage'
 import UsersPage from './pages/UsersPage'
 import { apiRequest } from './services/api'
 import {
@@ -140,16 +140,7 @@ export default function AppRoutes() {
         <Route path="dispatch" element={<DispatchPage token={session?.token} />} />
         <Route path="complaints" element={<ComplaintsPage token={session?.token} />} />
         <Route path="banking" element={<BankingPage token={session?.token} />} />
-        <Route
-          path="settings"
-          element={
-            <PlaceholderPage
-              title="Settings"
-              summary="Operational preferences and security settings."
-              bullets={['Profile and password', 'Session policy', 'Environment flags overview']}
-            />
-          }
-        />
+        <Route path="settings" element={<SettingsPage token={session?.token} session={session} />} />
       </Route>
 
       <Route path="*" element={<Navigate to={session ? '/dashboard' : '/login'} replace />} />
