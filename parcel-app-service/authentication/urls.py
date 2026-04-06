@@ -4,7 +4,7 @@ from django.views.decorators.csrf import csrf_exempt
 from .views import (
     home, base, super_admin_login, super_admin_dashboard,
     AdminLoginView, AdminLogoutView, AdminProfileView, 
-    ChangePasswordView, AdminUserListView, staff_reg_page,
+    ChangePasswordView, AdminUserListView, AdminCustomerListView, staff_reg_page,
     staff_login, desk_login, desk_login_external, reg_staff,
     # Add customer views
     CustomerRegistrationView, CustomerLoginView, CustomerProfileView,
@@ -64,8 +64,8 @@ urlpatterns = [
     path('customer/password/save/', CustomerSaveResetView.as_view(), name="customer_password_save"),
     
     # Customer Management (Admin only - optional)
-    path('api/customers/', AdminUserListView.as_view(), name="customer_list"),  # Reuse or create separate
-    path('api/customers/<int:pk>/', AdminUserListView.as_view(), name="customer_detail"),
+    path('api/customers/', AdminCustomerListView.as_view(), name="customer_list"),
+    path('api/customers/<int:pk>/', AdminCustomerListView.as_view(), name="customer_detail"),
 ]
 
 
