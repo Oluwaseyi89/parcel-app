@@ -2,7 +2,7 @@ from django.urls import path
 from .views import (
     VendorBankDetailViews, CourierBankDetailViews,
     VendorBankUpdateViews, CourierBankUpdateViews,
-    GetDistinctVendorBankViews
+    GetDistinctVendorBankViews, GetDistinctCourierBankViews
 )
 
 urlpatterns = [
@@ -14,4 +14,5 @@ urlpatterns = [
     # Courier Bank Details
     path('courier/save/', CourierBankDetailViews.as_view(), name="courier_bank_save"),
     path('courier/update/<str:courier_email>/', CourierBankUpdateViews.as_view(), name="courier_bank_update"),
+    path('courier/get/<str:courier_email>/', GetDistinctCourierBankViews.as_view(), name="courier_bank_get"),
 ]

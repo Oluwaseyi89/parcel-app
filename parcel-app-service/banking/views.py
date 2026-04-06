@@ -42,6 +42,17 @@ class CourierBankDetailViews(APIView):
         else:
             return Response({"status": "error", "data": "Enter valid data please."})
 
+
+class GetDistinctCourierBankViews(APIView):
+    def get(self, request, courier_email=None):
+        try:
+            dist_courier_bank = CourierBankDetail.objects.get(courier_email=courier_email)
+            serializer = CourierBankDetailSerializer(dist_courier_bank)
+            return Response({"status": "success", "data": serializer.data}, status=status.HTTP_200_OK)
+        except CourierBankDetail.DoesNotExist:
+            return Response({"status": "error", "data": "You have no bank details yet"},
+                            status=status.HTTP_400_BAD_REQUEST)
+
 class VendorBankUpdateViews(APIView):
     def patch(self, request, vendor_email=None):
         try:
@@ -59,7 +70,7 @@ class CourierBankUpdateViews(APIView):
     def patch(self, request, courier_email=None):
         try:
             item = CourierBankDetail.objects.get(courier_email=courier_email)
-            serializer = VendorBankDetailSerializer(item, data=request.data, partial=True)
+            serializer = CourierBankDetailSerializer(item, data=request.data, partial=True)
             if serializer.is_valid():
                 serializer.save()
                 return Response({"status": "success", "data": "Account details updated."})
