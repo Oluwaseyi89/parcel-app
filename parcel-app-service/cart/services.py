@@ -1,15 +1,14 @@
 # cart/services.py
 from datetime import timedelta
 from django.utils import timezone
-from django.db import transaction
 from .models import CartSession, CartDetail
 
 class CartService:
     @staticmethod
-    def get_or_create_cart(customer_name, customer_id=None):
-        """Get existing active cart or create new one"""
+    def get_or_create_cart(customer):
+        """Get existing active cart or create new one for an authenticated customer."""
         cart = CartSession.objects.filter(
-            customer_name=customer_name,
+            customer=customer,
             is_active=True
         ).first()
         
@@ -23,18 +22,18 @@ class CartService:
         
         # Create new cart
         cart = CartSession.objects.create(
-            customer_name=customer_name,
-            customer_id=customer_id,
+            customer=customer,
+            customer_name=customer.get_full_name(),
             expires_at=timezone.now() + timedelta(days=7),
             is_active=True
         )
         return cart
     
     @staticmethod
-    def add_to_cart(session_id, product_id, product_name, quantity, unit_price):
-        """Add or update product in cart"""
+    def add_to_cart(session_id, customer, product_id, product_name, quantity, unit_price):
+        """Add or update product in a customer's cart."""
         try:
-            cart = CartSession.objects.get(id=session_id, is_active=True)
+            cart = CartSession.objects.get(id=session_id, customer=customer, is_active=True)
             
             if cart.is_expired():
                 cart.delete()
@@ -60,7 +59,7 @@ class CartService:
             return cart_item, None
             
         except CartSession.DoesNotExist:
-            return None, "Cart does not exist"
+            return None, "Cart not found"
     
     @staticmethod
     def _update_cart_totals(cart):
@@ -74,10 +73,10 @@ class CartService:
         cart.save()
     
     @staticmethod
-    def get_cart_contents(session_id):
-        """Get all items in cart"""
+    def get_cart_contents(session_id, customer):
+        """Get all items in the authenticated customer's cart."""
         try:
-            cart = CartSession.objects.get(id=session_id, is_active=True)
+            cart = CartSession.objects.get(id=session_id, customer=customer, is_active=True)
             
             if cart.is_expired():
                 cart.delete()
@@ -93,10 +92,10 @@ class CartService:
             return None, "Cart not found"
     
     @staticmethod
-    def clear_cart(session_id):
-        """Clear cart contents"""
+    def clear_cart(session_id, customer):
+        """Clear the authenticated customer's cart contents."""
         try:
-            cart = CartSession.objects.get(id=session_id)
+            cart = CartSession.objects.get(id=session_id, customer=customer)
             cart.items.all().delete()
             cart.delete()
             return True, None
