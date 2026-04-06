@@ -2,6 +2,7 @@ import json
 import secrets
 from datetime import datetime, timedelta
 from django.contrib.contenttypes.models import ContentType
+from django.db.models import Q
 from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse, HttpResponse, Http404
 from django.views.decorators.csrf import csrf_exempt
@@ -25,7 +26,8 @@ from django.conf import settings
 from .models import CustomerUser, VendorUser, CourierUser
 from .serializers import (
     CustomerRegistrationSerializer, CustomerLoginSerializer,
-    ForgotPasswordSerializer, CustomerPasswordResetSerializer
+    ForgotPasswordSerializer, CustomerPasswordResetSerializer,
+    CustomerUpdateSerializer
 )
 from .services import EmailService, CustomerService
 
@@ -218,6 +220,103 @@ class AdminUserListView(APIView):
             "status": "error",
             "errors": serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class AdminCustomerListView(APIView):
+    """Admin customer management (list/detail/update/deactivate)."""
+    authentication_classes = [SessionAuthentication, BasicAuthentication]
+    permission_classes = [IsAdminOrSuperAdmin]
+
+    @staticmethod
+    def _as_bool(value):
+        return str(value).strip().lower() in ['1', 'true', 'yes', 'on']
+
+    def get(self, request, pk=None):
+        if pk is not None:
+            customer = get_object_or_404(CustomerUser, pk=pk)
+            serializer = CustomerProfileSerializer(customer)
+            return Response({
+                "status": "success",
+                "data": serializer.data
+            })
+
+        queryset = CustomerUser.objects.all().order_by('-created_at')
+
+        search = request.query_params.get('search')
+        if search:
+            queryset = queryset.filter(
+                Q(email__icontains=search) |
+                Q(first_name__icontains=search) |
+                Q(last_name__icontains=search)
+            )
+
+        is_active = request.query_params.get('is_active')
+        if is_active is not None:
+            active_flag = self._as_bool(is_active)
+            queryset = queryset.filter(is_active=active_flag)
+
+        is_email_verified = request.query_params.get('is_email_verified')
+        if is_email_verified is not None:
+            verified_flag = self._as_bool(is_email_verified)
+            queryset = queryset.filter(is_email_verified=verified_flag)
+
+        serializer = CustomerProfileSerializer(queryset, many=True)
+        return Response({
+            "status": "success",
+            "data": serializer.data
+        })
+
+    def patch(self, request, pk=None):
+        if pk is None:
+            return Response({
+                "status": "error",
+                "message": "Customer id is required."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        customer = get_object_or_404(CustomerUser, pk=pk)
+
+        serializer = CustomerUpdateSerializer(customer, data=request.data, partial=True)
+        if not serializer.is_valid():
+            return Response({
+                "status": "error",
+                "errors": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer.save()
+
+        mutable_fields = []
+        if 'is_active' in request.data:
+            customer.is_active = self._as_bool(request.data.get('is_active'))
+            mutable_fields.append('is_active')
+
+        if 'is_email_verified' in request.data:
+            customer.is_email_verified = self._as_bool(request.data.get('is_email_verified'))
+            mutable_fields.append('is_email_verified')
+
+        if mutable_fields:
+            customer.save(update_fields=mutable_fields)
+
+        return Response({
+            "status": "success",
+            "message": "Customer updated successfully",
+            "data": CustomerProfileSerializer(customer).data
+        })
+
+    def delete(self, request, pk=None):
+        if pk is None:
+            return Response({
+                "status": "error",
+                "message": "Customer id is required."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        customer = get_object_or_404(CustomerUser, pk=pk)
+        customer.is_active = False
+        customer.save(update_fields=['is_active'])
+
+        return Response({
+            "status": "success",
+            "message": f"Customer {customer.email} deactivated successfully"
+        })
 
 
 # ==================== TEMPLATE-BASED VIEWS (LEGACY) ====================
