@@ -23,6 +23,7 @@ urlpatterns = [
     # Temporary product management (admin)
     path('temp-products/', TempProductListView.as_view(), name="temp_product_list"),
     path('temp-products/<int:temp_product_id>/approve/', ProductApprovalView.as_view(), name="product_approval"),
+    path('temp-products/<int:temp_product_id>/moderate/', ProductApprovalView.as_view(), name="product_moderate"),
     
     # Vendor product management
     path('vendor/products/', VendorProductsView.as_view(), name="vendor_products"),

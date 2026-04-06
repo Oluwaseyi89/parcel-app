@@ -175,7 +175,7 @@ class ProductUpdateSerializer(serializers.ModelSerializer):
 
 class ProductApprovalSerializer(serializers.Serializer):
     """Serializer for product approval decisions"""
-    action = serializers.ChoiceField(choices=['approve', 'reject', 'request_changes'])
+    action = serializers.ChoiceField(choices=['approve', 'reject', 'request_changes', 'suspend', 'reactivate'])
     comments = serializers.CharField(required=False, allow_blank=True)
     product_id = serializers.IntegerField(required=False)
     
@@ -183,9 +183,9 @@ class ProductApprovalSerializer(serializers.Serializer):
         action = data.get('action')
         comments = data.get('comments', '')
         
-        if action == 'reject' and not comments.strip():
+        if action in ['reject', 'request_changes'] and not comments.strip():
             raise serializers.ValidationError({
-                'comments': 'Rejection reason is required when rejecting a product.'
+                'comments': 'Comments are required for reject and request_changes actions.'
             })
         
         return data

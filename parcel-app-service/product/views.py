@@ -124,34 +124,23 @@ class ProductApprovalView(APIView):
         comments = serializer.validated_data.get('comments', '')
         
         try:
-            if action == 'approve':
-                product = ProductService.approve_temp_product(
-                    temp_product_id, 
-                    request.user,
-                    request
-                )
-                message = "Product approved successfully"
-                data = ProductSerializer(product, context={'request': request}).data
-                
-            elif action == 'reject':
-                product = ProductService.reject_temp_product(
-                    temp_product_id,
-                    request.user,
-                    comments,
-                    request
-                )
-                message = "Product rejected"
-                data = ProductSerializer(product, context={'request': request}).data
-                
-            else:  # request_changes
-                product = ProductService.request_product_changes(
-                    temp_product_id,
-                    request.user,
-                    comments,
-                    request
-                )
-                message = "Changes requested for product"
-                data = ProductSerializer(product, context={'request': request}).data
+            product = ProductService.moderate_product(
+                temp_product_id=temp_product_id,
+                action=action,
+                admin_user=request.user,
+                comments=comments,
+                request=request,
+            )
+
+            action_message = {
+                'approve': 'approved',
+                'reject': 'rejected',
+                'request_changes': 'marked for changes',
+                'suspend': 'suspended',
+                'reactivate': 'reactivated',
+            }.get(action, 'updated')
+            message = f"Product {action_message} successfully"
+            data = ProductSerializer(product, context={'request': request}).data
             
             return Response({
                 "status": "success",
