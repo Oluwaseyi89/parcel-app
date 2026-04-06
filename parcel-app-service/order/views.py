@@ -31,8 +31,15 @@ class OrderListView(APIView):
             queryset = Order.objects.filter(customer=request.user)
         elif request.user.role == 'vendor':
             queryset = Order.objects.filter(items__vendor=request.user).distinct()
-        else:  # admin/courier
+        elif request.user.role == 'courier':
+            queryset = Order.objects.filter(
+                courier=request.user,
+                status__in=['ready', 'dispatched', 'in_transit']
+            )
+        elif request.user.role in ['admin', 'super_admin']:
             queryset = Order.objects.all()
+        else:
+            queryset = Order.objects.none()
         
         # Apply filters
         status_filter = request.query_params.get('status')
