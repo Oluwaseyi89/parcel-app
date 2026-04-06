@@ -5,6 +5,7 @@ from .views import (
     home, base, super_admin_login, super_admin_dashboard,
     AdminLoginView, AdminLogoutView, AdminProfileView, 
     ChangePasswordView, AdminUserListView, AdminCustomerListView, AdminDashboardMetricsView,
+    AdminModerationQueueView, AdminModerationActionView,
     staff_reg_page, staff_login, desk_login, desk_login_external, reg_staff,
     # Add customer views
     CustomerRegistrationView, CustomerLoginView, CustomerProfileView,
@@ -34,6 +35,10 @@ urlpatterns = [
     
     # Admin Dashboard Metrics
     path('api/dashboard/metrics/', AdminDashboardMetricsView.as_view(), name="admin_dashboard_metrics"),
+
+    # Admin Moderation
+    path('api/moderation/queue/', AdminModerationQueueView.as_view(), name="admin_moderation_queue"),
+    path('api/moderation/<str:queue_type>/<int:pk>/', AdminModerationActionView.as_view(), name="admin_moderation_action"),
     
     # Admin Management (super admin only)
     path('api/admins/', AdminUserListView.as_view(), name="admin_list"),

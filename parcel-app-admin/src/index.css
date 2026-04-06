@@ -493,6 +493,75 @@ a {
   font-size: 0.9rem;
 }
 
+.moderation-page {
+  display: grid;
+  gap: 16px;
+}
+
+.moderation-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.moderation-header h2 {
+  margin: 0;
+}
+
+.moderation-header p {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+
+.moderation-summary {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.moderation-summary span {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #fcfaf7;
+  font-size: 0.82rem;
+}
+
+.moderation-controls {
+  display: grid;
+  grid-template-columns: 180px 180px 1fr auto;
+  gap: 10px;
+}
+
+.moderation-controls input,
+.moderation-controls select {
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font: inherit;
+}
+
+.moderation-section {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.moderation-section h3 {
+  margin: 0;
+}
+
+.moderation-actions-cell {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
 @media (max-width: 980px) {
   .metrics-grid {
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -509,6 +578,10 @@ a {
 
   .users-admin-form,
   .users-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .moderation-controls {
     grid-template-columns: 1fr;
   }
 }
