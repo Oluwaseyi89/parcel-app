@@ -67,6 +67,8 @@ class TempCourierListView(APIView):
         })
 
 class CourierListView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminOrSuperAdmin]
+
     def get(self, request):
         from authentication.models import CourierUser
         couriers = CourierUser.objects.filter(is_active=True)
