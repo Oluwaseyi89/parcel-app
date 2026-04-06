@@ -29,6 +29,7 @@ from product.models import Product
 from order.models import Order
 from dispatch.models import Dispatch
 from complaints.models import CustomerComplaint
+from banking.models import VendorBankDetail, CourierBankDetail
 from .serializers import (
     CustomerRegistrationSerializer, CustomerLoginSerializer,
     ForgotPasswordSerializer, CustomerPasswordResetSerializer,
@@ -967,6 +968,118 @@ class AdminComplaintUpdateView(APIView):
                 "id": complaint.id,
                 "is_resolved": complaint.is_resolved,
                 "is_satisfied": complaint.is_satisfied,
+            }
+        })
+
+
+class AdminBankingListView(APIView):
+    """Admin banking management endpoint (list vendor/courier bank details)."""
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
+    permission_classes = [IsAdminOrSuperAdmin]
+
+    def get(self, request):
+        account_type = request.query_params.get('type', 'all')
+        search = request.query_params.get('search', '').strip()
+
+        vendor_data = []
+        courier_data = []
+
+        if account_type in ['all', 'vendors']:
+            vendor_queryset = VendorBankDetail.objects.all().order_by('-id')
+            if search:
+                vendor_queryset = vendor_queryset.filter(
+                    Q(vendor_email__icontains=search) |
+                    Q(account_name__icontains=search) |
+                    Q(bank_name__icontains=search)
+                )
+            vendor_data = [
+                {
+                    "id": item.id,
+                    "type": "vendor",
+                    "email": item.vendor_email,
+                    "account_name": item.account_name,
+                    "account_no": item.account_no,
+                    "bank_name": item.bank_name,
+                    "account_type": item.account_type,
+                    "added_at": item.added_at,
+                    "updated_at": item.updated_at,
+                }
+                for item in vendor_queryset[:200]
+            ]
+
+        if account_type in ['all', 'couriers']:
+            courier_queryset = CourierBankDetail.objects.all().order_by('-id')
+            if search:
+                courier_queryset = courier_queryset.filter(
+                    Q(courier_email__icontains=search) |
+                    Q(account_name__icontains=search) |
+                    Q(bank_name__icontains=search)
+                )
+            courier_data = [
+                {
+                    "id": item.id,
+                    "type": "courier",
+                    "email": item.courier_email,
+                    "account_name": item.account_name,
+                    "account_no": item.account_no,
+                    "bank_name": item.bank_name,
+                    "account_type": item.account_type,
+                    "added_at": item.added_at,
+                    "updated_at": item.updated_at,
+                }
+                for item in courier_queryset[:200]
+            ]
+
+        return Response({
+            "status": "success",
+            "data": {
+                "vendors": vendor_data,
+                "couriers": courier_data,
+            }
+        })
+
+
+class AdminBankingUpdateView(APIView):
+    """Admin banking update endpoint for vendor/courier account records."""
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
+    permission_classes = [IsAdminOrSuperAdmin]
+
+    def patch(self, request, account_kind, pk):
+        if account_kind == 'vendor':
+            record = get_object_or_404(VendorBankDetail, pk=pk)
+            email_field = 'vendor_email'
+        elif account_kind == 'courier':
+            record = get_object_or_404(CourierBankDetail, pk=pk)
+            email_field = 'courier_email'
+        else:
+            return Response({
+                "status": "error",
+                "message": "Invalid account kind. Use vendor or courier."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        allowed_fields = ['bank_name', 'account_type', 'account_name', 'account_no', 'updated_at', email_field]
+        update_fields = []
+        for field in allowed_fields:
+            if field in request.data:
+                setattr(record, field, str(request.data.get(field)))
+                update_fields.append(field)
+
+        if not update_fields:
+            return Response({
+                "status": "error",
+                "message": "No valid fields provided for update."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        record.save(update_fields=update_fields)
+
+        return Response({
+            "status": "success",
+            "message": "Banking record updated successfully",
+            "data": {
+                "id": record.id,
+                "account_name": record.account_name,
+                "account_no": record.account_no,
+                "bank_name": record.bank_name,
             }
         })
 
