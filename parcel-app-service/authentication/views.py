@@ -13,6 +13,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.authentication import SessionAuthentication, BasicAuthentication
+from .drf_auth import SessionTokenAuthentication
 from .models import AdminUser, UserSession
 from .serializers import (
     AdminLoginSerializer, AdminSessionSerializer, 
@@ -24,6 +25,8 @@ from django.conf import settings
 
 
 from .models import CustomerUser, VendorUser, CourierUser
+from product.models import Product
+from order.models import Order
 from .serializers import (
     CustomerRegistrationSerializer, CustomerLoginSerializer,
     ForgotPasswordSerializer, CustomerPasswordResetSerializer,
@@ -104,7 +107,7 @@ class AdminLoginView(APIView):
 
 
 class AdminLogoutView(APIView):
-    authentication_classes = [SessionAuthentication, BasicAuthentication]
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
     permission_classes = [IsAuthenticated]
     
     def post(self, request):
@@ -129,7 +132,7 @@ class AdminLogoutView(APIView):
 
 
 class AdminProfileView(APIView):
-    authentication_classes = [SessionAuthentication, BasicAuthentication]
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
@@ -164,7 +167,7 @@ class AdminProfileView(APIView):
 
 
 class ChangePasswordView(APIView):
-    authentication_classes = [SessionAuthentication, BasicAuthentication]
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
     permission_classes = [IsAuthenticated]
     
     def post(self, request):
@@ -195,7 +198,7 @@ class ChangePasswordView(APIView):
 
 
 class AdminUserListView(APIView):
-    authentication_classes = [SessionAuthentication, BasicAuthentication]
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
     permission_classes = [IsSuperAdmin]
     
     def get(self, request, pk=None):
@@ -277,7 +280,7 @@ class AdminUserListView(APIView):
 
 class AdminCustomerListView(APIView):
     """Admin customer management (list/detail/update/deactivate)."""
-    authentication_classes = [SessionAuthentication, BasicAuthentication]
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
     permission_classes = [IsAdminOrSuperAdmin]
 
     @staticmethod
@@ -370,6 +373,68 @@ class AdminCustomerListView(APIView):
             "status": "success",
             "message": f"Customer {customer.email} deactivated successfully"
         })
+
+
+class AdminDashboardMetricsView(APIView):
+    """Admin dashboard metrics endpoint - returns pending approvals and stats."""
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
+    permission_classes = [IsAdminOrSuperAdmin]
+
+    def get(self, request):
+        """Fetch aggregated admin metrics."""
+        try:
+            # Count pending approvals by type
+            pending_vendors = VendorUser.objects.filter(approval_status='pending').count()
+            pending_couriers = CourierUser.objects.filter(approval_status='pending').count()
+            pending_products = Product.objects.filter(approval_status='pending').count()
+            pending_orders = Order.objects.filter(status='pending').count()
+
+            # Count total active users
+            total_vendors = VendorUser.objects.filter(is_active=True).count()
+            total_couriers = CourierUser.objects.filter(is_active=True).count()
+            total_products = Product.objects.filter(approval_status='approved').count()
+            total_orders = Order.objects.filter(status__in=['confirmed', 'processing', 'completed']).count()
+
+            # Recent activity (last 5 pending items per category, ordered by created_at desc)
+            recent_vendors = VendorUser.objects.filter(
+                approval_status='pending'
+            ).values('id', 'email', 'business_name', 'created_at').order_by('-created_at')[:5]
+
+            recent_couriers = CourierUser.objects.filter(
+                approval_status='pending'
+            ).values('id', 'email', 'first_name', 'last_name', 'created_at').order_by('-created_at')[:5]
+
+            recent_products = Product.objects.filter(
+                approval_status='pending'
+            ).values('id', 'name', 'vendor_id', 'created_at').order_by('-created_at')[:5]
+
+            return Response({
+                "status": "success",
+                "data": {
+                    "pending_counts": {
+                        "vendors": pending_vendors,
+                        "couriers": pending_couriers,
+                        "products": pending_products,
+                        "orders": pending_orders,
+                    },
+                    "total_counts": {
+                        "vendors": total_vendors,
+                        "couriers": total_couriers,
+                        "products": total_products,
+                        "orders": total_orders,
+                    },
+                    "recent_activity": {
+                        "pending_vendors": list(recent_vendors),
+                        "pending_couriers": list(recent_couriers),
+                        "pending_products": list(recent_products),
+                    }
+                }
+            })
+        except Exception as e:
+            return Response({
+                "status": "error",
+                "message": f"Failed to fetch dashboard metrics: {str(e)}"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 # ==================== TEMPLATE-BASED VIEWS (LEGACY) ====================
