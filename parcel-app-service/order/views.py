@@ -13,7 +13,7 @@ from .services import OrderService, PaymentService, ShippingService
 from .serializers import (
     OrderSerializer, OrderCreateSerializer, OrderItemSerializer,
     PaymentSerializer, PaymentInitiateSerializer, OrderStatusUpdateSerializer,
-    ShippingAddressSerializer, OrderStatsSerializer
+    ShippingAddressSerializer, OrderStatsSerializer, PaymentStatusSyncSerializer
 )
 from .models import Order, OrderItem, Payment, ShippingAddress
 
@@ -292,6 +292,62 @@ class PaymentVerifyView(APIView):
                 "data": PaymentSerializer(payment).data
             })
             
+        except Exception as e:
+            return Response({
+                "status": "error",
+                "message": str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class InternalPaymentStatusSyncView(APIView):
+    """Trusted internal endpoint for payment status synchronization."""
+    permission_classes = [AllowAny]
+
+    @staticmethod
+    def _is_trusted_internal_call(request):
+        expected = getattr(settings, 'PAYMENT_SYNC_TOKEN', '')
+        if not expected:
+            return False
+
+        provided = (
+            request.headers.get('X-Internal-Service-Token') or
+            request.META.get('HTTP_X_INTERNAL_SERVICE_TOKEN') or
+            ''
+        )
+        return secrets.compare_digest(str(provided), str(expected))
+
+    def post(self, request, reference):
+        if not self._is_trusted_internal_call(request):
+            return Response({
+                "status": "error",
+                "message": "Forbidden"
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = PaymentStatusSyncSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                "status": "error",
+                "errors": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            payment, is_duplicate = PaymentService.sync_payment_status(
+                reference=reference,
+                status_value=serializer.validated_data['status'],
+                event_id=serializer.validated_data['event_id'],
+                transaction_id=serializer.validated_data.get('transaction_id', ''),
+                failure_reason=serializer.validated_data.get('failure_reason', ''),
+                provider_response=serializer.validated_data.get('provider_response', {}),
+            )
+
+            return Response({
+                "status": "success",
+                "message": "Payment sync already processed" if is_duplicate else "Payment synced successfully",
+                "data": {
+                    "idempotent": is_duplicate,
+                    "payment": PaymentSerializer(payment).data,
+                }
+            })
         except Exception as e:
             return Response({
                 "status": "error",
