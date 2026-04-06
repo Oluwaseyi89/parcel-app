@@ -233,6 +233,26 @@ class PaymentInitiateSerializer(serializers.Serializer):
         except Order.DoesNotExist:
             raise serializers.ValidationError('Order not found.')
 
+
+class PaymentStatusSyncSerializer(serializers.Serializer):
+    """Serializer for trusted internal payment status synchronization."""
+    status = serializers.ChoiceField(choices=['completed', 'failed', 'processing', 'refunded'])
+    event_id = serializers.CharField(max_length=128)
+    transaction_id = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    failure_reason = serializers.CharField(required=False, allow_blank=True)
+    provider_response = serializers.DictField(required=False)
+
+    def validate(self, data):
+        status_value = data.get('status')
+        failure_reason = (data.get('failure_reason') or '').strip()
+
+        if status_value == 'failed' and not failure_reason:
+            raise serializers.ValidationError({
+                'failure_reason': 'failure_reason is required when status is failed.'
+            })
+
+        return data
+
 class OrderStatusUpdateSerializer(serializers.Serializer):
     """Serializer for updating order status"""
     status = serializers.ChoiceField(choices=Order.STATUS_CHOICES)

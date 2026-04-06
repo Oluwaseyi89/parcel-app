@@ -291,6 +291,78 @@ class PaymentService:
             
             return payment
 
+    @staticmethod
+    def sync_payment_status(reference, status_value, event_id, transaction_id='', failure_reason='', provider_response=None):
+        """Synchronize payment status from trusted internal payment service with idempotency."""
+        try:
+            payment = Payment.objects.select_related('order').get(reference=reference)
+        except Payment.DoesNotExist:
+            raise ValidationError('Payment not found.')
+
+        provider_payload = payment.provider_response or {}
+        last_event_id = str(provider_payload.get('last_sync_event_id', '')).strip()
+        incoming_event_id = str(event_id).strip()
+
+        if last_event_id and last_event_id == incoming_event_id:
+            return payment, True
+
+        with transaction.atomic():
+            provider_payload.update(provider_response or {})
+            provider_payload['last_sync_event_id'] = incoming_event_id
+
+            if status_value == 'completed':
+                if payment.status != 'completed':
+                    payment.status = 'completed'
+                    payment.completed_at = timezone.now()
+                if transaction_id:
+                    payment.transaction_id = transaction_id
+                payment.failure_reason = ''
+                payment.provider_response = provider_payload
+                payment.save()
+
+                order = payment.order
+                if order.payment_status != 'paid':
+                    order.payment_status = 'paid'
+                    order.save(update_fields=['payment_status', 'updated_at'])
+                if order.status == 'pending':
+                    order.update_status('confirmed', 'Payment confirmed via internal sync')
+
+            elif status_value == 'failed':
+                payment.status = 'failed'
+                payment.failure_reason = failure_reason
+                payment.provider_response = provider_payload
+                payment.save()
+
+                order = payment.order
+                if order.payment_status != 'failed':
+                    order.payment_status = 'failed'
+                    order.save(update_fields=['payment_status', 'updated_at'])
+
+            elif status_value == 'processing':
+                payment.status = 'processing'
+                if transaction_id:
+                    payment.transaction_id = transaction_id
+                payment.provider_response = provider_payload
+                payment.save()
+
+            elif status_value == 'refunded':
+                payment.status = 'refunded'
+                payment.refunded_at = timezone.now()
+                payment.provider_response = provider_payload
+                payment.save()
+
+                order = payment.order
+                if order.payment_status != 'refunded':
+                    order.payment_status = 'refunded'
+                    order.save(update_fields=['payment_status', 'updated_at'])
+                if order.status == 'delivered':
+                    order.update_status('refunded', 'Payment refunded via internal sync')
+
+            else:
+                raise ValidationError('Unsupported payment sync status.')
+
+        return payment, False
+
 class ShippingService:
     """Service for shipping operations"""
     

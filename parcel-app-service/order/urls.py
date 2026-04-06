@@ -4,6 +4,7 @@ from django.views.decorators.csrf import csrf_exempt
 from .views import (
     order, OrderListView, OrderCreateView, OrderDetailView,
     OrderStatusUpdateView, PaymentInitiateView, PaymentVerifyView,
+    InternalPaymentStatusSyncView,
     ShippingAddressListView, VendorOrdersView, OrderStatsView,
     CourierOrdersView
 )
@@ -22,6 +23,7 @@ urlpatterns = [
     # Payment
     path('payments/initiate/', PaymentInitiateView.as_view(), name="payment_initiate"),
     path('payments/verify/<str:reference>/', PaymentVerifyView.as_view(), name="payment_verify"),
+    path('payments/internal/sync/<str:reference>/', InternalPaymentStatusSyncView.as_view(), name="payment_internal_sync"),
     
     # Shipping addresses
     path('shipping-addresses/', ShippingAddressListView.as_view(), name="shipping_addresses"),
