@@ -3,7 +3,7 @@ import PaginationControls from '../components/common/PaginationControls'
 import TableStateRows from '../components/common/TableStateRows'
 import { apiRequest } from '../services/api'
 import { normalizePaginatedPayload, paginateLocal, withPaginationParams } from '../services/pagination'
-import { useToast } from '../components/common/ToastProvider'
+import useToast from '../hooks/useToast'
 
 const ORDER_STATUSES = [
   'pending',

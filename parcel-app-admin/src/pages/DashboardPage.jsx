@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useToast } from '../components/common/ToastProvider'
+import useToast from '../hooks/useToast'
 import { apiRequest } from '../services/api'
 
 function MetricCard({ label, value, total, color }) {
