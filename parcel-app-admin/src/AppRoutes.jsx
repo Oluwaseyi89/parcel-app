@@ -6,6 +6,7 @@ import UnauthorizedPage from './components/auth/UnauthorizedPage'
 import PlaceholderPage from './components/common/PlaceholderPage'
 import ProtectedLayout from './components/layout/ProtectedLayout'
 import DashboardPage from './pages/DashboardPage'
+import DispatchPage from './pages/DispatchPage'
 import ModerationPage from './pages/ModerationPage'
 import OrdersPage from './pages/OrdersPage'
 import UsersPage from './pages/UsersPage'
@@ -134,16 +135,7 @@ export default function AppRoutes() {
         <Route path="users" element={<UsersPage token={session?.token} role={session?.role} />} />
         <Route path="moderation" element={<ModerationPage token={session?.token} />} />
         <Route path="orders" element={<OrdersPage token={session?.token} />} />
-        <Route
-          path="dispatch"
-          element={
-            <PlaceholderPage
-              title="Dispatch"
-              summary="Dispatch creation, assignment, and optimization."
-              bullets={['Ready orders queue', 'Courier assignment', 'Route optimization actions']}
-            />
-          }
-        />
+        <Route path="dispatch" element={<DispatchPage token={session?.token} />} />
         <Route
           path="complaints"
           element={

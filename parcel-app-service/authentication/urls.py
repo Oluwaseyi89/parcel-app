@@ -7,6 +7,8 @@ from .views import (
     ChangePasswordView, AdminUserListView, AdminCustomerListView, AdminDashboardMetricsView,
     AdminModerationQueueView, AdminModerationActionView,
     AdminOrderListView, AdminOrderStatusUpdateView,
+    AdminDispatchListView, AdminDispatchStatusUpdateView, AdminDispatchAssignView,
+    AdminDispatchReadyOrdersView, AdminCourierListView,
     staff_reg_page, staff_login, desk_login, desk_login_external, reg_staff,
     # Add customer views
     CustomerRegistrationView, CustomerLoginView, CustomerProfileView,
@@ -45,6 +47,14 @@ urlpatterns = [
     path('api/orders/', AdminOrderListView.as_view(), name="admin_orders"),
     path('api/orders/<int:pk>/', AdminOrderListView.as_view(), name="admin_order_detail"),
     path('api/orders/<int:pk>/status/', AdminOrderStatusUpdateView.as_view(), name="admin_order_status_update"),
+
+    # Admin Dispatch
+    path('api/dispatches/', AdminDispatchListView.as_view(), name="admin_dispatches"),
+    path('api/dispatches/create/', AdminDispatchListView.as_view(), name="admin_dispatches_create"),
+    path('api/dispatches/<int:pk>/status/', AdminDispatchStatusUpdateView.as_view(), name="admin_dispatch_status_update"),
+    path('api/dispatches/<int:pk>/assign/', AdminDispatchAssignView.as_view(), name="admin_dispatch_assign"),
+    path('api/dispatches/ready-orders/', AdminDispatchReadyOrdersView.as_view(), name="admin_dispatch_ready_orders"),
+    path('api/couriers/', AdminCourierListView.as_view(), name="admin_courier_list"),
     
     # Admin Management (super admin only)
     path('api/admins/', AdminUserListView.as_view(), name="admin_list"),
