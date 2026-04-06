@@ -437,6 +437,140 @@ class AdminDashboardMetricsView(APIView):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+class AdminModerationQueueView(APIView):
+    """Admin moderation queue endpoint for vendors, couriers, and products."""
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
+    permission_classes = [IsAdminOrSuperAdmin]
+
+    def get(self, request):
+        queue_type = request.query_params.get('type', 'all')
+        status_filter = request.query_params.get('status', 'pending')
+
+        if status_filter not in ['pending', 'approved', 'rejected', 'changes_requested', 'all']:
+            return Response({
+                "status": "error",
+                "message": "Invalid status filter."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        def with_status(queryset):
+            if status_filter == 'all':
+                return queryset
+            return queryset.filter(approval_status=status_filter)
+
+        vendors = []
+        couriers = []
+        products = []
+
+        if queue_type in ['all', 'vendors']:
+            vendors = list(
+                with_status(VendorUser.objects.all())
+                .values(
+                    'id', 'email', 'first_name', 'last_name',
+                    'business_name', 'approval_status', 'submitted_at',
+                    'reviewed_at', 'rejection_reason'
+                )
+                .order_by('-submitted_at')[:50]
+            )
+
+        if queue_type in ['all', 'couriers']:
+            couriers = list(
+                with_status(CourierUser.objects.all())
+                .values(
+                    'id', 'email', 'first_name', 'last_name',
+                    'service_area', 'vehicle_type', 'approval_status',
+                    'submitted_at', 'reviewed_at', 'rejection_reason'
+                )
+                .order_by('-submitted_at')[:50]
+            )
+
+        if queue_type in ['all', 'products']:
+            products = list(
+                with_status(Product.objects.select_related('vendor'))
+                .values(
+                    'id', 'name', 'vendor_id', 'vendor__email', 'vendor__business_name',
+                    'approval_status', 'submitted_at', 'reviewed_at', 'rejection_reason'
+                )
+                .order_by('-submitted_at')[:50]
+            )
+
+        return Response({
+            "status": "success",
+            "data": {
+                "vendors": vendors,
+                "couriers": couriers,
+                "products": products,
+                "summary": {
+                    "vendors": len(vendors),
+                    "couriers": len(couriers),
+                    "products": len(products),
+                }
+            }
+        })
+
+
+class AdminModerationActionView(APIView):
+    """Admin moderation action endpoint for approving/rejecting queue items."""
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
+    permission_classes = [IsAdminOrSuperAdmin]
+
+    def patch(self, request, queue_type, pk):
+        action = str(request.data.get('action', '')).strip().lower()
+        reason = str(request.data.get('reason', '')).strip()
+
+        status_map = {
+            'approve': 'approved',
+            'reject': 'rejected',
+            'request_changes': 'changes_requested',
+        }
+
+        if action not in status_map:
+            return Response({
+                "status": "error",
+                "message": "Invalid action. Use approve, reject, or request_changes."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if queue_type == 'vendors':
+            instance = get_object_or_404(VendorUser, pk=pk)
+            label = 'Vendor'
+        elif queue_type == 'couriers':
+            instance = get_object_or_404(CourierUser, pk=pk)
+            label = 'Courier'
+        elif queue_type == 'products':
+            instance = get_object_or_404(Product, pk=pk)
+            label = 'Product'
+        else:
+            return Response({
+                "status": "error",
+                "message": "Invalid queue type."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        next_status = status_map[action]
+        instance.approval_status = next_status
+        instance.reviewed_at = timezone.now()
+        instance.approved_by = request.user
+        instance.rejection_reason = reason if next_status in ['rejected', 'changes_requested'] else ''
+
+        update_fields = ['approval_status', 'reviewed_at', 'approved_by', 'rejection_reason']
+        if hasattr(instance, 'is_approved'):
+            instance.is_approved = next_status == 'approved'
+            update_fields.append('is_approved')
+        if hasattr(instance, 'approved_at'):
+            instance.approved_at = timezone.now() if next_status == 'approved' else None
+            update_fields.append('approved_at')
+
+        instance.save(update_fields=update_fields)
+
+        return Response({
+            "status": "success",
+            "message": f"{label} moderation updated successfully.",
+            "data": {
+                "id": instance.id,
+                "approval_status": instance.approval_status,
+                "reviewed_at": instance.reviewed_at,
+            }
+        })
+
+
 # ==================== TEMPLATE-BASED VIEWS (LEGACY) ====================
 
 def home(request):
