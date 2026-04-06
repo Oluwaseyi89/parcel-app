@@ -9,6 +9,7 @@ from .views import (
     AdminOrderListView, AdminOrderStatusUpdateView,
     AdminDispatchListView, AdminDispatchStatusUpdateView, AdminDispatchAssignView,
     AdminDispatchReadyOrdersView, AdminCourierListView,
+    AdminComplaintListView, AdminComplaintUpdateView,
     staff_reg_page, staff_login, desk_login, desk_login_external, reg_staff,
     # Add customer views
     CustomerRegistrationView, CustomerLoginView, CustomerProfileView,
@@ -55,6 +56,11 @@ urlpatterns = [
     path('api/dispatches/<int:pk>/assign/', AdminDispatchAssignView.as_view(), name="admin_dispatch_assign"),
     path('api/dispatches/ready-orders/', AdminDispatchReadyOrdersView.as_view(), name="admin_dispatch_ready_orders"),
     path('api/couriers/', AdminCourierListView.as_view(), name="admin_courier_list"),
+
+    # Admin Complaints
+    path('api/complaints/', AdminComplaintListView.as_view(), name="admin_complaints"),
+    path('api/complaints/<int:pk>/', AdminComplaintListView.as_view(), name="admin_complaint_detail"),
+    path('api/complaints/<int:pk>/update/', AdminComplaintUpdateView.as_view(), name="admin_complaint_update"),
     
     # Admin Management (super admin only)
     path('api/admins/', AdminUserListView.as_view(), name="admin_list"),

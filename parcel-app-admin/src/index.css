@@ -718,6 +718,57 @@ a {
   flex-wrap: wrap;
 }
 
+.complaints-page {
+  display: grid;
+  gap: 16px;
+}
+
+.complaints-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.complaints-header h2 {
+  margin: 0;
+}
+
+.complaints-header p {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+
+.complaints-stat-chip {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #fcfaf7;
+  font-size: 0.85rem;
+}
+
+.complaints-filters {
+  display: grid;
+  grid-template-columns: 1fr 220px 220px auto;
+  gap: 10px;
+}
+
+.complaints-filters input,
+.complaints-filters select {
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font: inherit;
+}
+
+.complaint-detail-cell {
+  max-width: 320px;
+  white-space: normal;
+  color: var(--muted);
+}
+
 @media (max-width: 980px) {
   .metrics-grid {
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -747,6 +798,10 @@ a {
 
   .dispatch-create-grid,
   .dispatch-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .complaints-filters {
     grid-template-columns: 1fr;
   }
 }

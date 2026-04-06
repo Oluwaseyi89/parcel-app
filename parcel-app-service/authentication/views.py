@@ -28,6 +28,7 @@ from .models import CustomerUser, VendorUser, CourierUser
 from product.models import Product
 from order.models import Order
 from dispatch.models import Dispatch
+from complaints.models import CustomerComplaint
 from .serializers import (
     CustomerRegistrationSerializer, CustomerLoginSerializer,
     ForgotPasswordSerializer, CustomerPasswordResetSerializer,
@@ -865,6 +866,108 @@ class AdminCourierListView(APIView):
         return Response({
             "status": "success",
             "data": data
+        })
+
+
+class AdminComplaintListView(APIView):
+    """Admin complaints management endpoint (list/detail)."""
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
+    permission_classes = [IsAdminOrSuperAdmin]
+
+    @staticmethod
+    def _as_bool(value):
+        return str(value).strip().lower() in ['1', 'true', 'yes', 'on']
+
+    def get(self, request, pk=None):
+        if pk is not None:
+            complaint = get_object_or_404(CustomerComplaint, pk=pk)
+            return Response({
+                "status": "success",
+                "data": self._serialize(complaint)
+            })
+
+        queryset = CustomerComplaint.objects.all().order_by('-id')
+
+        search = request.query_params.get('search')
+        if search:
+            queryset = queryset.filter(
+                Q(customer_email__icontains=search) |
+                Q(complaint_subject__icontains=search) |
+                Q(courier_involved__icontains=search)
+            )
+
+        resolved = request.query_params.get('is_resolved')
+        if resolved is not None:
+            queryset = queryset.filter(is_resolved=self._as_bool(resolved))
+
+        satisfied = request.query_params.get('is_satisfied')
+        if satisfied is not None:
+            queryset = queryset.filter(is_satisfied=self._as_bool(satisfied))
+
+        data = [self._serialize(complaint) for complaint in queryset[:200]]
+        return Response({
+            "status": "success",
+            "data": data
+        })
+
+    @staticmethod
+    def _serialize(complaint):
+        return {
+            "id": complaint.id,
+            "customer_email": complaint.customer_email,
+            "complaint_subject": complaint.complaint_subject,
+            "courier_involved": complaint.courier_involved,
+            "complaint_detail": complaint.complaint_detail,
+            "is_resolved": complaint.is_resolved,
+            "is_satisfied": complaint.is_satisfied,
+            "created_at": complaint.created_at,
+            "updated_at": complaint.updated_at,
+        }
+
+
+class AdminComplaintUpdateView(APIView):
+    """Admin complaint status update endpoint."""
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
+    permission_classes = [IsAdminOrSuperAdmin]
+
+    def patch(self, request, pk):
+        complaint = get_object_or_404(CustomerComplaint, pk=pk)
+
+        fields_to_update = []
+        if 'is_resolved' in request.data:
+            complaint.is_resolved = str(request.data.get('is_resolved')).strip().lower() in ['1', 'true', 'yes', 'on']
+            fields_to_update.append('is_resolved')
+
+        if 'is_satisfied' in request.data:
+            complaint.is_satisfied = str(request.data.get('is_satisfied')).strip().lower() in ['1', 'true', 'yes', 'on']
+            fields_to_update.append('is_satisfied')
+
+        detail = request.data.get('complaint_detail')
+        if detail is not None:
+            complaint.complaint_detail = str(detail)
+            fields_to_update.append('complaint_detail')
+
+        subject = request.data.get('complaint_subject')
+        if subject is not None:
+            complaint.complaint_subject = str(subject)
+            fields_to_update.append('complaint_subject')
+
+        if not fields_to_update:
+            return Response({
+                "status": "error",
+                "message": "No valid fields provided for update."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        complaint.save(update_fields=fields_to_update)
+
+        return Response({
+            "status": "success",
+            "message": "Complaint updated successfully",
+            "data": {
+                "id": complaint.id,
+                "is_resolved": complaint.is_resolved,
+                "is_satisfied": complaint.is_satisfied,
+            }
         })
 
 
