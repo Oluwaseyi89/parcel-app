@@ -30,6 +30,8 @@ urlpatterns = [
     path('order/', include('order.urls')), # Order app
     path('product/', include('product.urls')), # Product app
     path('dispatch/', include('dispatch.urls')), # Dispatch app
+    # Cart app intentionally not routed: current web/mobile clients use local cart state,
+    # and backend cart endpoints remain disabled until the module is adopted end-to-end.
     # path('customers/', include('customer.urls')), # Customer app
     path('email/', include('email_service.urls')), # Email app
     path('messaging/', include('messaging.urls')), # Messaging app
