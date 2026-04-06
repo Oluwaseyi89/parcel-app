@@ -53,8 +53,12 @@ class DispatchListView(APIView):
             queryset = Dispatch.objects.filter(
                 items__order_item__vendor=request.user
             ).distinct()
-        else:  # admin
+        elif request.user.role == 'customer':
+            queryset = Dispatch.objects.filter(order__customer=request.user)
+        elif request.user.role in ['admin', 'super_admin']:
             queryset = Dispatch.objects.all()
+        else:
+            queryset = Dispatch.objects.none()
         
         # Apply filters
         status_filter = request.query_params.get('status')
