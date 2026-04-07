@@ -24,6 +24,51 @@ interface AuthState {
   logout: () => void;
 }
 
+function pickSingleSession(
+  storedCustomer: User | null,
+  storedVendor: User | null,
+  storedCourier: User | null,
+  activeRole: ReturnType<typeof getActiveRoleFromCookies>,
+) {
+  const byRole = {
+    customer: storedCustomer,
+    vendor: storedVendor,
+    courier: storedCourier,
+  }
+
+  const availableRoles = (Object.keys(byRole) as Array<keyof typeof byRole>).filter(
+    (role) => Boolean(byRole[role]),
+  )
+
+  if (availableRoles.length === 0) {
+    return { customer: null, vendor: null, courier: null }
+  }
+
+  if (availableRoles.length === 1) {
+    const only = availableRoles[0]
+    return {
+      customer: only === "customer" ? storedCustomer : null,
+      vendor: only === "vendor" ? storedVendor : null,
+      courier: only === "courier" ? storedCourier : null,
+    }
+  }
+
+  const effectiveRole =
+    activeRole && byRole[activeRole]
+      ? activeRole
+      : availableRoles.includes("courier")
+        ? "courier"
+        : availableRoles.includes("vendor")
+          ? "vendor"
+          : "customer"
+
+  return {
+    customer: effectiveRole === "customer" ? storedCustomer : null,
+    vendor: effectiveRole === "vendor" ? storedVendor : null,
+    courier: effectiveRole === "courier" ? storedCourier : null,
+  }
+}
+
 export const useAuthStore = create<AuthState>((set) => ({
   customer: null,
   vendor: null,
@@ -36,28 +81,12 @@ export const useAuthStore = create<AuthState>((set) => ({
     const storedCourier = storage.getCourierAuth();
 
     const activeRole = getActiveRoleFromCookies();
-    const hasMultipleStoredRoles = [storedCustomer, storedVendor, storedCourier].filter(Boolean).length > 1;
-
-    let customer: User | null = null;
-    let vendor: User | null = null;
-    let courier: User | null = null;
-
-    if (activeRole === "customer") {
-      customer = storedCustomer;
-    } else if (activeRole === "vendor") {
-      vendor = storedVendor;
-    } else if (activeRole === "courier") {
-      courier = storedCourier;
-    } else if (hasMultipleStoredRoles) {
-      // Hotfix fallback: pick a deterministic role and purge stale role auth.
-      courier = storedCourier;
-      vendor = courier ? null : storedVendor;
-      customer = courier || vendor ? null : storedCustomer;
-    } else {
-      customer = storedCustomer;
-      vendor = storedVendor;
-      courier = storedCourier;
-    }
+    const { customer, vendor, courier } = pickSingleSession(
+      storedCustomer,
+      storedVendor,
+      storedCourier,
+      activeRole,
+    )
 
     if (!customer) {
       storage.clearCustomerAuth();
@@ -111,29 +140,32 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   logoutCustomer: () => {
     storage.clearCustomerAuth();
+    storage.clearVendorAuth();
+    storage.clearCourierAuth();
     clearRoleSessionCookie("customer");
-    set((state) => ({
-      customer: null,
-      isAuthenticated: Boolean(state.vendor || state.courier),
-    }));
+    clearRoleSessionCookie("vendor");
+    clearRoleSessionCookie("courier");
+    set({ customer: null, vendor: null, courier: null, isAuthenticated: false });
   },
 
   logoutVendor: () => {
+    storage.clearCustomerAuth();
     storage.clearVendorAuth();
+    storage.clearCourierAuth();
+    clearRoleSessionCookie("customer");
     clearRoleSessionCookie("vendor");
-    set((state) => ({
-      vendor: null,
-      isAuthenticated: Boolean(state.customer || state.courier),
-    }));
+    clearRoleSessionCookie("courier");
+    set({ customer: null, vendor: null, courier: null, isAuthenticated: false });
   },
 
   logoutCourier: () => {
+    storage.clearCustomerAuth();
+    storage.clearVendorAuth();
     storage.clearCourierAuth();
+    clearRoleSessionCookie("customer");
+    clearRoleSessionCookie("vendor");
     clearRoleSessionCookie("courier");
-    set((state) => ({
-      courier: null,
-      isAuthenticated: Boolean(state.customer || state.vendor),
-    }));
+    set({ customer: null, vendor: null, courier: null, isAuthenticated: false });
   },
 
   logout: () => {
