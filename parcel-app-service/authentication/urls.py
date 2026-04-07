@@ -5,6 +5,7 @@ from .views import (
     home, base, super_admin_login, super_admin_dashboard,
     AdminLoginView, AdminLogoutView, AdminProfileView, 
     ChangePasswordView, AdminUserListView, AdminCustomerListView, AdminDashboardMetricsView,
+    SessionMeView,
     AdminModerationQueueView, AdminModerationActionView,
     AdminOrderListView, AdminOrderStatusUpdateView,
     AdminDispatchListView, AdminDispatchStatusUpdateView, AdminDispatchAssignView,
@@ -35,6 +36,7 @@ urlpatterns = [
     # API Authentication Endpoints
     path('api/login/', AdminLoginView.as_view(), name="admin_login"),
     path('api/logout/', AdminLogoutView.as_view(), name="admin_logout"),
+    path('me/', SessionMeView.as_view(), name="session_me"),
     path('api/profile/', AdminProfileView.as_view(), name="admin_profile"),
     path('api/change-password/', ChangePasswordView.as_view(), name="change_password"),
     

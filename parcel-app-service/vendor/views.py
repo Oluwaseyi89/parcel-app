@@ -16,6 +16,7 @@ from .serializers import (
 )
 from email_service.services import EmailService
 from core.tokens import account_activation_token
+from authentication.session_contract import attach_session_cookies
 from authentication.models import VendorUser
 
 class TempVendorRegistrationView(APIView):
@@ -118,7 +119,7 @@ class VendorLoginView(APIView):
             # Create session
             session = VendorService.create_vendor_session(vendor, request)
             
-            return Response({
+            response = Response({
                 "status": "success",
                 "message": "Login successful",
                 "data": {
@@ -126,6 +127,8 @@ class VendorLoginView(APIView):
                     "session_token": session.session_token
                 }
             })
+            attach_session_cookies(response, session_token=session.session_token, role='vendor')
+            return response
         
         return Response({
             "status": "error",

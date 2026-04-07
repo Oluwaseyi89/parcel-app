@@ -20,6 +20,7 @@ from .serializers import (
 from authentication.models import CourierUser
 from email_service.services import EmailService
 from core.tokens import account_activation_token
+from authentication.session_contract import attach_session_cookies
 
 class TempCourierRegistrationView(APIView):
     permission_classes = [AllowAny]
@@ -121,7 +122,7 @@ class CourierLoginView(APIView):
             # Create session
             session = CourierService.create_courier_session(courier, request)
             
-            return Response({
+            response = Response({
                 "status": "success",
                 "message": "Login successful",
                 "data": {
@@ -129,6 +130,8 @@ class CourierLoginView(APIView):
                     "session_token": session.session_token
                 }
             })
+            attach_session_cookies(response, session_token=session.session_token, role='courier')
+            return response
         
         return Response({
             "status": "error",

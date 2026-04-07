@@ -11,12 +11,14 @@ interface ProvidersProps {
 
 export default function Providers({ children }: ProvidersProps) {
   const initializeAuth = useAuthStore((state) => state.initializeAuth);
+  const bootstrapFromServer = useAuthStore((state) => state.bootstrapFromServer);
   const initializeCart = useCartStore((state) => state.initializeCart);
 
   useEffect(() => {
     initializeAuth();
+    void bootstrapFromServer();
     initializeCart();
-  }, [initializeAuth, initializeCart]);
+  }, [bootstrapFromServer, initializeAuth, initializeCart]);
 
   return <>{children}</>;
 }

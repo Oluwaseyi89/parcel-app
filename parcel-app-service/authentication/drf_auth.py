@@ -46,7 +46,11 @@ class SessionTokenAuthentication(authentication.BaseAuthentication):
         if header_token:
             return header_token.strip()
 
-        cookie_token = request.COOKIES.get("admin_session") or request.COOKIES.get("session_token")
+        cookie_token = (
+            request.COOKIES.get("auth_session")
+            or request.COOKIES.get("admin_session")
+            or request.COOKIES.get("session_token")
+        )
         if cookie_token:
             return cookie_token.strip()
 

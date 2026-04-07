@@ -22,6 +22,7 @@ from .serializers import (
 )
 from .permissions import IsSuperAdmin, IsAdminOrSuperAdmin
 from django.conf import settings
+from .session_contract import attach_session_cookies, clear_session_cookies
 
 
 from .models import CustomerUser, VendorUser, CourierUser
@@ -82,16 +83,8 @@ class AdminLoginView(APIView):
                 }
             }
             
-            # Set session cookie (optional)
             response = Response(response_data, status=status.HTTP_200_OK)
-            response.set_cookie(
-                key='admin_session',
-                value=session_token,
-                httponly=True,
-                secure=not settings.DEBUG,  # Secure in production
-                samesite='Lax',
-                max_age=8*60*60  # 8 hours
-            )
+            attach_session_cookies(response, session_token=session_token, role='admin')
             
             return response
         
@@ -130,8 +123,34 @@ class AdminLogoutView(APIView):
             "status": "success",
             "message": "Logged out successfully"
         }, status=status.HTTP_200_OK)
-        response.delete_cookie('admin_session')
+        clear_session_cookies(response)
         return response
+
+
+class SessionMeView(APIView):
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        active_role = getattr(user, 'role', None)
+
+        payload = {
+            'id': user.id,
+            'email': getattr(user, 'email', None),
+            'first_name': getattr(user, 'first_name', ''),
+            'last_name': getattr(user, 'last_name', ''),
+            'role': active_role,
+        }
+
+        return Response({
+            'status': 'success',
+            'data': {
+                'user': payload,
+                'allowed_roles': [active_role] if active_role else [],
+                'active_role': active_role,
+            },
+        }, status=status.HTTP_200_OK)
 
 
 class AdminProfileView(APIView):
@@ -1259,31 +1278,22 @@ class CustomerLoginView(APIView):
     def post(self, request):
         serializer = CustomerLoginSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
-            email = serializer.validated_data['email']
-            password = serializer.validated_data['password']
-            
-            customer, error = CustomerService.validate_customer_login(email, password)
-            
-            if error:
-                return Response({
-                    "status": "error",
-                    "data": error
-                }, status=status.HTTP_401_UNAUTHORIZED)
-            
-            # Update last login
-            customer.last_login = timezone.now()
-            customer.save()
-            
-            return Response({
+            customer = serializer.validated_data['customer']
+            session = CustomerService.create_customer_session(customer, request)
+
+            response = Response({
                 "status": "success",
                 "data": {
                     "id": customer.id,
                     "email": customer.email,
                     "first_name": customer.first_name,
                     "last_name": customer.last_name,
-                    "role": customer.role
+                    "role": customer.role,
+                    "session_token": session.session_token,
                 }
             })
+            attach_session_cookies(response, session_token=session.session_token, role='customer')
+            return response
         
         return Response({
             "status": "error",
