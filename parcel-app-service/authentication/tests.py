@@ -192,3 +192,74 @@ class SessionContractTests(TestCase):
 		self.assertEqual(response.data['data']['active_role'], 'customer')
 		self.assertEqual(response.data['data']['allowed_roles'], ['customer'])
 		self.assertEqual(response.data['data']['user']['email'], customer.email)
+
+
+class CsrfEnforcementTests(TestCase):
+	def setUp(self):
+		self.client = APIClient(enforce_csrf_checks=True)
+		self.admin = AdminUser.objects.create(
+			email='csrf-admin@example.com',
+			first_name='Csrf',
+			last_name='Admin',
+			role='admin',
+			is_email_verified=True,
+		)
+		self.admin.set_password('StrongPassword123')
+		self.admin.save()
+
+		self.customer = CustomerUser.objects.create(
+			email='csrf-customer@example.com',
+			first_name='Csrf',
+			last_name='Customer',
+			role='customer',
+			is_email_verified=True,
+		)
+		self.customer.set_password('StrongPassword123')
+		self.customer.save()
+
+		content_type = ContentType.objects.get_for_model(self.admin)
+		UserSession.objects.create(
+			content_type=content_type,
+			object_id=self.admin.id,
+			session_token='csrf-session-token',
+			expires_at=timezone.now() + timedelta(hours=1),
+		)
+
+		self.client.cookies['auth_session'] = 'csrf-session-token'
+
+	def _issue_csrf_token(self):
+		response = self.client.get('/auth/csrf/')
+		self.assertEqual(response.status_code, 200)
+		return response.data['data']['csrf_token']
+
+	def test_patch_requires_csrf_with_cookie_auth(self):
+		without_csrf = self.client.patch('/auth/api/profile/', {'first_name': 'NoCsrf'}, format='json')
+		self.assertEqual(without_csrf.status_code, 403)
+
+		csrf_token = self._issue_csrf_token()
+		with_csrf = self.client.patch(
+			'/auth/api/profile/',
+			{'first_name': 'WithCsrf'},
+			format='json',
+			HTTP_X_CSRFTOKEN=csrf_token,
+		)
+		self.assertEqual(with_csrf.status_code, 200)
+
+	def test_post_requires_csrf_with_cookie_auth(self):
+		without_csrf = self.client.post('/auth/api/logout/', {}, format='json')
+		self.assertEqual(without_csrf.status_code, 403)
+
+		csrf_token = self._issue_csrf_token()
+		with_csrf = self.client.post('/auth/api/logout/', {}, format='json', HTTP_X_CSRFTOKEN=csrf_token)
+		self.assertEqual(with_csrf.status_code, 200)
+
+	def test_delete_requires_csrf_with_cookie_auth(self):
+		without_csrf = self.client.delete(f'/auth/api/customers/{self.customer.id}/')
+		self.assertEqual(without_csrf.status_code, 403)
+
+		csrf_token = self._issue_csrf_token()
+		with_csrf = self.client.delete(
+			f'/auth/api/customers/{self.customer.id}/',
+			HTTP_X_CSRFTOKEN=csrf_token,
+		)
+		self.assertEqual(with_csrf.status_code, 200)

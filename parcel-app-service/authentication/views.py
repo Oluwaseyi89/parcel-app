@@ -7,6 +7,7 @@ from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse, HttpResponse, Http404
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.hashers import make_password, check_password
+from django.middleware.csrf import get_token
 from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -149,6 +150,19 @@ class SessionMeView(APIView):
                 'user': payload,
                 'allowed_roles': [active_role] if active_role else [],
                 'active_role': active_role,
+            },
+        }, status=status.HTTP_200_OK)
+
+
+class CsrfTokenView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        csrf_token = get_token(request)
+        return Response({
+            'status': 'success',
+            'data': {
+                'csrf_token': csrf_token,
             },
         }, status=status.HTTP_200_OK)
 

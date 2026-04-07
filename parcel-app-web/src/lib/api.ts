@@ -14,21 +14,16 @@ export type ApiEnvelope<T> = {
   errors?: unknown;
 };
 
-function getCookie(name: string): string | null {
-  if (typeof document === "undefined" || !document.cookie) {
-    return null;
-  }
+type CsrfResponse = {
+  data?: {
+    csrf_token?: string;
+  };
+};
 
-  const cookies = document.cookie.split(";");
-  for (const entry of cookies) {
-    const cookie = entry.trim();
-    if (cookie.startsWith(`${name}=`)) {
-      return decodeURIComponent(cookie.slice(name.length + 1));
-    }
-  }
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS", "TRACE"]);
 
-  return null;
-}
+let csrfTokenCache: string | null = null;
+let csrfTokenPromise: Promise<string | null> | null = null;
 
 function toAbsoluteUrl(path: string): string {
   if (path.startsWith("http://") || path.startsWith("https://")) {
@@ -36,6 +31,41 @@ function toAbsoluteUrl(path: string): string {
   }
 
   return `${env.apiBase}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+async function ensureCsrfToken(): Promise<string | null> {
+  if (csrfTokenCache) {
+    return csrfTokenCache;
+  }
+
+  if (!csrfTokenPromise) {
+    csrfTokenPromise = (async () => {
+      const response = await fetch(toAbsoluteUrl("/auth/csrf/"), {
+        method: "GET",
+        credentials: "include",
+        mode: "cors",
+        cache: "no-store",
+        headers: {
+          "X-Requested-With": "XMLHttpRequest",
+        },
+      });
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const body = (await response.json()) as CsrfResponse;
+      const token = body?.data?.csrf_token ?? null;
+      csrfTokenCache = token;
+      return token;
+    })()
+      .catch(() => null)
+      .finally(() => {
+        csrfTokenPromise = null;
+      });
+  }
+
+  return csrfTokenPromise;
 }
 
 function extractApiErrorMessage(body: unknown): string | null {
@@ -78,12 +108,16 @@ function extractApiErrorMessage(body: unknown): string | null {
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const { headers, body, json = true, ...rest } = options;
-  const csrftoken = getCookie("csrftoken");
+  const method = (rest.method ?? "GET").toUpperCase();
 
   const resolvedHeaders = new Headers(headers || {});
   resolvedHeaders.set("X-Requested-With", "XMLHttpRequest");
-  if (csrftoken) {
-    resolvedHeaders.set("X-CSRFToken", csrftoken);
+
+  if (!SAFE_METHODS.has(method) && !resolvedHeaders.has("X-CSRFToken")) {
+    const csrfToken = await ensureCsrfToken();
+    if (csrfToken) {
+      resolvedHeaders.set("X-CSRFToken", csrfToken);
+    }
   }
 
   const requestInit: RequestInit = {
