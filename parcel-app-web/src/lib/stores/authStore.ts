@@ -2,6 +2,7 @@ import { create } from "zustand";
 
 import {
   clearRoleSessionCookie,
+  getActiveRoleFromCookies,
   setRoleSessionCookie,
   syncSessionCookiesFromStorage,
 } from "@/lib/authSession";
@@ -30,9 +31,43 @@ export const useAuthStore = create<AuthState>((set) => ({
   isAuthenticated: false,
 
   initializeAuth: () => {
-    const customer = storage.getCustomerAuth();
-    const vendor = storage.getVendorAuth();
-    const courier = storage.getCourierAuth();
+    const storedCustomer = storage.getCustomerAuth();
+    const storedVendor = storage.getVendorAuth();
+    const storedCourier = storage.getCourierAuth();
+
+    const activeRole = getActiveRoleFromCookies();
+    const hasMultipleStoredRoles = [storedCustomer, storedVendor, storedCourier].filter(Boolean).length > 1;
+
+    let customer: User | null = null;
+    let vendor: User | null = null;
+    let courier: User | null = null;
+
+    if (activeRole === "customer") {
+      customer = storedCustomer;
+    } else if (activeRole === "vendor") {
+      vendor = storedVendor;
+    } else if (activeRole === "courier") {
+      courier = storedCourier;
+    } else if (hasMultipleStoredRoles) {
+      // Hotfix fallback: pick a deterministic role and purge stale role auth.
+      courier = storedCourier;
+      vendor = courier ? null : storedVendor;
+      customer = courier || vendor ? null : storedCustomer;
+    } else {
+      customer = storedCustomer;
+      vendor = storedVendor;
+      courier = storedCourier;
+    }
+
+    if (!customer) {
+      storage.clearCustomerAuth();
+    }
+    if (!vendor) {
+      storage.clearVendorAuth();
+    }
+    if (!courier) {
+      storage.clearCourierAuth();
+    }
 
     syncSessionCookiesFromStorage(Boolean(customer), Boolean(vendor), Boolean(courier));
 
@@ -46,20 +81,32 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   loginCustomer: (customerData) => {
     storage.setCustomerAuth(customerData);
+    storage.clearVendorAuth();
+    storage.clearCourierAuth();
     setRoleSessionCookie("customer");
-    set({ customer: customerData, isAuthenticated: true });
+    clearRoleSessionCookie("vendor");
+    clearRoleSessionCookie("courier");
+    set({ customer: customerData, vendor: null, courier: null, isAuthenticated: true });
   },
 
   loginVendor: (vendorData) => {
+    storage.clearCustomerAuth();
     storage.setVendorAuth(vendorData);
+    storage.clearCourierAuth();
+    clearRoleSessionCookie("customer");
     setRoleSessionCookie("vendor");
-    set({ vendor: vendorData, isAuthenticated: true });
+    clearRoleSessionCookie("courier");
+    set({ customer: null, vendor: vendorData, courier: null, isAuthenticated: true });
   },
 
   loginCourier: (courierData) => {
+    storage.clearCustomerAuth();
+    storage.clearVendorAuth();
     storage.setCourierAuth(courierData);
+    clearRoleSessionCookie("customer");
+    clearRoleSessionCookie("vendor");
     setRoleSessionCookie("courier");
-    set({ courier: courierData, isAuthenticated: true });
+    set({ customer: null, vendor: null, courier: courierData, isAuthenticated: true });
   },
 
   logoutCustomer: () => {

@@ -80,6 +80,8 @@ export default function RoleLoginView({ role }: { role: Role }) {
   }
 
   function setRoleSession(user: AppUser) {
+    auth.logout();
+
     if (role === "customer") {
       auth.loginCustomer(user);
       return;
@@ -125,7 +127,8 @@ export default function RoleLoginView({ role }: { role: Role }) {
 
       if (userPayload && userPayload.email === credentials.email) {
         setRoleSession(userPayload);
-        router.push(config.dashboardPath);
+        router.replace(config.dashboardPath);
+        router.refresh();
         return;
       }
 
