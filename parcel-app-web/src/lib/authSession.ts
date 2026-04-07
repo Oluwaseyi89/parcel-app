@@ -12,6 +12,15 @@ function cookieAttributes(maxAgeSeconds: number): string {
   return `path=/; max-age=${maxAgeSeconds}; samesite=lax`;
 }
 
+function hasCookie(key: string): boolean {
+  if (typeof document === "undefined" || !document.cookie) {
+    return false;
+  }
+
+  const cookies = document.cookie.split(";");
+  return cookies.some((entry) => entry.trim().startsWith(`${key}=`));
+}
+
 export function setRoleSessionCookie(role: AuthRole): void {
   if (typeof document === "undefined") {
     return;
@@ -48,4 +57,16 @@ export function syncSessionCookiesFromStorage(hasCustomer: boolean, hasVendor: b
   } else {
     clearRoleSessionCookie("courier");
   }
+}
+
+export function getActiveRoleFromCookies(): AuthRole | null {
+  const hasCourier = hasCookie(roleToStorageKey.courier);
+  const hasVendor = hasCookie(roleToStorageKey.vendor);
+  const hasCustomer = hasCookie(roleToStorageKey.customer);
+
+  if (hasCourier) return "courier";
+  if (hasVendor) return "vendor";
+  if (hasCustomer) return "customer";
+
+  return null;
 }
