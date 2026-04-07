@@ -6,6 +6,7 @@ import {
   setRoleSessionCookie,
   syncSessionCookiesFromStorage,
 } from "@/lib/authSession";
+import { apiRequest } from "@/lib/api";
 import { storage } from "@/lib/storage";
 import type { User } from "@/lib/types";
 
@@ -15,6 +16,7 @@ interface AuthState {
   courier: User | null;
   isAuthenticated: boolean;
   initializeAuth: () => void;
+  bootstrapFromServer: () => Promise<void>;
   loginCustomer: (customerData: User) => void;
   loginVendor: (vendorData: User) => void;
   loginCourier: (courierData: User) => void;
@@ -22,6 +24,15 @@ interface AuthState {
   logoutVendor: () => void;
   logoutCourier: () => void;
   logout: () => void;
+}
+
+interface SessionMeResponse {
+  status?: string;
+  data?: {
+    user?: User;
+    active_role?: "customer" | "vendor" | "courier" | "admin" | null;
+    allowed_roles?: string[];
+  };
 }
 
 function pickSingleSession(
@@ -106,6 +117,52 @@ export const useAuthStore = create<AuthState>((set) => ({
       courier,
       isAuthenticated: Boolean(customer || vendor || courier),
     });
+  },
+
+  bootstrapFromServer: async () => {
+    try {
+      const response = await apiRequest<SessionMeResponse>("/auth/me/", { method: "GET" });
+      const activeRole = response?.data?.active_role;
+      const user = response?.data?.user;
+
+      if (!user || !activeRole) {
+        return;
+      }
+
+      if (activeRole === "customer") {
+        storage.setCustomerAuth(user);
+        storage.clearVendorAuth();
+        storage.clearCourierAuth();
+        setRoleSessionCookie("customer");
+        clearRoleSessionCookie("vendor");
+        clearRoleSessionCookie("courier");
+        set({ customer: user, vendor: null, courier: null, isAuthenticated: true });
+        return;
+      }
+
+      if (activeRole === "vendor") {
+        storage.clearCustomerAuth();
+        storage.setVendorAuth(user);
+        storage.clearCourierAuth();
+        clearRoleSessionCookie("customer");
+        setRoleSessionCookie("vendor");
+        clearRoleSessionCookie("courier");
+        set({ customer: null, vendor: user, courier: null, isAuthenticated: true });
+        return;
+      }
+
+      if (activeRole === "courier") {
+        storage.clearCustomerAuth();
+        storage.clearVendorAuth();
+        storage.setCourierAuth(user);
+        clearRoleSessionCookie("customer");
+        clearRoleSessionCookie("vendor");
+        setRoleSessionCookie("courier");
+        set({ customer: null, vendor: null, courier: user, isAuthenticated: true });
+      }
+    } catch {
+      // Keep local fallback state when no authenticated backend session exists.
+    }
   },
 
   loginCustomer: (customerData) => {
