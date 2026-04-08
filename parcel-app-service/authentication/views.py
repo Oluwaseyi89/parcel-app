@@ -1391,7 +1391,8 @@ class CustomerRegistrationView(APIView):
         serializer = CustomerRegistrationSerializer(data=request.data)
         if serializer.is_valid():
             # Check if customer exists
-            existing = CustomerService.get_customer_by_email(request.data['email'])
+            email = str(request.data.get('email', '')).strip()
+            existing = CustomerUser.objects.filter(email__iexact=email).exists()
             if existing:
                 return Response({
                     "status": "error",

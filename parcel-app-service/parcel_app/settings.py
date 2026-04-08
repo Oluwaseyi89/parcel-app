@@ -111,6 +111,20 @@ CORS_ALLOWED_ORIGINS = [
     'http://localhost:8080'
 ]
 
+# Required for Django CSRF origin checks on cross-origin cookie-authenticated requests.
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:3001',
+    'http://127.0.0.1:3001',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:4173',
+    'http://127.0.0.1:4173',
+    'http://192.168.42.95:3000',
+    'http://localhost:8080',
+]
+
 # Allow browser requests that send cookies/credentials from allowed origins.
 CORS_ALLOW_CREDENTIALS = True
 
