@@ -27,6 +27,13 @@ def _as_bool(value, default=False):
         return default
     return str(value).strip().lower() in {'1', 'true', 'yes', 'on'}
 
+
+def _as_list(value, default=None):
+    if value is None:
+        return list(default or [])
+
+    return [item.strip() for item in str(value).split(',') if item.strip()]
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/3.2/howto/deployment/checklist/
 
@@ -34,9 +41,10 @@ def _as_bool(value, default=False):
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = _as_bool(os.getenv('DJANGO_DEBUG'), default=True)
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '192.168.42.70']
+DEFAULT_ALLOWED_HOSTS = ['localhost', '127.0.0.1', '192.168.42.70']
+ALLOWED_HOSTS = _as_list(os.getenv('DJANGO_ALLOWED_HOSTS'), DEFAULT_ALLOWED_HOSTS)
 
 # Application definition
 
@@ -98,7 +106,7 @@ CSRF_USE_SESSIONS = True
 
 CSRF_COOKIE_HTTPONLY = True
 
-CORS_ALLOWED_ORIGINS = [
+DEFAULT_CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
     'http://127.0.0.1:3000',
     'http://localhost:3001',
@@ -110,23 +118,13 @@ CORS_ALLOWED_ORIGINS = [
     'http://192.168.42.95:3000',
     'http://localhost:8080'
 ]
+CORS_ALLOWED_ORIGINS = _as_list(os.getenv('DJANGO_CORS_ALLOWED_ORIGINS'), DEFAULT_CORS_ALLOWED_ORIGINS)
 
 # Required for Django CSRF origin checks on cross-origin cookie-authenticated requests.
-CSRF_TRUSTED_ORIGINS = [
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-    'http://localhost:3001',
-    'http://127.0.0.1:3001',
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-    'http://localhost:4173',
-    'http://127.0.0.1:4173',
-    'http://192.168.42.95:3000',
-    'http://localhost:8080',
-]
+CSRF_TRUSTED_ORIGINS = _as_list(os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS'), CORS_ALLOWED_ORIGINS)
 
 # Allow browser requests that send cookies/credentials from allowed origins.
-CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_CREDENTIALS = _as_bool(os.getenv('DJANGO_CORS_ALLOW_CREDENTIALS'), default=True)
 
 # Allow custom session token header in CORS preflight requests
 CORS_ALLOW_HEADERS = [
@@ -150,8 +148,21 @@ DEFAULT_SUPER_ADMIN_PASSWORD = os.environ.get('SUPER_ADMIN_PASSWORD', '')  # Set
 # Session settings
 SESSION_COOKIE_AGE = 8 * 60 * 60  # 8 hours
 SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SECURE = not DEBUG
-SESSION_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_SECURE = _as_bool(os.getenv('DJANGO_SESSION_COOKIE_SECURE'), default=not DEBUG)
+SESSION_COOKIE_SAMESITE = os.getenv('DJANGO_SESSION_COOKIE_SAMESITE', 'Lax' if DEBUG else 'None')
+SESSION_COOKIE_DOMAIN = os.getenv('DJANGO_SESSION_COOKIE_DOMAIN') or None
+
+CSRF_COOKIE_SECURE = _as_bool(os.getenv('DJANGO_CSRF_COOKIE_SECURE'), default=not DEBUG)
+CSRF_COOKIE_SAMESITE = os.getenv('DJANGO_CSRF_COOKIE_SAMESITE', 'Lax' if DEBUG else 'None')
+CSRF_COOKIE_DOMAIN = os.getenv('DJANGO_CSRF_COOKIE_DOMAIN') or None
+
+AUTH_SESSION_COOKIE_SECURE = _as_bool(os.getenv('DJANGO_AUTH_SESSION_COOKIE_SECURE'), default=SESSION_COOKIE_SECURE)
+AUTH_SESSION_COOKIE_SAMESITE = os.getenv('DJANGO_AUTH_SESSION_COOKIE_SAMESITE', SESSION_COOKIE_SAMESITE)
+AUTH_SESSION_COOKIE_DOMAIN = os.getenv('DJANGO_AUTH_SESSION_COOKIE_DOMAIN') or SESSION_COOKIE_DOMAIN
+
+AUTH_MARKER_COOKIE_SECURE = _as_bool(os.getenv('DJANGO_AUTH_MARKER_COOKIE_SECURE'), default=AUTH_SESSION_COOKIE_SECURE)
+AUTH_MARKER_COOKIE_SAMESITE = os.getenv('DJANGO_AUTH_MARKER_COOKIE_SAMESITE', AUTH_SESSION_COOKIE_SAMESITE)
+AUTH_MARKER_COOKIE_DOMAIN = os.getenv('DJANGO_AUTH_MARKER_COOKIE_DOMAIN') or AUTH_SESSION_COOKIE_DOMAIN
 
 # python manage.py create_super_admin --email=admin@yourdomain.com --password=StrongPassword123
 

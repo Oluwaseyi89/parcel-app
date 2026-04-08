@@ -26,13 +26,28 @@ class SessionContract:
 
 
 def _cookie_kwargs(max_age: int | None = None, http_only: bool = True) -> dict:
+    secure = settings.AUTH_SESSION_COOKIE_SECURE if http_only else settings.AUTH_MARKER_COOKIE_SECURE
+    samesite = settings.AUTH_SESSION_COOKIE_SAMESITE if http_only else settings.AUTH_MARKER_COOKIE_SAMESITE
+    domain = settings.AUTH_SESSION_COOKIE_DOMAIN if http_only else settings.AUTH_MARKER_COOKIE_DOMAIN
+
     return {
         "max_age": max_age,
         "httponly": http_only,
-        "secure": not settings.DEBUG,
-        "samesite": "Lax",
+        "secure": secure,
+        "samesite": samesite,
+        "domain": domain,
         "path": "/",
     }
+
+
+def _delete_cookie(response: HttpResponse, key: str, *, http_only: bool = True) -> None:
+    kwargs = _cookie_kwargs(max_age=0, http_only=http_only)
+    response.delete_cookie(
+        key,
+        path=kwargs["path"],
+        domain=kwargs.get("domain"),
+        samesite=kwargs.get("samesite"),
+    )
 
 
 def attach_session_cookies(response: HttpResponse, *, session_token: str, role: SessionRole) -> HttpResponse:
@@ -50,16 +65,16 @@ def attach_session_cookies(response: HttpResponse, *, session_token: str, role: 
         if marker_role == role:
             response.set_cookie(marker_cookie, "1", **_cookie_kwargs(max_age=SessionContract().max_age_seconds, http_only=False))
         else:
-            response.delete_cookie(marker_cookie, path="/")
+            _delete_cookie(response, marker_cookie, http_only=False)
 
     return response
 
 
 def clear_session_cookies(response: HttpResponse) -> HttpResponse:
-    response.delete_cookie(AUTH_SESSION_COOKIE, path="/")
-    response.delete_cookie(LEGACY_ADMIN_SESSION_COOKIE, path="/")
+    _delete_cookie(response, AUTH_SESSION_COOKIE)
+    _delete_cookie(response, LEGACY_ADMIN_SESSION_COOKIE)
 
     for marker_cookie in ROLE_MARKER_COOKIES.values():
-        response.delete_cookie(marker_cookie, path="/")
+        _delete_cookie(response, marker_cookie, http_only=False)
 
     return response
