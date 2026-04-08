@@ -51,9 +51,12 @@ export default function RoleDashboardView({ role }: { role: Role }) {
   const router = useRouter();
   const authStore = useAuthStore();
   const auth = useRequireAuth({ requiredRole: role, redirectTo: REDIRECT_PATH[role] });
+  const [switchingRole, setSwitchingRole] = useState(false);
+  const [switchError, setSwitchError] = useState("");
 
   const user = role === "customer" ? auth.customer : role === "vendor" ? auth.vendor : auth.courier;
   const tabs = TAB_CONFIG[role];
+  const switchableRoles = auth.allowedRoles;
   const [activeTab, setActiveTab] = useState(tabs[0]?.key ?? "");
 
   async function logout() {
@@ -66,6 +69,24 @@ export default function RoleDashboardView({ role }: { role: Role }) {
     }
     router.replace(REDIRECT_PATH[role]);
     router.refresh();
+  }
+
+  async function switchRole(nextRole: Role) {
+    if (nextRole === role) {
+      return;
+    }
+
+    setSwitchError("");
+    setSwitchingRole(true);
+    try {
+      await authStore.switchActiveRole(nextRole);
+      router.replace(nextRole === "customer" ? "/customer-dash" : nextRole === "vendor" ? "/vendor-dash" : "/courier-dash");
+      router.refresh();
+    } catch {
+      setSwitchError("Unable to switch role right now. Please try again.");
+    } finally {
+      setSwitchingRole(false);
+    }
   }
 
   if (!auth.ready) {
@@ -90,13 +111,31 @@ export default function RoleDashboardView({ role }: { role: Role }) {
             <div>
               <h1 className="text-2xl font-bold text-zinc-900">{role.charAt(0).toUpperCase() + role.slice(1)} Dashboard</h1>
               <p className="mt-1 text-zinc-600">Hello, {fullName}</p>
+              {switchError ? <p className="mt-2 text-sm text-red-600">{switchError}</p> : null}
             </div>
-            <button
-              onClick={logout}
-              className="inline-flex items-center rounded-lg border border-danger px-4 py-2 text-sm font-medium text-danger hover:bg-danger hover:text-white"
-            >
-              <LogOut className="mr-2 h-4 w-4" /> Logout
-            </button>
+            <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+              {switchableRoles.length > 1 ? (
+                <select
+                  aria-label="Switch active role"
+                  value={role}
+                  onChange={(event) => void switchRole(event.target.value as Role)}
+                  disabled={switchingRole}
+                  className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700"
+                >
+                  {switchableRoles.map((item) => (
+                    <option key={item} value={item}>
+                      {item.charAt(0).toUpperCase() + item.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
+              <button
+                onClick={() => void logout()}
+                className="inline-flex items-center rounded-lg border border-danger px-4 py-2 text-sm font-medium text-danger hover:bg-danger hover:text-white"
+              >
+                <LogOut className="mr-2 h-4 w-4" /> Logout
+              </button>
+            </div>
           </div>
 
           <div className="mt-5 flex items-center gap-4 rounded-lg bg-zinc-50 p-4">

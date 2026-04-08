@@ -5,7 +5,7 @@ from .views import (
     home, base, super_admin_login, super_admin_dashboard,
     AdminLoginView, AdminLogoutView, AdminProfileView, 
     ChangePasswordView, AdminUserListView, AdminCustomerListView, AdminDashboardMetricsView,
-    SessionMeView, CsrfTokenView,
+    SessionMeView, CsrfTokenView, SwitchActiveRoleView,
     AdminModerationQueueView, AdminModerationActionView,
     AdminOrderListView, AdminOrderStatusUpdateView,
     AdminDispatchListView, AdminDispatchStatusUpdateView, AdminDispatchAssignView,
@@ -38,6 +38,7 @@ urlpatterns = [
     path('api/logout/', AdminLogoutView.as_view(), name="admin_logout"),
     path('csrf/', CsrfTokenView.as_view(), name="csrf_token"),
     path('me/', SessionMeView.as_view(), name="session_me"),
+    path('switch-role/', SwitchActiveRoleView.as_view(), name="switch_active_role"),
     path('api/profile/', AdminProfileView.as_view(), name="admin_profile"),
     path('api/change-password/', ChangePasswordView.as_view(), name="change_password"),
     

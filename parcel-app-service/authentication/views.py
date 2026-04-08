@@ -42,6 +42,91 @@ from .services import EmailService, CustomerService
 from core.tokens import account_activation_token
 
 
+def _normalize_app_role(role_value):
+    role = str(role_value or "").lower().strip()
+    if role in {"vendor"}:
+        return "vendor"
+    if role in {"courier"}:
+        return "courier"
+    if role in {"customer", "premium_customer", "anonymous"}:
+        return "customer"
+    if role in {"admin", "super_admin", "staff", "operator"}:
+        return "admin"
+    return None
+
+
+def _is_switchable_account(account, normalized_role):
+    if account is None:
+        return False
+
+    if hasattr(account, 'is_active') and not account.is_active:
+        return False
+
+    if hasattr(account, 'is_email_verified') and not account.is_email_verified:
+        return False
+
+    if normalized_role in {'vendor', 'courier'} and hasattr(account, 'is_approved') and not account.is_approved:
+        return False
+
+    return True
+
+
+def _resolve_role_account(email, normalized_role):
+    if normalized_role == 'customer':
+        account = CustomerUser.objects.filter(email__iexact=email).order_by('-id').first()
+    elif normalized_role == 'vendor':
+        account = VendorUser.objects.filter(email__iexact=email).order_by('-id').first()
+    elif normalized_role == 'courier':
+        account = CourierUser.objects.filter(email__iexact=email).order_by('-id').first()
+    elif normalized_role == 'admin':
+        account = AdminUser.objects.filter(email__iexact=email).order_by('-id').first()
+    else:
+        return None
+
+    if _is_switchable_account(account, normalized_role):
+        return account
+
+    return None
+
+
+def _get_allowed_roles_for_email(email):
+    roles = []
+
+    if _resolve_role_account(email, 'customer'):
+        roles.append('customer')
+    if _resolve_role_account(email, 'vendor'):
+        roles.append('vendor')
+    if _resolve_role_account(email, 'courier'):
+        roles.append('courier')
+    if _resolve_role_account(email, 'admin'):
+        roles.append('admin')
+
+    return roles
+
+
+def _build_me_payload(user):
+    email = getattr(user, 'email', None)
+    active_role = _normalize_app_role(getattr(user, 'role', None))
+    allowed_roles = _get_allowed_roles_for_email(email) if email else []
+
+    if active_role and active_role not in allowed_roles:
+        allowed_roles.append(active_role)
+
+    payload = {
+        'id': user.id,
+        'email': email,
+        'first_name': getattr(user, 'first_name', ''),
+        'last_name': getattr(user, 'last_name', ''),
+        'role': active_role,
+    }
+
+    return {
+        'user': payload,
+        'allowed_roles': allowed_roles,
+        'active_role': active_role,
+    }
+
+
 
 
 # ==================== API VIEWS ====================
@@ -138,25 +223,70 @@ class SessionMeView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        user = request.user
-        active_role = getattr(user, 'role', None)
-
-        payload = {
-            'id': user.id,
-            'email': getattr(user, 'email', None),
-            'first_name': getattr(user, 'first_name', ''),
-            'last_name': getattr(user, 'last_name', ''),
-            'role': active_role,
-        }
-
         return Response({
             'status': 'success',
-            'data': {
-                'user': payload,
-                'allowed_roles': [active_role] if active_role else [],
-                'active_role': active_role,
-            },
+            'data': _build_me_payload(request.user),
         }, status=status.HTTP_200_OK)
+
+
+class SwitchActiveRoleView(APIView):
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        requested_role = _normalize_app_role(request.data.get('role'))
+        if requested_role not in {'customer', 'vendor', 'courier', 'admin'}:
+            return Response({
+                'status': 'error',
+                'message': 'Invalid role requested.',
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        current_user = request.user
+        current_email = getattr(current_user, 'email', None)
+        if not current_email:
+            return Response({
+                'status': 'error',
+                'message': 'Authenticated user is missing an email address.',
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        allowed_roles = _get_allowed_roles_for_email(current_email)
+        if requested_role not in allowed_roles:
+            return Response({
+                'status': 'error',
+                'message': 'Requested role is not available for this account.',
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        target_user = _resolve_role_account(current_email, requested_role)
+        if target_user is None:
+            return Response({
+                'status': 'error',
+                'message': 'Requested role account could not be resolved.',
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        session = getattr(request, 'auth', None)
+        if not isinstance(session, UserSession):
+            token = request.COOKIES.get('auth_session') or request.COOKIES.get('admin_session')
+            if token:
+                session = UserSession.objects.filter(session_token=token, is_active=True).first()
+
+        if not isinstance(session, UserSession):
+            return Response({
+                'status': 'error',
+                'message': 'Active session not found.',
+            }, status=status.HTTP_401_UNAUTHORIZED)
+
+        content_type = ContentType.objects.get_for_model(target_user)
+        session.content_type = content_type
+        session.object_id = target_user.id
+        session.save(update_fields=['content_type', 'object_id'])
+
+        response = Response({
+            'status': 'success',
+            'message': f'Active role switched to {requested_role}.',
+            'data': _build_me_payload(target_user),
+        }, status=status.HTTP_200_OK)
+        attach_session_cookies(response, session_token=session.session_token, role=requested_role)
+        return response
 
 
 class CsrfTokenView(APIView):
