@@ -56,15 +56,16 @@ export default function RoleDashboardView({ role }: { role: Role }) {
   const tabs = TAB_CONFIG[role];
   const [activeTab, setActiveTab] = useState(tabs[0]?.key ?? "");
 
-  function logout() {
+  async function logout() {
     if (role === "customer") {
-      authStore.logoutCustomer();
+      await authStore.logoutCustomer();
     } else if (role === "vendor") {
-      authStore.logoutVendor();
+      await authStore.logoutVendor();
     } else {
-      authStore.logoutCourier();
+      await authStore.logoutCourier();
     }
-    router.push(REDIRECT_PATH[role]);
+    router.replace(REDIRECT_PATH[role]);
+    router.refresh();
   }
 
   if (!auth.ready) {

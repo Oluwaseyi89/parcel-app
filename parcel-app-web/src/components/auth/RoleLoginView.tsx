@@ -80,8 +80,6 @@ export default function RoleLoginView({ role }: { role: Role }) {
   }
 
   function setRoleSession(user: AppUser) {
-    auth.logout();
-
     if (role === "customer") {
       auth.loginCustomer(user);
       return;
