@@ -89,6 +89,26 @@ A comprehensive Django-based backend service for a multi-vendor e-commerce platf
     DJANGO_SECRET_KEY=your-secret-key-here
     DJANGO_DEBUG=True
     DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
+    DJANGO_CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+    DJANGO_CSRF_TRUSTED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+    DJANGO_CORS_ALLOW_CREDENTIALS=True
+
+    # Cookie settings
+    # Local dev: Lax + insecure works across localhost ports.
+    DJANGO_SESSION_COOKIE_SECURE=False
+    DJANGO_SESSION_COOKIE_SAMESITE=Lax
+    DJANGO_CSRF_COOKIE_SECURE=False
+    DJANGO_CSRF_COOKIE_SAMESITE=Lax
+
+    # Production cross-site setup example (frontend and backend on different sites)
+    # DJANGO_SESSION_COOKIE_SECURE=True
+    # DJANGO_SESSION_COOKIE_SAMESITE=None
+    # DJANGO_CSRF_COOKIE_SECURE=True
+    # DJANGO_CSRF_COOKIE_SAMESITE=None
+    # DJANGO_AUTH_SESSION_COOKIE_SECURE=True
+    # DJANGO_AUTH_SESSION_COOKIE_SAMESITE=None
+    # DJANGO_AUTH_MARKER_COOKIE_SECURE=True
+    # DJANGO_AUTH_MARKER_COOKIE_SAMESITE=None
 
     # Email (for production)
     EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
