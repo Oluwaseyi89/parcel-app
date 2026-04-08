@@ -28,6 +28,8 @@ describe("authStore regression: cookie-first session contract", () => {
       customer: null,
       vendor: null,
       courier: null,
+      activeRole: null,
+      allowedRoles: [],
       isAuthenticated: false,
     });
     AUTH_STORAGE_KEYS.forEach((key) => window.localStorage.removeItem(key));
@@ -128,7 +130,40 @@ describe("authStore regression: cookie-first session contract", () => {
     expect(state.customer).toMatchObject({ id: "server-customer" });
     expect(state.vendor).toBeNull();
     expect(state.courier).toBeNull();
+    expect(state.activeRole).toBe("customer");
+    expect(state.allowedRoles).toEqual(["customer"]);
     expect(state.isAuthenticated).toBe(true);
+    expect(hasAnyAuthInStorage()).toBe(false);
+  });
+
+  it("switchActiveRole updates active context and allowed roles from backend", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: { csrf_token: "switch-csrf" } }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: { active_role: "courier" } }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: {
+            user: { id: "courier-user", email: "mr@example.com", first_name: "MultiRole" },
+            active_role: "courier",
+            allowed_roles: ["vendor", "courier"],
+          },
+        }),
+      } as Response);
+
+    await useAuthStore.getState().switchActiveRole("courier");
+
+    const state = useAuthStore.getState();
+    expect(state.activeRole).toBe("courier");
+    expect(state.courier).toMatchObject({ id: "courier-user" });
+    expect(state.vendor).toBeNull();
+    expect(state.allowedRoles).toEqual(["vendor", "courier"]);
     expect(hasAnyAuthInStorage()).toBe(false);
   });
 });
