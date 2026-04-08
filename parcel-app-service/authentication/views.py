@@ -108,17 +108,22 @@ class AdminLogoutView(APIView):
     permission_classes = [IsAuthenticated]
     
     def post(self, request):
-        session_token = request.COOKIES.get('admin_session')
-        if session_token:
-            try:
-                session = UserSession.objects.get(
-                    session_token=session_token,
-                    is_active=True
-                )
-                session.is_active = False
-                session.save()
-            except UserSession.DoesNotExist:
-                pass
+        session = getattr(request, 'auth', None)
+        if isinstance(session, UserSession):
+            session.is_active = False
+            session.save(update_fields=['is_active'])
+        else:
+            session_token = request.COOKIES.get('auth_session') or request.COOKIES.get('admin_session')
+            if session_token:
+                try:
+                    fallback_session = UserSession.objects.get(
+                        session_token=session_token,
+                        is_active=True
+                    )
+                    fallback_session.is_active = False
+                    fallback_session.save(update_fields=['is_active'])
+                except UserSession.DoesNotExist:
+                    pass
         
         response = Response({
             "status": "success",

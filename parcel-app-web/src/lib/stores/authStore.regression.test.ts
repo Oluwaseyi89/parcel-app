@@ -1,12 +1,14 @@
-import { setRoleSessionCookie } from "@/lib/authSession";
 import { STORAGE_KEYS } from "@/lib/constants";
 import { useAuthStore } from "@/lib/stores/authStore";
 import type { User } from "@/lib/types";
-import { beforeEach, describe, expect, it, test } from "vitest";
+import { beforeEach, describe, expect, it, test, vi } from "vitest";
 
 type LogoutMethod = "logoutCustomer" | "logoutVendor" | "logoutCourier" | "logout";
 
 const logoutMethods: LogoutMethod[] = ["logoutCustomer", "logoutVendor", "logoutCourier", "logout"];
+
+// Keys that must never appear in localStorage after any auth operation.
+const AUTH_STORAGE_KEYS = [STORAGE_KEYS.customerAuth, STORAGE_KEYS.vendorAuth, STORAGE_KEYS.courierAuth];
 
 function makeUser(id: string): User {
   return {
@@ -16,14 +18,11 @@ function makeUser(id: string): User {
   };
 }
 
-function hasCookie(key: string): boolean {
-  return document.cookie
-    .split(";")
-    .map((entry) => entry.trim())
-    .some((entry) => entry.startsWith(`${key}=`));
+function hasAnyAuthInStorage(): boolean {
+  return AUTH_STORAGE_KEYS.some((key) => window.localStorage.getItem(key) !== null);
 }
 
-describe("authStore regression: cross-role session conflicts", () => {
+describe("authStore regression: cookie-first session contract", () => {
   beforeEach(() => {
     useAuthStore.setState({
       customer: null,
@@ -31,47 +30,54 @@ describe("authStore regression: cross-role session conflicts", () => {
       courier: null,
       isAuthenticated: false,
     });
+    AUTH_STORAGE_KEYS.forEach((key) => window.localStorage.removeItem(key));
+    // Provide a permissive fetch stub so the CSRF fetch inside apiRequest never throws.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ data: { csrf_token: "test-csrf" } }),
+      }),
+    );
   });
 
-  it("keeps courier active when vendor and courier sessions both exist but courier cookie is active", () => {
-    const vendor = makeUser("vendor-user");
-    const courier = makeUser("courier-user");
-
-    window.localStorage.setItem(STORAGE_KEYS.vendorAuth, JSON.stringify(vendor));
-    window.localStorage.setItem(STORAGE_KEYS.courierAuth, JSON.stringify(courier));
-    setRoleSessionCookie("vendor");
-    setRoleSessionCookie("courier");
-
-    useAuthStore.getState().initializeAuth();
+  it("loginCustomer sets in-memory state without writing auth to localStorage", () => {
+    const customer = makeUser("customer-user");
+    useAuthStore.getState().loginCustomer(customer);
     const state = useAuthStore.getState();
 
-    expect(state.courier).toMatchObject({ id: "courier-user" });
+    expect(state.customer).toMatchObject({ id: "customer-user" });
     expect(state.vendor).toBeNull();
-    expect(state.customer).toBeNull();
+    expect(state.courier).toBeNull();
     expect(state.isAuthenticated).toBe(true);
-
-    expect(window.localStorage.getItem(STORAGE_KEYS.courierAuth)).not.toBeNull();
-    expect(window.localStorage.getItem(STORAGE_KEYS.vendorAuth)).toBeNull();
-    expect(hasCookie(STORAGE_KEYS.courierAuth)).toBe(true);
-    expect(hasCookie(STORAGE_KEYS.vendorAuth)).toBe(false);
+    expect(hasAnyAuthInStorage()).toBe(false);
   });
 
-  it("falls back deterministically to courier when mixed role storage exists without role cookies", () => {
+  it("loginVendor sets in-memory state without writing auth to localStorage", () => {
     const vendor = makeUser("vendor-user");
+    useAuthStore.getState().loginVendor(vendor);
+    const state = useAuthStore.getState();
+
+    expect(state.vendor).toMatchObject({ id: "vendor-user" });
+    expect(state.customer).toBeNull();
+    expect(state.courier).toBeNull();
+    expect(state.isAuthenticated).toBe(true);
+    expect(hasAnyAuthInStorage()).toBe(false);
+  });
+
+  it("loginCourier sets in-memory state without writing auth to localStorage", () => {
     const courier = makeUser("courier-user");
-
-    window.localStorage.setItem(STORAGE_KEYS.vendorAuth, JSON.stringify(vendor));
-    window.localStorage.setItem(STORAGE_KEYS.courierAuth, JSON.stringify(courier));
-
-    useAuthStore.getState().initializeAuth();
+    useAuthStore.getState().loginCourier(courier);
     const state = useAuthStore.getState();
 
     expect(state.courier).toMatchObject({ id: "courier-user" });
-    expect(state.vendor).toBeNull();
     expect(state.customer).toBeNull();
+    expect(state.vendor).toBeNull();
+    expect(state.isAuthenticated).toBe(true);
+    expect(hasAnyAuthInStorage()).toBe(false);
   });
 
-  it("replaces an existing vendor session cleanly when logging in as courier", () => {
+  it("loginCourier after loginVendor evicts vendor from in-memory state", () => {
     const vendor = makeUser("vendor-user");
     const courier = makeUser("courier-user");
 
@@ -84,30 +90,15 @@ describe("authStore regression: cross-role session conflicts", () => {
     expect(state.vendor).toBeNull();
     expect(state.customer).toBeNull();
     expect(state.isAuthenticated).toBe(true);
-
-    expect(window.localStorage.getItem(STORAGE_KEYS.courierAuth)).not.toBeNull();
-    expect(window.localStorage.getItem(STORAGE_KEYS.vendorAuth)).toBeNull();
-    expect(window.localStorage.getItem(STORAGE_KEYS.customerAuth)).toBeNull();
-
-    expect(hasCookie(STORAGE_KEYS.courierAuth)).toBe(true);
-    expect(hasCookie(STORAGE_KEYS.vendorAuth)).toBe(false);
-    expect(hasCookie(STORAGE_KEYS.customerAuth)).toBe(false);
+    expect(hasAnyAuthInStorage()).toBe(false);
   });
 
-  test.each(logoutMethods)("%s clears all role traces", (logoutMethod) => {
-    const customer = makeUser("customer-user");
+  test.each(logoutMethods)("%s clears in-memory auth state and writes nothing to localStorage", async (logoutMethod) => {
     const vendor = makeUser("vendor-user");
-    const courier = makeUser("courier-user");
+    useAuthStore.getState().loginVendor(vendor);
 
-    window.localStorage.setItem(STORAGE_KEYS.customerAuth, JSON.stringify(customer));
-    window.localStorage.setItem(STORAGE_KEYS.vendorAuth, JSON.stringify(vendor));
-    window.localStorage.setItem(STORAGE_KEYS.courierAuth, JSON.stringify(courier));
-    setRoleSessionCookie("customer");
-    setRoleSessionCookie("vendor");
-    setRoleSessionCookie("courier");
-
-    const logoutFn = useAuthStore.getState()[logoutMethod] as () => void;
-    logoutFn();
+    const logoutFn = useAuthStore.getState()[logoutMethod] as () => Promise<void>;
+    await logoutFn();
 
     const state = useAuthStore.getState();
 
@@ -115,13 +106,29 @@ describe("authStore regression: cross-role session conflicts", () => {
     expect(state.vendor).toBeNull();
     expect(state.courier).toBeNull();
     expect(state.isAuthenticated).toBe(false);
+    expect(hasAnyAuthInStorage()).toBe(false);
+  });
 
-    expect(window.localStorage.getItem(STORAGE_KEYS.customerAuth)).toBeNull();
-    expect(window.localStorage.getItem(STORAGE_KEYS.vendorAuth)).toBeNull();
-    expect(window.localStorage.getItem(STORAGE_KEYS.courierAuth)).toBeNull();
+  it("bootstrapFromServer hydrates in-memory state from server and stores nothing in localStorage", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        data: {
+          user: { id: "server-customer", email: "sc@example.com", first_name: "ServerCustomer" },
+          active_role: "customer",
+          allowed_roles: ["customer"],
+        },
+      }),
+    } as Response);
 
-    expect(hasCookie(STORAGE_KEYS.customerAuth)).toBe(false);
-    expect(hasCookie(STORAGE_KEYS.vendorAuth)).toBe(false);
-    expect(hasCookie(STORAGE_KEYS.courierAuth)).toBe(false);
+    await useAuthStore.getState().bootstrapFromServer();
+
+    const state = useAuthStore.getState();
+
+    expect(state.customer).toMatchObject({ id: "server-customer" });
+    expect(state.vendor).toBeNull();
+    expect(state.courier).toBeNull();
+    expect(state.isAuthenticated).toBe(true);
+    expect(hasAnyAuthInStorage()).toBe(false);
   });
 });

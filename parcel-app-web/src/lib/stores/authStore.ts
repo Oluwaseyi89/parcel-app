@@ -1,13 +1,6 @@
 import { create } from "zustand";
 
-import {
-  clearRoleSessionCookie,
-  getActiveRoleFromCookies,
-  setRoleSessionCookie,
-  syncSessionCookiesFromStorage,
-} from "@/lib/authSession";
 import { apiRequest } from "@/lib/api";
-import { storage } from "@/lib/storage";
 import type { User } from "@/lib/types";
 
 interface AuthState {
@@ -15,15 +8,14 @@ interface AuthState {
   vendor: User | null;
   courier: User | null;
   isAuthenticated: boolean;
-  initializeAuth: () => void;
   bootstrapFromServer: () => Promise<void>;
   loginCustomer: (customerData: User) => void;
   loginVendor: (vendorData: User) => void;
   loginCourier: (courierData: User) => void;
-  logoutCustomer: () => void;
-  logoutVendor: () => void;
-  logoutCourier: () => void;
-  logout: () => void;
+  logoutCustomer: () => Promise<void>;
+  logoutVendor: () => Promise<void>;
+  logoutCourier: () => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 interface SessionMeResponse {
@@ -35,49 +27,13 @@ interface SessionMeResponse {
   };
 }
 
-function pickSingleSession(
-  storedCustomer: User | null,
-  storedVendor: User | null,
-  storedCourier: User | null,
-  activeRole: ReturnType<typeof getActiveRoleFromCookies>,
-) {
-  const byRole = {
-    customer: storedCustomer,
-    vendor: storedVendor,
-    courier: storedCourier,
-  }
-
-  const availableRoles = (Object.keys(byRole) as Array<keyof typeof byRole>).filter(
-    (role) => Boolean(byRole[role]),
-  )
-
-  if (availableRoles.length === 0) {
-    return { customer: null, vendor: null, courier: null }
-  }
-
-  if (availableRoles.length === 1) {
-    const only = availableRoles[0]
-    return {
-      customer: only === "customer" ? storedCustomer : null,
-      vendor: only === "vendor" ? storedVendor : null,
-      courier: only === "courier" ? storedCourier : null,
-    }
-  }
-
-  const effectiveRole =
-    activeRole && byRole[activeRole]
-      ? activeRole
-      : availableRoles.includes("courier")
-        ? "courier"
-        : availableRoles.includes("vendor")
-          ? "vendor"
-          : "customer"
-
+function emptyState() {
   return {
-    customer: effectiveRole === "customer" ? storedCustomer : null,
-    vendor: effectiveRole === "vendor" ? storedVendor : null,
-    courier: effectiveRole === "courier" ? storedCourier : null,
-  }
+    customer: null,
+    vendor: null,
+    courier: null,
+    isAuthenticated: false,
+  };
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -86,39 +42,6 @@ export const useAuthStore = create<AuthState>((set) => ({
   courier: null,
   isAuthenticated: false,
 
-  initializeAuth: () => {
-    const storedCustomer = storage.getCustomerAuth();
-    const storedVendor = storage.getVendorAuth();
-    const storedCourier = storage.getCourierAuth();
-
-    const activeRole = getActiveRoleFromCookies();
-    const { customer, vendor, courier } = pickSingleSession(
-      storedCustomer,
-      storedVendor,
-      storedCourier,
-      activeRole,
-    )
-
-    if (!customer) {
-      storage.clearCustomerAuth();
-    }
-    if (!vendor) {
-      storage.clearVendorAuth();
-    }
-    if (!courier) {
-      storage.clearCourierAuth();
-    }
-
-    syncSessionCookiesFromStorage(Boolean(customer), Boolean(vendor), Boolean(courier));
-
-    set({
-      customer,
-      vendor,
-      courier,
-      isAuthenticated: Boolean(customer || vendor || courier),
-    });
-  },
-
   bootstrapFromServer: async () => {
     try {
       const response = await apiRequest<SessionMeResponse>("/auth/me/", { method: "GET" });
@@ -126,112 +49,76 @@ export const useAuthStore = create<AuthState>((set) => ({
       const user = response?.data?.user;
 
       if (!user || !activeRole) {
+        set(emptyState());
         return;
       }
 
       if (activeRole === "customer") {
-        storage.setCustomerAuth(user);
-        storage.clearVendorAuth();
-        storage.clearCourierAuth();
-        setRoleSessionCookie("customer");
-        clearRoleSessionCookie("vendor");
-        clearRoleSessionCookie("courier");
         set({ customer: user, vendor: null, courier: null, isAuthenticated: true });
         return;
       }
 
       if (activeRole === "vendor") {
-        storage.clearCustomerAuth();
-        storage.setVendorAuth(user);
-        storage.clearCourierAuth();
-        clearRoleSessionCookie("customer");
-        setRoleSessionCookie("vendor");
-        clearRoleSessionCookie("courier");
         set({ customer: null, vendor: user, courier: null, isAuthenticated: true });
         return;
       }
 
       if (activeRole === "courier") {
-        storage.clearCustomerAuth();
-        storage.clearVendorAuth();
-        storage.setCourierAuth(user);
-        clearRoleSessionCookie("customer");
-        clearRoleSessionCookie("vendor");
-        setRoleSessionCookie("courier");
         set({ customer: null, vendor: null, courier: user, isAuthenticated: true });
+        return;
       }
+
+      set(emptyState());
     } catch {
-      // Keep local fallback state when no authenticated backend session exists.
+      set(emptyState());
     }
   },
 
   loginCustomer: (customerData) => {
-    storage.setCustomerAuth(customerData);
-    storage.clearVendorAuth();
-    storage.clearCourierAuth();
-    setRoleSessionCookie("customer");
-    clearRoleSessionCookie("vendor");
-    clearRoleSessionCookie("courier");
     set({ customer: customerData, vendor: null, courier: null, isAuthenticated: true });
   },
 
   loginVendor: (vendorData) => {
-    storage.clearCustomerAuth();
-    storage.setVendorAuth(vendorData);
-    storage.clearCourierAuth();
-    clearRoleSessionCookie("customer");
-    setRoleSessionCookie("vendor");
-    clearRoleSessionCookie("courier");
     set({ customer: null, vendor: vendorData, courier: null, isAuthenticated: true });
   },
 
   loginCourier: (courierData) => {
-    storage.clearCustomerAuth();
-    storage.clearVendorAuth();
-    storage.setCourierAuth(courierData);
-    clearRoleSessionCookie("customer");
-    clearRoleSessionCookie("vendor");
-    setRoleSessionCookie("courier");
     set({ customer: null, vendor: null, courier: courierData, isAuthenticated: true });
   },
 
-  logoutCustomer: () => {
-    storage.clearCustomerAuth();
-    storage.clearVendorAuth();
-    storage.clearCourierAuth();
-    clearRoleSessionCookie("customer");
-    clearRoleSessionCookie("vendor");
-    clearRoleSessionCookie("courier");
-    set({ customer: null, vendor: null, courier: null, isAuthenticated: false });
+  logoutCustomer: async () => {
+    set(emptyState());
+    try {
+      await apiRequest<{ status?: string }>("/auth/api/logout/", { method: "POST" });
+    } catch {
+      // Keep local state cleared even if backend session already expired.
+    }
   },
 
-  logoutVendor: () => {
-    storage.clearCustomerAuth();
-    storage.clearVendorAuth();
-    storage.clearCourierAuth();
-    clearRoleSessionCookie("customer");
-    clearRoleSessionCookie("vendor");
-    clearRoleSessionCookie("courier");
-    set({ customer: null, vendor: null, courier: null, isAuthenticated: false });
+  logoutVendor: async () => {
+    set(emptyState());
+    try {
+      await apiRequest<{ status?: string }>("/auth/api/logout/", { method: "POST" });
+    } catch {
+      // Keep local state cleared even if backend session already expired.
+    }
   },
 
-  logoutCourier: () => {
-    storage.clearCustomerAuth();
-    storage.clearVendorAuth();
-    storage.clearCourierAuth();
-    clearRoleSessionCookie("customer");
-    clearRoleSessionCookie("vendor");
-    clearRoleSessionCookie("courier");
-    set({ customer: null, vendor: null, courier: null, isAuthenticated: false });
+  logoutCourier: async () => {
+    set(emptyState());
+    try {
+      await apiRequest<{ status?: string }>("/auth/api/logout/", { method: "POST" });
+    } catch {
+      // Keep local state cleared even if backend session already expired.
+    }
   },
 
-  logout: () => {
-    storage.clearCustomerAuth();
-    storage.clearVendorAuth();
-    storage.clearCourierAuth();
-    clearRoleSessionCookie("customer");
-    clearRoleSessionCookie("vendor");
-    clearRoleSessionCookie("courier");
-    set({ customer: null, vendor: null, courier: null, isAuthenticated: false });
+  logout: async () => {
+    set(emptyState());
+    try {
+      await apiRequest<{ status?: string }>("/auth/api/logout/", { method: "POST" });
+    } catch {
+      // Keep local state cleared even if backend session already expired.
+    }
   },
 }));
