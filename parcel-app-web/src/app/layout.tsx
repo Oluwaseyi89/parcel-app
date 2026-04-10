@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
-import Footer from "@/components/Footer";
-import Header from "@/components/Header";
+import ShellLayout from "@/components/ShellLayout";
 import Providers from "./providers";
 import "./globals.css";
 
@@ -23,9 +22,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <Providers>
-          <Header />
-          <main className="flex-1 bg-zinc-50">{children}</main>
-          <Footer />
+          <ShellLayout>{children}</ShellLayout>
         </Providers>
       </body>
     </html>
