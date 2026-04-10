@@ -41,6 +41,8 @@ async function getTrustedActiveRole(request: NextRequest): Promise<"customer" | 
 
   const cookieHeader = request.headers.get("cookie") || "";
   const meUrl = `${getAuthApiBase()}/auth/me/`;
+  const abort = new AbortController();
+  const timeout = setTimeout(() => abort.abort(), 4_000);
 
   try {
     const response = await fetch(meUrl, {
@@ -50,6 +52,7 @@ async function getTrustedActiveRole(request: NextRequest): Promise<"customer" | 
         "x-requested-with": "XMLHttpRequest",
       },
       cache: "no-store",
+      signal: abort.signal,
     });
 
     if (!response.ok) {
@@ -60,6 +63,8 @@ async function getTrustedActiveRole(request: NextRequest): Promise<"customer" | 
     return body?.data?.active_role ?? null;
   } catch {
     return null;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
