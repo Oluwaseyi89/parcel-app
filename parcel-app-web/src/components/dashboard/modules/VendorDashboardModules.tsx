@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { apiForm, unwrapListData } from "@/lib/api";
 import { useApi } from "@/lib/hooks/useApi";
@@ -79,6 +79,30 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
   const [fetchedBank, setFetchedBank] = useState<Partial<BankDetails>>({});
 
   const [uploadPhoto, setUploadPhoto] = useState<File | null>(null);
+  const [uploadPreviewUrl, setUploadPreviewUrl] = useState<string | null>(null);
+  const previewUrlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+    };
+  }, []);
+
+  function handlePhotoChange(file: File | null) {
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = null;
+    }
+    setUploadPhoto(file);
+    if (file) {
+      const url = URL.createObjectURL(file);
+      previewUrlRef.current = url;
+      setUploadPreviewUrl(url);
+    } else {
+      setUploadPreviewUrl(null);
+    }
+  }
+
   const [uploadForm, setUploadForm] = useState({
     prod_name: "",
     prod_model: "",
@@ -344,7 +368,35 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
         </div>
 
         <form onSubmit={uploadProduct} className="space-y-3 rounded-lg border border-zinc-200 p-4">
-          <input type="file" accept="image/*" onChange={(e) => setUploadPhoto(e.target.files?.[0] ?? null)} className="w-full rounded-lg border border-zinc-300 p-2" />
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-zinc-700">Product Image</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => handlePhotoChange(e.target.files?.[0] ?? null)}
+              className="w-full rounded-lg border border-zinc-300 p-2 text-sm"
+            />
+            {uploadPreviewUrl ? (
+              <div className="relative mt-2 overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50">
+                <img
+                  src={uploadPreviewUrl}
+                  alt="Product preview"
+                  className="mx-auto max-h-56 w-full object-contain"
+                />
+                <button
+                  type="button"
+                  onClick={() => handlePhotoChange(null)}
+                  className="absolute right-2 top-2 rounded-full bg-white/90 px-2.5 py-1 text-xs font-semibold text-red-600 shadow hover:bg-red-50"
+                >
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <div className="flex h-36 items-center justify-center rounded-xl border-2 border-dashed border-zinc-300 bg-zinc-50 text-sm text-zinc-400">
+                Image preview will appear here
+              </div>
+            )}
+          </div>
           <div className="grid gap-3 md:grid-cols-2">
             <input placeholder="Product Name" value={uploadForm.prod_name} onChange={(e) => setUploadForm((prev) => ({ ...prev, prod_name: e.target.value }))} className="rounded-lg border border-zinc-300 px-3 py-2.5" />
             <input placeholder="Model" value={uploadForm.prod_model} onChange={(e) => setUploadForm((prev) => ({ ...prev, prod_model: e.target.value }))} className="rounded-lg border border-zinc-300 px-3 py-2.5" />
