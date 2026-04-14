@@ -132,6 +132,9 @@ def _build_me_payload(user):
 # ==================== API VIEWS ====================
 
 class AdminLoginView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
     def post(self, request):
         serializer = AdminLoginSerializer(data=request.data)
         if serializer.is_valid():
