@@ -702,24 +702,6 @@ class SimpleCourierSerializer(serializers.ModelSerializer):
     def get_full_name(self, obj):
         return obj.get_full_name()
 
-# Also add these to the existing AdminUserSerializer if not already present
-class AdminUserSerializer(serializers.ModelSerializer):
-    """Serializer for AdminUser model"""
-    full_name = serializers.SerializerMethodField(read_only=True)
-    role_display = serializers.CharField(source='get_role_display', read_only=True)
-    
-    class Meta:
-        model = AdminUser
-        fields = [
-            'id', 'email', 'first_name', 'last_name', 'full_name',
-            'phone', 'role', 'role_display', 'photo', 'is_active',
-            'is_email_verified', 'created_at', 'updated_at', 'last_login'
-        ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'last_login']
-    
-    def get_full_name(self, obj):
-        return obj.get_full_name()
-
 class CustomerProfileSerializer(serializers.ModelSerializer):
     """Serializer for customer profile (read-only)"""
     full_name = serializers.SerializerMethodField(read_only=True)

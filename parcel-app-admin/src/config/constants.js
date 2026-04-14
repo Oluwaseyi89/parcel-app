@@ -1,5 +1,5 @@
 export const SESSION_KEY = 'parcel_admin_shell_session'
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:7000'
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 export const ALLOWED_ROLES = new Set(['super_admin', 'admin', 'staff', 'operator'])
 
 export const NAV_ITEMS = [
