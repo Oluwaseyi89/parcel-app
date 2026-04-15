@@ -5,6 +5,23 @@ from django.middleware.csrf import CsrfViewMiddleware
 from .models import UserSession
 
 
+EXPLICIT_CSRF_EXEMPT_URL_NAMES = {
+    "active_sessions",
+    "mobile_admin_login",
+    "customer_register_mobile",
+    "customer_login_mobile",
+    "customer_profile_mobile",
+    "customer_password_reset_mobile",
+    "vendor_register_mobile",
+    "vendor_login_mobile",
+    "courier_register_mobile",
+    "courier_login_mobile",
+    "order_create_mobile",
+    "product_create_mobile",
+    "product_update_mobile",
+}
+
+
 class CSRFCheck(CsrfViewMiddleware):
     def _reject(self, request, reason):
         return reason
@@ -36,8 +53,14 @@ class SessionTokenAuthentication(authentication.BaseAuthentication):
             session.invalidate()
             raise AuthenticationFailed("User account is inactive.")
 
-        # Enforce CSRF only for cookie-authenticated unsafe methods.
-        if source == "cookie" and request.method not in {"GET", "HEAD", "OPTIONS", "TRACE"}:
+        # Enforce CSRF only for cookie-authenticated unsafe methods, except for
+        # routes explicitly declared csrf_exempt in the URLconf for mobile/API
+        # compatibility.
+        if (
+            source == "cookie"
+            and request.method not in {"GET", "HEAD", "OPTIONS", "TRACE"}
+            and not self._is_explicitly_csrf_exempt(request)
+        ):
             self.enforce_csrf(request)
 
         return (user, session)
@@ -48,6 +71,13 @@ class SessionTokenAuthentication(authentication.BaseAuthentication):
         reason = check.process_view(request, None, (), {})
         if reason:
             raise AuthenticationFailed(f"CSRF Failed: {reason}")
+
+    def _is_explicitly_csrf_exempt(self, request):
+        raw_request = getattr(request, "_request", request)
+        resolver_match = getattr(raw_request, "resolver_match", None)
+        if not resolver_match:
+            return False
+        return resolver_match.url_name in EXPLICIT_CSRF_EXEMPT_URL_NAMES
 
     def _extract_session_token(self, request):
         auth_header = authentication.get_authorization_header(request).decode("utf-8").strip()
