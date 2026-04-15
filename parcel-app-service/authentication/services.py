@@ -136,8 +136,14 @@ class CustomerService:
             expires_at=expires_at
         )
         
-        # Send reset email using existing EmailService
-        EmailService.send_password_reset_email(customer, token, request)
+        # Send reset email using existing EmailService. The API contract relies
+        # on the persisted PasswordResetToken above; email delivery is best-effort.
+        EmailService.send_password_reset_email(
+            customer,
+            request,
+            'emails/password_reset.html',
+            email_type='customer',
+        )
         
         return True, "Password reset email sent"
     
