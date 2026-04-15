@@ -112,7 +112,6 @@ class Order(models.Model):
         items = self.items.all()
         self.subtotal = sum(item.total_price for item in items)
         self.total_amount = self.subtotal + self.shipping_fee + self.tax_amount - self.discount_amount
-        self.save(update_fields=['subtotal', 'total_amount'])
     
     @property
     def is_paid(self):
