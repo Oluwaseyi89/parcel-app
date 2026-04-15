@@ -9,8 +9,9 @@ from .models import (
     AuditLog, CustomerUser, VendorUser, CourierUser
 )
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
+from django.utils import timezone
 from rest_framework import serializers
 from django.contrib.auth.hashers import make_password, check_password
 from core.tokens import account_activation_token
@@ -619,8 +620,9 @@ class CustomerPasswordResetSerializer(serializers.Serializer):
                 'token': 'Invalid or expired reset token.'
             })
         
-        # Verify the user is a customer
-        if reset_token.admin.role not in ['customer', 'premium_customer']:
+        # Verify the token belongs to a customer account.
+        token_user = reset_token.user
+        if token_user is None or getattr(token_user, 'role', None) not in ['customer', 'premium_customer']:
             raise serializers.ValidationError({
                 'token': 'Invalid token for customer reset.'
             })

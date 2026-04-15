@@ -15,7 +15,37 @@ class OrderService:
     @staticmethod
     def create_order(customer, order_data, request=None):
         """Create a new order"""
+        items_data = order_data.get('items', [])
+        if not items_data or len(items_data) == 0:
+            raise ValidationError('Order must contain at least one item.')
+        for item_data in items_data:
+            quantity = item_data.get('quantity', 1)
+            if quantity <= 0:
+                raise ValidationError('Quantity must be greater than zero.')
         with transaction.atomic():
+            # Lock all products to be ordered
+            product_ids = [item['product_id'] for item in items_data]
+            products = Product.objects.select_for_update().filter(id__in=product_ids, status='active')
+            products_map = {p.id: p for p in products}
+            # Check all products exist
+            for item_data in items_data:
+                product_id = item_data.get('product_id')
+                if product_id not in products_map:
+                    raise ValidationError(f'Product with ID {product_id} not found.')
+            # Check and reserve stock
+            for item_data in items_data:
+                product_id = item_data.get('product_id')
+                quantity = item_data.get('quantity', 1)
+                product = products_map[product_id]
+                if product.quantity < quantity:
+                    raise ValidationError(
+                        f'Insufficient stock for {product.name}. '
+                        f'Available: {product.quantity}, Requested: {quantity}'
+                    )
+                # Reserve stock atomically
+                product.quantity = F('quantity') - quantity
+                product.save(update_fields=['quantity'])
+                product.refresh_from_db()
             # Create order
             order = Order.objects.create(
                 customer=customer,
@@ -26,36 +56,20 @@ class OrderService:
                 tax_amount=order_data.get('tax_amount', 0),
                 discount_amount=order_data.get('discount_amount', 0)
             )
-            
             # Add order items
-            items_data = order_data.get('items', [])
             for item_data in items_data:
                 product_id = item_data.get('product_id')
                 quantity = item_data.get('quantity', 1)
-                
-                try:
-                    product = Product.objects.get(id=product_id, status='active')
-                    
-                    # Check stock availability
-                    if product.quantity < quantity:
-                        raise ValidationError(
-                            f'Insufficient stock for {product.name}. '
-                            f'Available: {product.quantity}, Requested: {quantity}'
-                        )
-                    
-                    OrderItem.objects.create(
-                        order=order,
-                        product=product,
-                        product_name=product.name,
-                        product_sku=product.sku,
-                        unit_price=product.discounted_price,
-                        quantity=quantity,
-                        vendor=product.vendor
-                    )
-                    
-                except Product.DoesNotExist:
-                    raise ValidationError(f'Product with ID {product_id} not found.')
-            
+                product = products_map[product_id]
+                OrderItem.objects.create(
+                    order=order,
+                    product=product,
+                    product_name=product.name,
+                    product_sku=product.sku,
+                    unit_price=product.discounted_price,
+                    quantity=quantity,
+                    vendor=product.vendor
+                )
             # Calculate totals
             order.calculate_totals()
             
@@ -116,11 +130,12 @@ class OrderService:
             
             order.update_status(new_status, notes)
             
-            # Update inventory for cancelled orders
-            if new_status == 'cancelled':
+            # Update inventory for cancelled/refunded orders
+            if new_status in ('cancelled', 'refunded'):
                 for item in order.items.all():
                     if item.product:
-                        item.product.update_inventory(item.quantity)
+                        # Restore stock atomically
+                        Product.objects.filter(id=item.product.id).update(quantity=F('quantity') + item.quantity)
             
             # Log status change
             AuditLog.log_action(
