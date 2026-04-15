@@ -15,6 +15,13 @@ class OrderService:
     @staticmethod
     def create_order(customer, order_data, request=None):
         """Create a new order"""
+        items_data = order_data.get('items', [])
+        if not items_data or len(items_data) == 0:
+            raise ValidationError('Order must contain at least one item.')
+        for item_data in items_data:
+            quantity = item_data.get('quantity', 1)
+            if quantity <= 0:
+                raise ValidationError('Quantity must be greater than zero.')
         with transaction.atomic():
             # Create order
             order = Order.objects.create(
@@ -26,23 +33,18 @@ class OrderService:
                 tax_amount=order_data.get('tax_amount', 0),
                 discount_amount=order_data.get('discount_amount', 0)
             )
-            
             # Add order items
-            items_data = order_data.get('items', [])
             for item_data in items_data:
                 product_id = item_data.get('product_id')
                 quantity = item_data.get('quantity', 1)
-                
                 try:
                     product = Product.objects.get(id=product_id, status='active')
-                    
                     # Check stock availability
                     if product.quantity < quantity:
                         raise ValidationError(
                             f'Insufficient stock for {product.name}. '
                             f'Available: {product.quantity}, Requested: {quantity}'
                         )
-                    
                     OrderItem.objects.create(
                         order=order,
                         product=product,
@@ -52,10 +54,8 @@ class OrderService:
                         quantity=quantity,
                         vendor=product.vendor
                     )
-                    
                 except Product.DoesNotExist:
                     raise ValidationError(f'Product with ID {product_id} not found.')
-            
             # Calculate totals
             order.calculate_totals()
             
