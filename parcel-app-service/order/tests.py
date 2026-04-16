@@ -4,7 +4,7 @@ from django.test import override_settings
 from rest_framework.test import APIClient
 
 from authentication.models import CustomerUser, VendorUser, CourierUser
-from order.models import Payment, Order
+from order.models import Payment, Order, ShippingAddress
 from order.services import OrderService
 from product.models import Product
 
@@ -320,3 +320,68 @@ class CourierOrderVisibilityTests(TestCase):
         data2 = resp2.data['data']
         self.assertTrue(all(order['courier'] == self.courier2.id for order in data2))
         self.assertFalse(any(order['courier'] == self.courier1.id for order in data2))
+
+
+class ShippingAddressOwnershipTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        # Create two users
+        self.user1 = CustomerUser.objects.create(
+            email='user1@example.com', first_name='User', last_name='One', role='customer', is_email_verified=True
+        )
+        self.user1.set_password('password1')
+        self.user1.save()
+        self.user2 = CustomerUser.objects.create(
+            email='user2@example.com', first_name='User', last_name='Two', role='customer', is_email_verified=True
+        )
+        self.user2.set_password('password2')
+        self.user2.save()
+        # Create a shipping address for user1
+        from order.models import ShippingAddress
+        self.addr1 = ShippingAddress.objects.create(
+            customer=self.user1,
+            full_name='User One', phone='08000000001', email='user1@example.com',
+            street_address='1 Main St', apartment='', city='Lagos', state='Lagos', country='Nigeria', postal_code='100001',
+            is_default=True, is_active=True
+        )
+    def test_user_can_only_see_own_addresses(self):
+        self.client.force_authenticate(user=self.user1)
+        resp = self.client.get('/order/shipping-addresses/')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.data['data']
+        self.assertTrue(any(addr['id'] == self.addr1.id for addr in data))
+        # User2 should see nothing
+        self.client.force_authenticate(user=self.user2)
+        resp2 = self.client.get('/order/shipping-addresses/')
+        self.assertEqual(resp2.status_code, 200)
+        data2 = resp2.data['data']
+        self.assertFalse(any(addr['id'] == self.addr1.id for addr in data2))
+    def test_user_cannot_create_address_for_another_user(self):
+        self.client.force_authenticate(user=self.user2)
+        # Try to create address for user1 by passing customer field (should be ignored)
+        resp = self.client.post('/order/shipping-addresses/', {
+            'full_name': 'User One', 'phone': '08000000001', 'email': 'user1@example.com',
+            'street_address': '2 Main St', 'apartment': '', 'city': 'Lagos', 'state': 'Lagos', 'country': 'Nigeria', 'postal_code': '100002',
+            'is_default': True, 'is_active': True, 'customer': self.user1.id
+        }, format='json')
+        self.assertEqual(resp.status_code, 201)
+        # The created address must belong to user2, not user1
+        from order.models import ShippingAddress
+        addr = ShippingAddress.objects.get(id=resp.data['data']['id'])
+        self.assertEqual(addr.customer, self.user2)
+    def test_user_cannot_update_another_users_address(self):
+        self.client.force_authenticate(user=self.user2)
+        # Try to update user1's address (should not be allowed, but endpoint does not expose PUT/PATCH by id)
+        # Simulate by attempting to create with same id (should create new, not update)
+        resp = self.client.post('/order/shipping-addresses/', {
+            'id': self.addr1.id,
+            'full_name': 'Hacker', 'phone': '08000000009', 'email': 'hacker@example.com',
+            'street_address': 'Hacker St', 'apartment': '', 'city': 'Lagos', 'state': 'Lagos', 'country': 'Nigeria', 'postal_code': '999999',
+            'is_default': False, 'is_active': True
+        }, format='json')
+        self.assertEqual(resp.status_code, 201)
+        # The original address for user1 should remain unchanged
+        from order.models import ShippingAddress
+        addr1 = ShippingAddress.objects.get(id=self.addr1.id)
+        self.assertEqual(addr1.customer, self.user1)
+        self.assertEqual(addr1.full_name, 'User One')
