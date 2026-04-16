@@ -121,12 +121,17 @@ class OrderService:
             if new_status == 'dispatched':
                 order.tracking_number = kwargs.get('tracking_number', '')
                 courier_id = kwargs.get('courier_id')
-                if courier_id:
+                if courier_id is not None:
                     try:
-                        courier = CourierUser.objects.get(id=courier_id, is_active=True)
+                        courier = CourierUser.objects.get(
+                            id=courier_id,
+                            is_active=True,
+                            is_approved=True,
+                            status='active',
+                        )
                         order.courier = courier
                     except CourierUser.DoesNotExist:
-                        raise ValidationError('Courier not found.')
+                        raise ValidationError('Courier must be active, approved, and have status=active.')
             
             order.update_status(new_status, notes)
             
