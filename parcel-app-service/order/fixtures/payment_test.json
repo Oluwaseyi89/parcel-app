@@ -1,0 +1,23 @@
+[
+  {
+    "model": "order.payment",
+    "pk": 999,
+    "fields": {
+      "order": 1,
+      "customer": 1,
+      "payment_method": "card",
+      "payment_provider": "paystack",
+      "transaction_id": "TXN-TEST-001",
+      "reference": "PAY-MOCK-001",
+      "amount": "1000.00",
+      "fees": "0.00",
+      "net_amount": "1000.00",
+      "status": "completed",
+      "failure_reason": "",
+      "provider_response": {},
+      "initiated_at": "2024-01-01T00:00:00Z",
+      "completed_at": "2024-01-01T00:10:00Z",
+      "refunded_at": null
+    }
+  }
+]
