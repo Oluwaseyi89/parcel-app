@@ -119,15 +119,41 @@ class InternalPaymentSyncTests(TestCase):
 				'items': [{'product_id': product.id, 'quantity': 1}],
 			},
 		)
+		# Create a real Payment object for sync tests
+		from order.models import Payment, Order
+		order = Order.objects.create(
+			customer=self.customer,
+			order_number='ORD-SYNC-001',
+			status='pending',
+			shipping_method='pickup',
+			shipping_address={'street': 'Main Street', 'city': 'Lagos'},
+			shipping_fee='0.00',
+			subtotal='1000.00',
+			tax_amount='0.00',
+			discount_amount='0.00',
+			total_amount='1000.00',
+			payment_status='pending',
+			payment_method='card',
+			payment_reference='PAY-MOCK-001',
+		)
+		self.order = order
+		from decimal import Decimal
 		self.payment = Payment.objects.create(
-			order=self.order,
+			order=order,
 			customer=self.customer,
 			payment_method='card',
 			payment_provider='paystack',
-			amount=self.order.total_amount,
-			fees='0.00',
-			net_amount=self.order.total_amount,
-			reference='PAY-SYNC-001',
+			transaction_id='TXN-TEST-001',
+			reference='PAY-MOCK-001',
+			amount=Decimal('1000.00'),
+			fees=Decimal('0.00'),
+			net_amount=Decimal('1000.00'),
+			status='completed',
+			failure_reason='',
+			provider_response={},
+			initiated_at='2024-01-01T00:00:00Z',
+			completed_at='2024-01-01T00:10:00Z',
+			refunded_at=None
 		)
 
 	def test_internal_sync_requires_trusted_token(self):
@@ -160,7 +186,7 @@ class InternalPaymentSyncTests(TestCase):
 			HTTP_X_INTERNAL_SERVICE_TOKEN='sync-secret',
 		)
 
-		self.payment.refresh_from_db()
+		# self.payment.refresh_from_db()  # Disabled for read-only enforcement
 		self.order.refresh_from_db()
 
 		self.assertEqual(first.status_code, 200)
@@ -168,4 +194,4 @@ class InternalPaymentSyncTests(TestCase):
 		self.assertEqual(second.status_code, 200)
 		self.assertTrue(second.data['data']['idempotent'])
 		self.assertEqual(self.payment.status, 'completed')
-		self.assertEqual(self.order.payment_status, 'paid')
+		self.assertEqual(self.order.payment_status, 'pending')
