@@ -1,0 +1,119 @@
+[
+  {
+    "model": "authentication.customeruser",
+    "pk": 1,
+    "fields": {
+      "email": "fixture-customer@example.com",
+      "first_name": "Fixture",
+      "last_name": "Customer",
+      "role": "customer",
+      "is_email_verified": true,
+      "is_active": true,
+      "password": "pbkdf2_sha256$260000$test$testhash",
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "authentication.vendoruser",
+    "pk": 1,
+    "fields": {
+      "email": "fixture-vendor@example.com",
+      "first_name": "Fixture",
+      "last_name": "Vendor",
+      "phone": "08000000000",
+      "business_name": "Fixture Vendor",
+      "role": "vendor",
+      "is_approved": true,
+      "is_email_verified": true,
+      "is_active": true,
+      "password": "pbkdf2_sha256$260000$test$testhash",
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "product.product",
+    "pk": 1,
+    "fields": {
+      "vendor": 1,
+      "name": "Fixture Product",
+      "description": "A sample product",
+      "price": "1000.00",
+      "quantity": 20,
+      "main_image": "products/fixture-product.jpg",
+      "sku": "SKU-FIXTURE-001",
+      "slug": "fixture-product-001",
+      "status": "active",
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "order.order",
+    "pk": 1,
+    "fields": {
+      "customer": 1,
+      "order_number": "ORD-20240101-00001",
+      "status": "pending",
+      "shipping_method": "pickup",
+      "shipping_address": {"street": "Main Street", "city": "Lagos", "state": "Lagos", "country": "Nigeria", "postal_code": "100001"},
+      "shipping_fee": "0.00",
+      "subtotal": "1000.00",
+      "tax_amount": "0.00",
+      "discount_amount": "0.00",
+      "total_amount": "1000.00",
+      "payment_status": "completed",
+      "payment_method": "card",
+      "payment_reference": "PAY-MOCK-001",
+      "courier": null,
+      "tracking_number": "",
+      "estimated_delivery": null,
+      "delivered_at": null,
+      "customer_notes": "",
+      "internal_notes": "",
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z",
+      "confirmed_at": null,
+      "cancelled_at": null
+    }
+  },
+  {
+    "model": "order.orderitem",
+    "pk": 1,
+    "fields": {
+      "order": 1,
+      "product": 1,
+      "product_name": "Fixture Product",
+      "product_sku": "SKU-FIXTURE-001",
+      "unit_price": "1000.00",
+      "quantity": 1,
+      "discount_percentage": "0.00",
+      "vendor": 1,
+      "status": "pending",
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
+    }
+  },
+  {
+    "model": "order.payment",
+    "pk": 999,
+    "fields": {
+      "order": 1,
+      "customer": 1,
+      "payment_method": "card",
+      "payment_provider": "paystack",
+      "transaction_id": "TXN-TEST-001",
+      "reference": "PAY-MOCK-001",
+      "amount": "1000.00",
+      "fees": "0.00",
+      "net_amount": "1000.00",
+      "status": "completed",
+      "failure_reason": "",
+      "provider_response": {},
+      "initiated_at": "2024-01-01T00:00:00Z",
+      "completed_at": "2024-01-01T00:10:00Z",
+      "refunded_at": null
+    }
+  }
+]

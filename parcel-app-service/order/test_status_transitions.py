@@ -122,20 +122,21 @@ class AllowedTransitionTests(TestCase):
 		for next_status in chain[start + 1 : end + 1]:
 			kwargs = {}
 			if next_status == 'dispatched':
-				from authentication.models import CourierUser
-				courier = CourierUser.objects.create(
-					email=f'courier-{Order.objects.count()}@example.com',
-					first_name='Courier',
-					last_name='Test',
-					phone=f'0830000{Order.objects.count():04d}',
-					role='courier',
-					is_email_verified=True,
-					is_approved=True,
-					is_active=True,
-				)
-				courier.set_password('StrongPassword123')
-				courier.save()
-				kwargs = {'tracking_number': f'TRK-{order.id}', 'courier_id': courier.id}
+					from authentication.models import CourierUser
+					courier = CourierUser.objects.create(
+						email=f'courier-{Order.objects.count()}@example.com',
+						first_name='Courier',
+						last_name='Test',
+						phone=f'0830000{Order.objects.count():04d}',
+						role='courier',
+						is_email_verified=True,
+						is_approved=True,
+						is_active=True,
+						status='active',
+					)
+					courier.set_password('StrongPassword123')
+					courier.save()
+					kwargs = {'tracking_number': f'TRK-{order.id}', 'courier_id': courier.id}
 			OrderService.update_order_status(order.id, next_status, self.admin, '', **kwargs)
 			order.refresh_from_db()
 
@@ -192,6 +193,7 @@ class AllowedTransitionTests(TestCase):
 			is_email_verified=True,
 			is_approved=True,
 			is_active=True,
+			status='active',
 		)
 		courier.set_password('StrongPassword123')
 		courier.save()
@@ -268,6 +270,7 @@ class ForbiddenTransitionTests(TestCase):
 		chain = ['pending', 'confirmed', 'processing', 'ready', 'dispatched', 'in_transit', 'delivered']
 		start = chain.index(order.status)
 		end = chain.index(target_status)
+		courier = None
 		for next_status in chain[start + 1 : end + 1]:
 			kwargs = {}
 			if next_status == 'dispatched':
@@ -282,10 +285,30 @@ class ForbiddenTransitionTests(TestCase):
 					is_email_verified=True,
 					is_approved=True,
 					is_active=True,
+					status='active',
 				)
 				courier.set_password('StrongPassword123')
 				courier.save()
 				kwargs = {'tracking_number': f'TRK-F-{order.id}', 'courier_id': courier.id}
+			elif next_status in ['in_transit', 'delivered']:
+				# Ensure courier is always present for these transitions
+				if not courier:
+					from authentication.models import CourierUser
+					self._counter += 1
+					courier = CourierUser.objects.create(
+						email=f'forbid-courier-{self._counter}@example.com',
+						first_name='Courier',
+						last_name='Forbid',
+						phone=f'0840000{self._counter:04d}',
+						role='courier',
+						is_email_verified=True,
+						is_approved=True,
+						is_active=True,
+						status='active',
+					)
+					courier.set_password('StrongPassword123')
+					courier.save()
+				kwargs = {'courier_id': courier.id}
 			OrderService.update_order_status(order.id, next_status, self.admin, '', **kwargs)
 			order.refresh_from_db()
 
@@ -496,6 +519,7 @@ class TimestampTests(TestCase):
 			is_email_verified=True,
 			is_approved=True,
 			is_active=True,
+			status='active',
 		)
 		courier.set_password('StrongPassword123')
 		courier.save()
@@ -503,10 +527,10 @@ class TimestampTests(TestCase):
 			self.order.id, 'dispatched', self.admin, '',
 			tracking_number='TRK-TS-001', courier_id=courier.id,
 		)
-		OrderService.update_order_status(self.order.id, 'in_transit', self.admin)
+		OrderService.update_order_status(self.order.id, 'in_transit', self.admin, '', courier_id=courier.id)
 
 		self.assertIsNone(self.order.delivered_at)
-		OrderService.update_order_status(self.order.id, 'delivered', self.admin)
+		OrderService.update_order_status(self.order.id, 'delivered', self.admin, '', courier_id=courier.id)
 		self.order.refresh_from_db()
 		self.assertIsNotNone(self.order.delivered_at)
 
