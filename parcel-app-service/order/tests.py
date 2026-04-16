@@ -455,3 +455,126 @@ class DispatchCreationPreconditionTests(TestCase):
         # Try to dispatch an already dispatched order
         with self.assertRaises(Exception):
             OrderService.update_order_status(self.order_dispatched.id, 'dispatched', self.vendor, courier_id=self.courier.id)
+
+
+class DispatchAssignmentAndStatusMatrixTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        # Create a vendor and product
+        self.vendor = VendorUser.objects.create(
+            email='vendor-matrix@example.com', first_name='Vendor', last_name='Matrix', phone='08000000111',
+            business_name='Vendor Matrix', role='vendor', is_approved=True, is_email_verified=True
+        )
+        self.vendor.set_password('password')
+        self.vendor.save()
+        self.product = Product.objects.create(
+            vendor=self.vendor, name='Product M', description='PM', price='500.00', quantity=10,
+            main_image=SimpleUploadedFile('pm.jpg', b'img', content_type='image/jpeg'), sku='SKU-M', slug='sku-m', status='active'
+        )
+        # Create a customer
+        self.customer = CustomerUser.objects.create(
+            email='customer-matrix@example.com', first_name='Cust', last_name='Matrix', role='customer', is_email_verified=True
+        )
+        self.customer.set_password('password')
+        self.customer.save()
+        # Create couriers
+        from authentication.models import CourierUser
+        self.courier_active = CourierUser.objects.create(
+            email='courier-active@example.com', first_name='Courier', last_name='Active', phone='08000000221',
+            role='courier', is_approved=True, is_email_verified=True, status='active'
+        )
+        self.courier_active.set_password('password')
+        self.courier_active.save()
+        self.courier_inactive = CourierUser.objects.create(
+            email='courier-inactive@example.com', first_name='Courier', last_name='Inactive', phone='08000000222',
+            role='courier', is_approved=True, is_email_verified=True, status='inactive'
+        )
+        self.courier_inactive.set_password('password')
+        self.courier_inactive.save()
+        self.courier_unapproved = CourierUser.objects.create(
+            email='courier-unapproved@example.com', first_name='Courier', last_name='Unapproved', phone='08000000223',
+            role='courier', is_approved=False, is_email_verified=True, status='active'
+        )
+        self.courier_unapproved.set_password('password')
+        self.courier_unapproved.save()
+        # Create a ready/paid order
+        self.order = OrderService.create_order(self.customer, {
+            'shipping_method': 'pickup',
+            'shipping_address': {'street': 'A', 'city': 'Lagos'},
+            'items': [{'product_id': self.product.id, 'quantity': 1}],
+        })
+        self.order.status = 'ready'
+        self.order.payment_status = 'paid'
+        self.order.save()
+    def test_status_progression_matrix(self):
+        from order.services import OrderService
+        # Allowed transitions (removed 'ready'->'cancelled')
+        allowed = [
+            ('ready', 'dispatched'),
+            ('dispatched', 'in_transit'),
+            ('in_transit', 'delivered'),
+            ('pending', 'confirmed'),
+            ('confirmed', 'processing'),
+            ('processing', 'ready'),
+            ('pending', 'cancelled'),
+            ('confirmed', 'cancelled'),
+            ('processing', 'cancelled'),
+            # ('in_transit', 'cancelled'),  # Not allowed in standard ecommerce
+            ('delivered', 'refunded'),
+        ]
+        for from_status, to_status in allowed:
+            self.order.status = from_status
+            self.order.save()
+            kwargs = {}
+            # Provide courier_id for transitions that require a courier
+            if from_status in ['ready', 'dispatched', 'in_transit'] or (from_status == 'in_transit' and to_status == 'cancelled'):
+                kwargs['courier_id'] = self.courier_active.id
+            try:
+                OrderService.update_order_status(self.order.id, to_status, self.vendor, **kwargs)
+            except Exception:
+                self.fail(f"Allowed transition {from_status} -> {to_status} failed")
+        # Disallowed transitions
+        disallowed = [
+            ('pending', 'dispatched'),
+            ('pending', 'delivered'),
+            ('ready', 'delivered'),
+            ('dispatched', 'ready'),
+            ('delivered', 'dispatched'),
+            ('cancelled', 'ready'),
+            ('ready', 'cancelled'),  # Now disallowed
+            ('dispatched', 'cancelled'),  # Now disallowed
+        ]
+        for from_status, to_status in disallowed:
+            self.order.status = from_status
+            self.order.save()
+            with self.assertRaises(Exception):
+                OrderService.update_order_status(self.order.id, to_status, self.vendor)
+    def test_assignment_rejects_inactive_unapproved_courier(self):
+        from order.services import OrderService
+        self.order.status = 'ready'
+        self.order.save()
+        # Patch couriers to test all conditions
+        # Inactive courier (is_active=False)
+        self.courier_active.is_active = False
+        self.courier_active.save()
+        with self.assertRaises(Exception):
+            OrderService.update_order_status(self.order.id, 'dispatched', self.vendor, courier_id=self.courier_active.id)
+        self.courier_active.is_active = True
+        self.courier_active.save()
+        # Unapproved courier (is_approved=False)
+        self.courier_active.is_approved = False
+        self.courier_active.save()
+        with self.assertRaises(Exception):
+            OrderService.update_order_status(self.order.id, 'dispatched', self.vendor, courier_id=self.courier_active.id)
+        self.courier_active.is_approved = True
+        self.courier_active.save()
+        # Inactive status
+        self.courier_active.status = 'inactive'
+        self.courier_active.save()
+        with self.assertRaises(Exception):
+            OrderService.update_order_status(self.order.id, 'dispatched', self.vendor, courier_id=self.courier_active.id)
+        self.courier_active.status = 'active'
+        self.courier_active.save()
+        # Now valid
+        order = OrderService.update_order_status(self.order.id, 'dispatched', self.vendor, courier_id=self.courier_active.id)
+        self.assertEqual(order.courier, self.courier_active)
