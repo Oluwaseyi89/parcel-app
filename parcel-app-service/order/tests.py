@@ -385,3 +385,73 @@ class ShippingAddressOwnershipTests(TestCase):
         addr1 = ShippingAddress.objects.get(id=self.addr1.id)
         self.assertEqual(addr1.customer, self.user1)
         self.assertEqual(addr1.full_name, 'User One')
+
+
+class DispatchCreationPreconditionTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        # Create a courier
+        from authentication.models import CourierUser
+        self.courier = CourierUser.objects.create(
+            email='courier-disp@example.com', first_name='Courier', last_name='Dispatch', phone='08000000099',
+            role='courier', is_approved=True, is_email_verified=True, status='active'
+        )
+        self.courier.set_password('password')
+        self.courier.save()
+        # Create a vendor and product
+        self.vendor = VendorUser.objects.create(
+            email='vendor-disp@example.com', first_name='Vendor', last_name='Dispatch', phone='08000000088',
+            business_name='Vendor Dispatch', role='vendor', is_approved=True, is_email_verified=True
+        )
+        self.vendor.set_password('password')
+        self.vendor.save()
+        self.product = Product.objects.create(
+            vendor=self.vendor, name='Product D', description='PD', price='400.00', quantity=10,
+            main_image=SimpleUploadedFile('pd.jpg', b'img', content_type='image/jpeg'), sku='SKU-D', slug='sku-d', status='active'
+        )
+        # Create a customer
+        self.customer = CustomerUser.objects.create(
+            email='customer-disp@example.com', first_name='Cust', last_name='Disp', role='customer', is_email_verified=True
+        )
+        self.customer.set_password('password')
+        self.customer.save()
+        # Create orders in various states
+        from order.models import Order
+        self.order_pending = OrderService.create_order(self.customer, {
+            'shipping_method': 'pickup',
+            'shipping_address': {'street': 'A', 'city': 'Lagos'},
+            'items': [{'product_id': self.product.id, 'quantity': 1}],
+        })
+        self.order_ready = OrderService.create_order(self.customer, {
+            'shipping_method': 'pickup',
+            'shipping_address': {'street': 'B', 'city': 'Lagos'},
+            'items': [{'product_id': self.product.id, 'quantity': 1}],
+        })
+        self.order_ready.status = 'ready'
+        self.order_ready.payment_status = 'paid'
+        self.order_ready.save()
+        self.order_dispatched = OrderService.create_order(self.customer, {
+            'shipping_method': 'pickup',
+            'shipping_address': {'street': 'C', 'city': 'Lagos'},
+            'items': [{'product_id': self.product.id, 'quantity': 1}],
+        })
+        self.order_dispatched.status = 'dispatched'
+        self.order_dispatched.payment_status = 'paid'
+        self.order_dispatched.courier = self.courier
+        self.order_dispatched.save()
+    def test_cannot_dispatch_non_ready_order(self):
+        # Try to dispatch a pending order
+        from order.services import OrderService
+        with self.assertRaises(Exception):
+            OrderService.update_order_status(self.order_pending.id, 'dispatched', self.vendor)
+    def test_can_dispatch_ready_paid_order(self):
+        from order.services import OrderService
+        # Should succeed
+        order = OrderService.update_order_status(self.order_ready.id, 'dispatched', self.vendor, courier_id=self.courier.id)
+        self.assertEqual(order.status, 'dispatched')
+        self.assertEqual(order.courier, self.courier)
+    def test_duplicate_dispatch_prevented(self):
+        from order.services import OrderService
+        # Try to dispatch an already dispatched order
+        with self.assertRaises(Exception):
+            OrderService.update_order_status(self.order_dispatched.id, 'dispatched', self.vendor, courier_id=self.courier.id)
