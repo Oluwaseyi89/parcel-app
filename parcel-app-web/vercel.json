@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "routes": [
+    {
+      "src": "/sw.js",
+      "headers": { "Service-Worker-Allowed": "/" },
+      "continue": true
+    }
+  ]
+}
