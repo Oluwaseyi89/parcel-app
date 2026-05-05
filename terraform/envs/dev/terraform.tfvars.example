@@ -1,0 +1,76 @@
+###############################################################################
+# Parcel App Terraform - DEV example values
+# Copy to terraform.tfvars and edit to your needs.
+###############################################################################
+
+project     = "parcel-app"
+environment = "dev"
+aws_region  = "eu-west-1"
+
+availability_zones = ["eu-west-1a", "eu-west-1b"]
+
+# ── Independent deployment flags ───────────────────────────────────────────────
+enable_frontend_web    = true
+enable_frontend_admin  = true
+enable_backend_api     = true
+enable_payment_service = true
+enable_celery_worker   = true
+enable_celery_beat     = true
+enable_aurora          = true
+enable_redis           = true
+enable_sqs             = true
+enable_monitoring      = true
+
+# Example: deploy only frontend + API
+# enable_frontend_web    = true
+# enable_frontend_admin  = true
+# enable_backend_api     = true
+# enable_payment_service = false
+# enable_celery_worker   = false
+# enable_celery_beat     = false
+# enable_aurora          = true
+# enable_redis           = true
+# enable_sqs             = false
+# enable_monitoring      = true
+
+# ── TLS / domains ──────────────────────────────────────────────────────────────
+acm_certificate_arn            = ""
+cloudfront_acm_certificate_arn = ""
+waf_web_acl_arn                = ""
+
+domain_web_aliases   = []
+domain_admin_aliases = []
+
+# ── App image tags ─────────────────────────────────────────────────────────────
+django_image_tag  = "latest"
+payment_image_tag = "latest"
+
+# ── Sizing ─────────────────────────────────────────────────────────────────────
+django_cpu    = 512
+django_memory = 1024
+payment_cpu   = 512
+payment_memory = 1024
+worker_cpu    = 512
+worker_memory = 1024
+
+django_desired_count  = 1
+payment_desired_count = 1
+worker_desired_count  = 1
+beat_desired_count    = 1
+
+# ── Data tier ──────────────────────────────────────────────────────────────────
+aurora_database_name   = "parcel_db"
+aurora_master_username = "parcel_admin"
+aurora_min_capacity    = 0.5
+aurora_max_capacity    = 2
+
+redis_node_type = "cache.t4g.micro"
+redis_num_nodes = 1
+
+# ── Alerting ───────────────────────────────────────────────────────────────────
+alarm_email = ""
+
+common_tags = {
+  Owner = "portfolio"
+  Stack = "parcel-app"
+}
