@@ -6,6 +6,8 @@
 ![Payments](https://img.shields.io/badge/payments-Spring%20Boot%203.4-0f766e?style=for-the-badge)
 ![Mobile](https://img.shields.io/badge/mobile-Expo%20%2B%20React%20Native-1f2937?style=for-the-badge)
 ![Admin](https://img.shields.io/badge/admin-React%20%2B%20Vite-7c2d12?style=for-the-badge)
+![Infrastructure](https://img.shields.io/badge/infra-Terraform%20on%20AWS-7B42BC?style=for-the-badge)
+![Cloud](https://img.shields.io/badge/cloud-AWS%20ECS%20Fargate-FF9900?style=for-the-badge)
 
 Parcel App is a multi-surface platform for product discovery, checkout, parcel dispatch, courier workflows, vendor operations, complaints handling, and administrative control. This repository contains the backend services and client applications that together support customer shopping, vendor fulfillment, courier dispatch, payment processing, and internal operations.
 
@@ -23,9 +25,10 @@ The repository is organized as a practical product suite rather than a single co
 8. [Run Commands By Project](#-run-commands-by-project)
 9. [Quality Checks and Validation](#-quality-checks-and-validation)
 10. [Operational Notes and Current State](#-operational-notes-and-current-state)
-11. [Security Model](#-security-model)
-12. [Troubleshooting Guide](#-troubleshooting-guide)
-13. [Suggested Contributor Workflow](#-suggested-contributor-workflow)
+11. [Cloud Infrastructure](#-cloud-infrastructure)
+12. [Security Model](#-security-model)
+13. [Troubleshooting Guide](#-troubleshooting-guide)
+14. [Suggested Contributor Workflow](#-suggested-contributor-workflow)
 
 ## 🚀 What This Repository Contains
 
@@ -96,7 +99,12 @@ parcel-app/
 ├── parcel-app-payment-service/  # Spring Boot payment service with PostgreSQL
 ├── parcel-app-react/            # Older Vite-based storefront and payment UI
 ├── parcel-app-service/          # Main Django backend and domain APIs
-└── parcel-app-web/              # Current Next.js web application
+├── parcel-app-web/              # Current Next.js web application
+└── terraform/                   # AWS infrastructure as code (Terraform)
+    ├── envs/dev/                #   Development environment stack
+    ├── envs/staging/            #   Staging environment stack
+    ├── envs/prod/               #   Production environment stack
+    └── modules/                 #   Reusable modules (networking, ECS, Aurora, …)
 ```
 
 ### Component breakdown
@@ -367,6 +375,204 @@ Use project-local checks rather than assuming one root command exists.
 ### Good mental model
 
 This is a product suite with multiple clients around one business domain, not a single framework app split into packages.
+
+## ☁️ Cloud Infrastructure
+
+The `terraform/` directory contains a production-ready, modular Terraform layout that provisions the full Parcel App stack on AWS. Every service is independently toggleable, so you can bring up a partial stack (frontend only, backend only, data tier only) or the full platform in one pass.
+
+### AWS architecture
+
+```text
+                          ┌──────── Internet ─────────────────────────────────────────┐
+                          │                                                            │
+            Browsers/Apps │                                             Mobile (Expo)  │
+                          │                                                            │
+              ┌───────────▼──────────┐              ┌──────────────────────────────┐  │
+              │     CloudFront       │              │          Route 53             │  │
+              │  CDN + WAF edge      │              │   (optional custom domains)   │  │
+              │  web / admin assets  │              └──────────────┬───────────────┘  │
+              └───────────┬──────────┘                             │                  │
+                          │ /api/* /auth/*                         │ HTTPS            │
+                          │ /admin/* forwarded to ALB              │                  │
+              ┌───────────▼──────────────────────────────────────▼──────────────┐   │
+              │                Application Load Balancer (ALB)                   │   │
+              │   HTTPS :443  ─ path-based routing ─ target groups               │   │
+              └────────┬────────────────────┬───────────────────┬────────────────┘   │
+                       │ /api/* /auth/*      │ /payments/*        │ /paystack/*        │
+              ┌────────▼────────┐  ┌────────▼──────────┐ ┌──────▼──────────────────┐│
+              │  ECS Fargate    │  │   ECS Fargate      │ │   ECS Fargate           ││
+              │  django-api     │  │  payment-service   │ │   celery-worker         ││
+              │  (Django DRF)   │  │  (Spring Boot)     │ │   celery-beat           ││
+              └────────┬────────┘  └────────┬──────────┘ └─────────────────────────┘│
+                       │                    │                                          │
+          ┌────────────┼────────────────────┼──────────────────────┐                 │
+          │            │     Data Tier       │                      │                 │
+          │   ┌────────▼────────┐  ┌────────▼──────────┐  ┌────────▼──────────────┐ │
+          │   │ Aurora Postgres  │  │  ElastiCache Redis │  │   SQS + Dead-letter   │ │
+          │   │ Serverless v2   │  │  (session / cache) │  │   queue               │ │
+          │   └─────────────────┘  └───────────────────┘  └───────────────────────┘ │
+          │                                                                           │
+          │           Supporting Services                                            │
+          │   ┌─────────────────────────────────────────────────────────────────┐   │
+          │   │  ECR repos · Secrets Manager · CloudWatch · X-Ray · SNS alerts  │   │
+          │   └─────────────────────────────────────────────────────────────────┘   │
+          └───────────────────────────────────────────────────────────────────────────┘
+
+  Static hosting:
+  ┌───────────────────────────────────────────────────────────────────────────┐
+  │  S3 (parcel-app-web)  ──► CloudFront distribution  ──► browsers          │
+  │  S3 (parcel-app-admin) ──► CloudFront distribution ──► internal staff    │
+  └───────────────────────────────────────────────────────────────────────────┘
+
+  Networking:
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │  VPC (10.0.0.0/16)                                                  │
+  │   Public subnets  → ALB, NAT Gateways                               │
+  │   Private subnets → ECS tasks, Aurora, ElastiCache                  │
+  └─────────────────────────────────────────────────────────────────────┘
+```
+
+### Terraform module breakdown
+
+| Module | What it provisions |
+|---|---|
+| `networking` | VPC, public/private subnets across AZs, IGW, NAT gateways, route tables, VPC flow logs |
+| `security_groups` | Least-privilege SGs for ALB, ECS tasks, Aurora cluster, Redis, and inter-service rules |
+| `alb` | Application Load Balancer, HTTPS/HTTP listeners, path-based routing, access logs |
+| `ecs_cluster` | ECS Fargate cluster with Container Insights enabled |
+| `ecs_service` | Reusable template for any Fargate service — task definition, service, target group, listener rule, autoscaling |
+| `ecr` | Container registries for Django (API + workers) and the payment service; lifecycle policies |
+| `aurora` | Aurora PostgreSQL Serverless v2 cluster, subnet group, parameter group, automated backups |
+| `elasticache` | Redis replication group with TLS in-transit auth token, subnet group |
+| `sqs` | Standard work queue + dead-letter queue, queue policies scoped to app task roles |
+| `secrets` | Secrets Manager entries for DB passwords, Django secret key, Paystack key, SMTP password, Redis auth token |
+| `s3_frontend` | S3 buckets for Next.js and admin static builds; versioning and public-access blocks |
+| `cloudfront` | CloudFront distributions for web and admin buckets with origin access control; API passthrough to ALB |
+| `monitoring` | CloudWatch alarms (ECS CPU/memory, ALB 5xx, Aurora CPU), SNS alert topic, CloudWatch dashboard, X-Ray group |
+
+### Three-tier environment model
+
+```text
+terraform/
+├── envs/
+│   ├── dev/          ← development — single NAT, spot opt-in, low RCU/WCU
+│   ├── staging/      ← pre-production — mirrors prod topology at reduced scale
+│   └── prod/         ← production — multi-AZ NAT, deletion protection, full HA
+└── modules/          ← shared modules consumed by all three envs
+```
+
+Each environment has its own:
+- `backend.tf` — remote state in a dedicated S3 prefix with DynamoDB locking
+- `terraform.tfvars.example` — copy and fill to match your target account/region
+- independently tunable resource sizing (CPU, memory, min/max autoscaling capacity)
+
+### Feature flags — deploy only what you need
+
+Every major component is guarded by a boolean flag in `terraform.tfvars`. Set `false` to exclude it from the plan and apply entirely.
+
+```hcl
+# terraform/envs/dev/terraform.tfvars (example)
+
+enable_frontend_web     = true    # Next.js S3 + CloudFront
+enable_frontend_admin   = true    # Admin React app S3 + CloudFront
+enable_backend_api      = true    # Django API on ECS Fargate
+enable_payment_service  = true    # Spring Boot payment service on ECS Fargate
+enable_celery_worker    = true    # Async task worker
+enable_celery_beat      = false   # Scheduled task runner (off in dev)
+enable_aurora           = true    # Aurora PostgreSQL Serverless v2
+enable_redis            = true    # ElastiCache Redis
+enable_sqs              = true    # SQS work queue + DLQ
+enable_monitoring       = true    # CloudWatch alarms + dashboard
+```
+
+This means you can budget-control a portfolio demo by deploying only the web frontend and backend API, skipping the data tier or monitoring until needed.
+
+### Deploying the infrastructure
+
+#### Prerequisites
+
+- Terraform >= 1.5.0 installed
+- AWS CLI configured (`aws configure`) with an IAM user or role that has sufficient permissions
+- Verify your identity: `aws sts get-caller-identity`
+
+#### First-time backend bootstrap
+
+Before running `terraform init` for the first time, create the remote state resources:
+
+```bash
+# Create the S3 state bucket (adjust name to match terraform/envs/<env>/backend.tf)
+aws s3api create-bucket \
+  --bucket parcel-terraform-state \
+  --region us-east-1
+
+aws s3api put-bucket-versioning \
+  --bucket parcel-terraform-state \
+  --versioning-configuration Status=Enabled
+
+# Create the DynamoDB lock table
+aws dynamodb create-table \
+  --table-name parcel-terraform-locks \
+  --attribute-definitions AttributeName=LockID,AttributeType=S \
+  --key-schema AttributeName=LockID,KeyType=HASH \
+  --billing-mode PAY_PER_REQUEST \
+  --region us-east-1
+```
+
+#### Deploy a single environment
+
+```bash
+cd terraform/envs/dev
+cp terraform.tfvars.example terraform.tfvars
+# Edit terraform.tfvars: fill in ACM cert ARNs, domain aliases, alarm email, etc.
+
+terraform init
+terraform plan
+terraform apply
+```
+
+#### Validate and plan all environments without applying
+
+```bash
+cd terraform
+
+# Format check
+./tf-all.sh fmt
+
+# Validate all three environments (no credentials required)
+./tf-all.sh validate
+
+# Plan all three environments in a temporary backend-free workspace
+./tf-all.sh plan
+```
+
+Or use the Makefile equivalents:
+
+```bash
+make fmt-all
+make validate-all
+make plan-all
+```
+
+### What gets deployed per application
+
+| Application | Infrastructure it uses |
+|---|---|
+| `parcel-app-web` | S3 bucket → CloudFront distribution + ALB passthrough for API calls |
+| `parcel-app-admin` | Separate S3 bucket → CloudFront distribution |
+| `parcel-app-service` | ECS Fargate (`django-api`) + Aurora + Redis + SQS + ECR |
+| `parcel-app-payment-service` | ECS Fargate (`payment-service`) + Aurora + ECR |
+| `parcel-app-mobile` | Uses the same ALB/API endpoint, no separate infra provisioned |
+
+### Post-apply steps
+
+After a successful `terraform apply`:
+
+1. **Push container images** to the ECR repositories created by Terraform. Image URIs are in `terraform output`.
+2. **Replace placeholder secrets** in AWS Secrets Manager — Paystack key and SMTP password are seeded with literal placeholders.
+3. **Force a new ECS deployment** so services pick up the real container images.
+4. **Point DNS** — if using custom domains, create ALIAS/CNAME records targeting the CloudFront and ALB hostnames from `terraform output`.
+
+> Full operator notes, required IAM permissions, and least-privilege setup options are documented in [terraform/README.md](terraform/README.md).
 
 ## 🔒 Security Model
 
