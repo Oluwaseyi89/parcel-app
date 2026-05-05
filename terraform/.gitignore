@@ -1,0 +1,37 @@
+# Local .terraform directories
+**/.terraform/*
+
+# Terraform state — never commit these
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Crash log files
+crash.log
+crash.*.log
+
+# Exclude all .tfvars files (contain secrets / local overrides)
+# Commit terraform.tfvars.example instead
+*.tfvars
+!*.tfvars.example
+
+# Override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Lock file — commit this to pin provider versions
+# .terraform.lock.hcl
+
+# Terraform plan output
+*.tfplan
+*.plan
+
+# CLI config override
+.terraformrc
+terraform.rc
+
+# SSH keys or certs accidentally dropped here
+*.pem
+*.key
