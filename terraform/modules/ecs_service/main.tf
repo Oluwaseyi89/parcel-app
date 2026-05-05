@@ -14,7 +14,9 @@ data "aws_region" "current" {}
 data "aws_caller_identity" "current" {}
 
 locals {
-  full_name = "${var.project}-${var.environment}-${var.name}"
+  full_name                = "${var.project}-${var.environment}-${var.name}"
+  create_alb_listener_rule = var.container_port != null && (length(var.alb_path_patterns) > 0 || length(var.alb_host_headers) > 0)
+  target_group_name_prefix = substr(replace("${var.environment}${var.name}", "-", ""), 0, 6)
 }
 
 # ── CloudWatch Log Group ───────────────────────────────────────────────────────
@@ -144,7 +146,7 @@ resource "aws_ecs_task_definition" "this" {
 resource "aws_lb_target_group" "this" {
   count = var.container_port != null ? 1 : 0
 
-  name        = "${local.full_name}-tg"
+  name_prefix = local.target_group_name_prefix
   port        = var.container_port
   protocol    = "HTTP"
   vpc_id      = var.vpc_id
@@ -171,7 +173,7 @@ resource "aws_lb_target_group" "this" {
 
 # ── ALB Listener Rule (only when both port and listener ARN are provided) ───────
 resource "aws_lb_listener_rule" "this" {
-  count = var.container_port != null && var.alb_listener_arn != null ? 1 : 0
+  count = local.create_alb_listener_rule ? 1 : 0
 
   listener_arn = var.alb_listener_arn
   priority     = var.alb_listener_rule_priority
@@ -220,7 +222,7 @@ resource "aws_ecs_service" "this" {
   }
 
   dynamic "load_balancer" {
-    for_each = var.container_port != null && var.alb_listener_arn != null ? [1] : []
+    for_each = local.create_alb_listener_rule ? [1] : []
     content {
       target_group_arn = aws_lb_target_group.this[0].arn
       container_name   = var.name

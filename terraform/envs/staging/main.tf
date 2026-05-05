@@ -7,6 +7,13 @@ locals {
 
   # API routing patterns from CloudFront to ALB
   api_path_patterns = ["/api/*", "/auth/*", "/admin/*"]
+
+  monitoring_service_names = toset(compact([
+    var.enable_backend_api ? "${var.project}-${var.environment}-django-api" : "",
+    var.enable_payment_service ? "${var.project}-${var.environment}-payment-service" : "",
+    var.enable_celery_worker ? "${var.project}-${var.environment}-celery-worker" : "",
+    var.enable_celery_beat ? "${var.project}-${var.environment}-celery-beat" : "",
+  ]))
 }
 
 # ── Base Infrastructure (always on) ────────────────────────────────────────────
@@ -429,20 +436,17 @@ module "monitoring" {
   count  = var.enable_monitoring ? 1 : 0
   source = "../../modules/monitoring"
 
-  project          = var.project
-  environment      = var.environment
-  aws_region       = var.aws_region
-  alarm_email      = var.alarm_email
-  ecs_cluster_name = module.ecs_cluster.cluster_name
-  ecs_service_names = toset(compact([
-    try(module.django_api[0].service_name, ""),
-    try(module.payment_service[0].service_name, ""),
-    try(module.celery_worker[0].service_name, ""),
-    try(module.celery_beat[0].service_name, ""),
-  ]))
-  alb_arn_suffix    = replace(module.alb.alb_arn, "arn:aws:elasticloadbalancing:${var.aws_region}:${data.aws_caller_identity.current.account_id}:loadbalancer/", "")
-  aurora_cluster_id = var.enable_aurora ? module.aurora[0].cluster_identifier : ""
-  tags              = local.tags
+  project              = var.project
+  environment          = var.environment
+  aws_region           = var.aws_region
+  alarm_email          = var.alarm_email
+  ecs_cluster_name     = module.ecs_cluster.cluster_name
+  ecs_service_names    = local.monitoring_service_names
+  enable_alb_alarms    = var.enable_backend_api || var.enable_payment_service
+  enable_aurora_alarms = var.enable_aurora
+  alb_arn_suffix       = replace(module.alb.alb_arn, "arn:aws:elasticloadbalancing:${var.aws_region}:${data.aws_caller_identity.current.account_id}:loadbalancer/", "")
+  aurora_cluster_id    = var.enable_aurora ? module.aurora[0].cluster_identifier : ""
+  tags                 = local.tags
 }
 
 data "aws_caller_identity" "current" {}
