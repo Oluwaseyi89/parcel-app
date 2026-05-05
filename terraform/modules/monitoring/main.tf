@@ -68,7 +68,7 @@ resource "aws_cloudwatch_metric_alarm" "ecs_memory_high" {
 
 # ── ALB 5xx error alarm ────────────────────────────────────────────────────────
 resource "aws_cloudwatch_metric_alarm" "alb_5xx" {
-  count = var.alb_arn_suffix != "" ? 1 : 0
+  count = var.enable_alb_alarms ? 1 : 0
 
   alarm_name          = "${var.project}-${var.environment}-alb-5xx-high"
   alarm_description   = "ALB 5xx error rate > ${var.alb_5xx_threshold} per minute"
@@ -92,7 +92,7 @@ resource "aws_cloudwatch_metric_alarm" "alb_5xx" {
 
 # ── Aurora CPU alarm ──────────────────────────────────────────────────────────
 resource "aws_cloudwatch_metric_alarm" "aurora_cpu" {
-  count = var.aurora_cluster_id != "" ? 1 : 0
+  count = var.enable_aurora_alarms ? 1 : 0
 
   alarm_name          = "${var.project}-${var.environment}-aurora-cpu-high"
   comparison_operator = "GreaterThanThreshold"

@@ -35,10 +35,22 @@ variable "alb_arn_suffix" {
   default     = ""
 }
 
+variable "enable_alb_alarms" {
+  description = "Enable ALB alarms; use this instead of deriving count from computed ALB attributes"
+  type        = bool
+  default     = false
+}
+
 variable "aurora_cluster_id" {
   description = "Aurora cluster identifier. Leave empty to skip Aurora alarms."
   type        = string
   default     = ""
+}
+
+variable "enable_aurora_alarms" {
+  description = "Enable Aurora alarms; use this instead of deriving count from computed Aurora attributes"
+  type        = bool
+  default     = false
 }
 
 variable "cpu_alarm_threshold" {
