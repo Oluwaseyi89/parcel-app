@@ -964,13 +964,13 @@ Sample response object:
 }
 ```
 
-### 6) POST /order/payments/initiate/
+### 6) POST /order/payments/register/
 
 Sample request object:
 ```json
 {
   "method": "POST",
-  "url": "/order/payments/initiate/",
+  "url": "/order/payments/register/",
   "headers": {
     "Authorization": "Bearer <token>",
     "Content-Type": "application/json"
@@ -978,8 +978,11 @@ Sample request object:
   "query": {},
   "body": {
     "order_id": 90,
-    "email": "customer@example.com",
-    "amount": 780000
+    "reference": "PAY-90-20260404-ABC123",
+    "payment_method": "card",
+    "amount": 780000,
+    "payment_provider": "paystack",
+    "status": "processing"
   }
 }
 ```
@@ -988,27 +991,29 @@ Sample response object:
 ```json
 {
   "status": "success",
-  "message": "Payment initiated",
+  "message": "Payment registered successfully",
   "data": {
-    "reference": "PAY-90-20260404-ABC123",
-    "authorization_url": "https://checkout.example/pay/PAY-90-20260404-ABC123",
-    "access_code": "ACX-111222"
+    "idempotent": false,
+    "payment": {
+      "reference": "PAY-90-20260404-ABC123",
+      "status": "processing"
+    }
   }
 }
 ```
 
-### 7) POST /order/payments/verify/{reference}/
+### 7) GET /order/payments/{reference}/context/
 
 Sample request object:
 ```json
 {
-  "method": "POST",
-  "url": "/order/payments/verify/PAY-90-20260404-ABC123/",
+  "method": "GET",
+  "url": "/order/payments/PAY-90-20260404-ABC123/context/",
   "headers": {
     "Authorization": "Bearer <token>"
   },
   "query": {},
-  "body": {}
+  "body": null
 }
 ```
 
@@ -1016,11 +1021,12 @@ Sample response object:
 ```json
 {
   "status": "success",
-  "message": "Payment verified successfully",
   "data": {
     "reference": "PAY-90-20260404-ABC123",
-    "payment_status": "success",
-    "amount": 780000,
+    "payment_status": "processing",
+    "order_payment_status": "pending",
+    "transaction_id": "",
+    "amount": "780000.00",
     "order_id": 90
   }
 }
