@@ -1,6 +1,9 @@
 from django.test import TestCase
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
+import hashlib
+import hmac
+import json
 from rest_framework.test import APIClient
 
 from authentication.models import CustomerUser, VendorUser, CourierUser
@@ -195,6 +198,135 @@ class InternalPaymentSyncTests(TestCase):
 		self.assertTrue(second.data['data']['idempotent'])
 		self.assertEqual(self.payment.status, 'completed')
 		self.assertEqual(self.order.payment_status, 'paid')
+
+
+@override_settings(PAYSTACK_SECRET_KEY='paystack-secret')
+class PaystackWebhookTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.customer = CustomerUser.objects.create(
+            email='customer-webhook@example.com',
+            first_name='Webhook',
+            last_name='Customer',
+            role='customer',
+            is_email_verified=True,
+        )
+        self.customer.set_password('StrongPassword123')
+        self.customer.save()
+
+        self.vendor = VendorUser.objects.create(
+            email='vendor-webhook@example.com',
+            first_name='Webhook',
+            last_name='Vendor',
+            phone='08000000111',
+            business_name='Webhook Vendor',
+            role='vendor',
+            is_approved=True,
+            is_email_verified=True,
+        )
+        self.vendor.set_password('StrongPassword123')
+        self.vendor.save()
+
+        product = Product.objects.create(
+            vendor=self.vendor,
+            name='Webhook Product',
+            description='A sample product',
+            price='1000.00',
+            quantity=20,
+            main_image=SimpleUploadedFile('webhook-product.jpg', b'img', content_type='image/jpeg'),
+            sku='SKU-WEBHOOK-001',
+            slug='webhook-product-001',
+            status='active',
+        )
+
+        order = OrderService.create_order(
+            self.customer,
+            {
+                'shipping_method': 'pickup',
+                'shipping_address': {
+                    'street': 'Main Street',
+                    'city': 'Lagos',
+                    'state': 'Lagos',
+                    'country': 'Nigeria',
+                    'postal_code': '100001',
+                },
+                'items': [{'product_id': product.id, 'quantity': 1}],
+            },
+        )
+
+        from decimal import Decimal
+        self.payment = Payment.objects.create(
+            order=order,
+            customer=self.customer,
+            payment_method='card',
+            payment_provider='paystack',
+            transaction_id='TXN-WEBHOOK-OLD',
+            reference='PAY-WEBHOOK-001',
+            amount=Decimal('1000.00'),
+            fees=Decimal('0.00'),
+            net_amount=Decimal('1000.00'),
+            status='processing',
+            failure_reason='',
+            provider_response={},
+        )
+
+    def _signature_for(self, payload_dict):
+        raw = json.dumps(payload_dict).encode('utf-8')
+        signature = hmac.new(
+            b'paystack-secret',
+            raw,
+            hashlib.sha512,
+        ).hexdigest()
+        return raw, signature
+
+    def test_webhook_rejects_invalid_signature(self):
+        payload = {
+            'event': 'charge.success',
+            'data': {
+                'id': 123456,
+                'reference': self.payment.reference,
+                'status': 'success',
+            }
+        }
+        raw, _ = self._signature_for(payload)
+        response = self.client.post(
+            '/order/payments/webhooks/paystack/',
+            data=raw,
+            content_type='application/json',
+            HTTP_X_PAYSTACK_SIGNATURE='bad-signature',
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_webhook_processes_charge_success_and_updates_payment(self):
+        payload = {
+            'event': 'charge.success',
+            'data': {
+                'id': 777001,
+                'reference': self.payment.reference,
+                'status': 'success',
+                'gateway_response': 'Successful',
+                'source': {'type': 'api', 'source': 'merchant_api'},
+            }
+        }
+        raw, signature = self._signature_for(payload)
+
+        response = self.client.post(
+            '/order/payments/webhooks/paystack/',
+            data=raw,
+            content_type='application/json',
+            HTTP_X_PAYSTACK_SIGNATURE=signature,
+        )
+
+        self.payment.refresh_from_db()
+        self.payment.order.refresh_from_db()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data['data']['idempotent'])
+        self.assertEqual(self.payment.status, 'completed')
+        self.assertEqual(self.payment.transaction_id, '777001')
+        self.assertEqual(self.payment.order.payment_status, 'paid')
+        self.assertIn('event', self.payment.provider_response)
 
 
 class VendorOrderVisibilityTests(TestCase):

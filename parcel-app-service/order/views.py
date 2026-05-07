@@ -1,5 +1,8 @@
 # order/views.py
 from django.shortcuts import render, get_object_or_404
+import hashlib
+import hmac
+import json
 import secrets
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -299,6 +302,115 @@ class InternalPaymentStatusSyncView(APIView):
                     "payment": PaymentSerializer(payment).data,
                 }
             })
+        except Exception as e:
+            return Response({
+                "status": "error",
+                "message": str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class PaystackWebhookView(APIView):
+    """Receive and process Paystack webhook events."""
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    @staticmethod
+    def _is_valid_signature(raw_body, signature):
+        secret_key = getattr(settings, 'PAYSTACK_SECRET_KEY', '')
+        if not secret_key or not signature:
+            return False
+
+        expected_signature = hmac.new(
+            secret_key.encode('utf-8'),
+            raw_body,
+            hashlib.sha512,
+        ).hexdigest()
+        return secrets.compare_digest(expected_signature, signature)
+
+    @staticmethod
+    def _map_webhook_status(event_name, provider_status):
+        event_name = (event_name or '').lower()
+        provider_status = (provider_status or '').lower()
+
+        if event_name.startswith('refund.') or provider_status in ['refunded', 'reversed']:
+            return 'refunded'
+        if event_name == 'charge.success' or provider_status in ['success', 'completed']:
+            return 'completed'
+        if event_name in ['charge.failed', 'charge.abandoned'] or provider_status in ['failed', 'abandoned']:
+            return 'failed'
+        if provider_status in ['pending', 'ongoing', 'processing']:
+            return 'processing'
+        return 'failed'
+
+    @staticmethod
+    def _build_event_id(event_name, reference, payload_data, payload):
+        base_id = payload.get('id') or payload_data.get('id')
+        if base_id:
+            return f"paystack-webhook-{event_name}-{base_id}"
+        return f"paystack-webhook-{event_name}-{reference}"
+
+    def post(self, request):
+        signature = (
+            request.headers.get('X-Paystack-Signature') or
+            request.META.get('HTTP_X_PAYSTACK_SIGNATURE') or
+            ''
+        )
+
+        raw_body = request.body or b''
+        if not self._is_valid_signature(raw_body, signature):
+            return Response({
+                "status": "error",
+                "message": "Forbidden"
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            payload = json.loads(raw_body.decode('utf-8') if raw_body else '{}')
+        except json.JSONDecodeError:
+            return Response({
+                "status": "error",
+                "message": "Invalid JSON payload"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        event_name = payload.get('event', '')
+        payload_data = payload.get('data') if isinstance(payload.get('data'), dict) else {}
+        reference = str(payload_data.get('reference') or '').strip()
+
+        if not reference:
+            # Ignore non-transaction webhook payloads while acknowledging receipt.
+            return Response({
+                "status": "success",
+                "message": "Ignored webhook without transaction reference",
+                "data": {"idempotent": True}
+            }, status=status.HTTP_200_OK)
+
+        provider_status = payload_data.get('status', '')
+        canonical_status = self._map_webhook_status(event_name, provider_status)
+        event_id = self._build_event_id(event_name, reference, payload_data, payload)
+        transaction_id = str(payload_data.get('id') or '')
+        failure_reason = (
+            payload_data.get('gateway_response') or
+            payload_data.get('message') or
+            ''
+        )
+
+        try:
+            payment, is_duplicate = PaymentService.sync_payment_status(
+                reference=reference,
+                status_value=canonical_status,
+                event_id=event_id,
+                transaction_id=transaction_id,
+                failure_reason=failure_reason,
+                provider_response=payload,
+            )
+
+            return Response({
+                "status": "success",
+                "message": "Webhook already processed" if is_duplicate else "Webhook processed successfully",
+                "data": {
+                    "idempotent": is_duplicate,
+                    "payment": PaymentSerializer(payment).data,
+                }
+            }, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({
                 "status": "error",
