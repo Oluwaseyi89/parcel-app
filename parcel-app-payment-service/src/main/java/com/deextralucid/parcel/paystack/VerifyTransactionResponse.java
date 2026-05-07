@@ -2,13 +2,18 @@ package com.deextralucid.parcel.paystack;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 /**
- * Created by SQ-OGBE PC on 21/09/2017.
- * the response returned from the paystack verification
+ * The response returned from the paystack verification
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
+@Getter
+@Setter
+@NoArgsConstructor
 public class VerifyTransactionResponse {
 
     /**
@@ -24,32 +29,4 @@ public class VerifyTransactionResponse {
      * contains details about the transaction
      */
     private Data data;
-
-    public VerifyTransactionResponse() {
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    public void setStatus(String status) {
-        this.status = status;
-    }
-
-    public String getMessage() {
-        return message;
-    }
-
-    public void setMessage(String message) {
-        this.message = message;
-    }
-
-    public Data getData() {
-        return data;
-    }
-
-    public void setData(Data data) {
-        this.data = data;
-    }
-
 }

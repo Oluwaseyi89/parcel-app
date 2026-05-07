@@ -336,6 +336,9 @@ RECIPIENT_ADDRESS = os.getenv('RECIPIENT_ADDRESS')
 # Shared token for trusted internal payment status sync calls.
 PAYMENT_SYNC_TOKEN = os.getenv('PAYMENT_SYNC_TOKEN', '')
 
+# Secret used to validate X-Paystack-Signature webhook header.
+PAYSTACK_SECRET_KEY = os.getenv('PAYSTACK_SECRET_KEY', '')
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/3.2/ref/settings/#default-auto-field
 

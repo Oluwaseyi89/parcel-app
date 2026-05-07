@@ -1,5 +1,8 @@
 # order/views.py
 from django.shortcuts import render, get_object_or_404
+import hashlib
+import hmac
+import json
 import secrets
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -12,8 +15,9 @@ from django.conf import settings
 from .services import OrderService, PaymentService, ShippingService
 from .serializers import (
     OrderSerializer, OrderCreateSerializer, OrderItemSerializer,
-    PaymentSerializer, PaymentInitiateSerializer, OrderStatusUpdateSerializer,
-    ShippingAddressSerializer, OrderStatsSerializer, PaymentStatusSyncSerializer
+    PaymentSerializer, OrderStatusUpdateSerializer,
+    ShippingAddressSerializer, OrderStatsSerializer, PaymentStatusSyncSerializer,
+    PaymentRegistrationSerializer
 )
 from .models import Order, OrderItem, Payment, ShippingAddress
 
@@ -200,65 +204,9 @@ class OrderStatusUpdateView(APIView):
                 "message": str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
 
-class PaymentInitiateView(APIView):
-    """Initiate payment for an order"""
-    permission_classes = [IsAuthenticated]
-    
-    def post(self, request):
-        serializer = PaymentInitiateSerializer(
-            data=request.data,
-            context={'request': request}
-        )
-        
-        if not serializer.is_valid():
-            return Response({
-                "status": "error",
-                "errors": serializer.errors
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        order = serializer.context['order']
-        
-        # Verify order belongs to customer
-        if request.user.role == 'customer' and order.customer != request.user:
-            return Response({
-                "status": "error",
-                "message": "You can only pay for your own orders."
-            }, status=status.HTTP_403_FORBIDDEN)
-        
-        try:
-            payment = PaymentService.initiate_payment(
-                order,
-                serializer.validated_data['payment_method'],
-                request=request
-            )
-            
-            # In production, this would return payment gateway URL
-            # For now, return payment details
-            return Response({
-                "status": "success",
-                "message": "Payment initiated",
-                "data": {
-                    "payment": PaymentSerializer(payment).data,
-                    "payment_url": f"/api/payments/{payment.reference}/verify/"  # Mock URL
-                }
-            })
-            
-        except Exception as e:
-            return Response({
-                "status": "error",
-                "message": str(e)
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-class PaymentVerifyView(APIView):
-    """Verify payment completion"""
+class PaymentRegistrationView(APIView):
+    """Create or update canonical payment records for an order."""
     permission_classes = [AllowAny]
-
-    @staticmethod
-    def _is_admin_user(user):
-        return bool(
-            getattr(user, 'is_authenticated', False) and
-            getattr(user, 'role', None) in ['admin', 'super_admin']
-        )
 
     @staticmethod
     def _is_trusted_internal_call(request):
@@ -272,31 +220,118 @@ class PaymentVerifyView(APIView):
             ''
         )
         return secrets.compare_digest(str(provided), str(expected))
-    
-    def post(self, request, reference):
-        if not (self._is_admin_user(request.user) or self._is_trusted_internal_call(request)):
+
+    def post(self, request):
+        trusted_internal = self._is_trusted_internal_call(request)
+        is_authenticated = bool(getattr(request.user, 'is_authenticated', False))
+
+        if not trusted_internal and not is_authenticated:
             return Response({
                 "status": "error",
                 "message": "Forbidden"
             }, status=status.HTTP_403_FORBIDDEN)
 
+        serializer = PaymentRegistrationSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                "status": "error",
+                "errors": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        order = serializer.context['order']
+
+        if is_authenticated and not trusted_internal:
+            if request.user.role == 'customer' and order.customer != request.user:
+                return Response({
+                    "status": "error",
+                    "message": "You can only register payments for your own orders."
+                }, status=status.HTTP_403_FORBIDDEN)
+
         try:
-            payment = PaymentService.verify_payment(
-                reference,
-                provider_response=request.data
+            payment, is_duplicate = PaymentService.register_payment(
+                order=order,
+                reference=serializer.validated_data['reference'],
+                payment_method=serializer.validated_data['payment_method'],
+                amount=serializer.validated_data['amount'],
+                payment_provider=serializer.validated_data.get('payment_provider', 'paystack') or 'paystack',
+                fees=serializer.validated_data.get('fees', 0),
+                status=serializer.validated_data.get('status', 'pending'),
+                transaction_id=serializer.validated_data.get('transaction_id', ''),
+                failure_reason=serializer.validated_data.get('failure_reason', ''),
+                provider_response=serializer.validated_data.get('provider_response', {}),
             )
-            
+
             return Response({
                 "status": "success",
-                "message": "Payment verified successfully",
-                "data": PaymentSerializer(payment).data
-            })
-            
+                "message": "Payment already registered" if is_duplicate else "Payment registered successfully",
+                "data": {
+                    "idempotent": is_duplicate,
+                    "payment": PaymentSerializer(payment).data,
+                }
+            }, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({
                 "status": "error",
                 "message": str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class PaymentContextView(APIView):
+    """Read-only payment context for reference-based status checks."""
+    permission_classes = [AllowAny]
+
+    @staticmethod
+    def _is_trusted_internal_call(request):
+        expected = getattr(settings, 'PAYMENT_SYNC_TOKEN', '')
+        if not expected:
+            return False
+
+        provided = (
+            request.headers.get('X-Internal-Service-Token') or
+            request.META.get('HTTP_X_INTERNAL_SERVICE_TOKEN') or
+            ''
+        )
+        return secrets.compare_digest(str(provided), str(expected))
+
+    def get(self, request, reference):
+        trusted_internal = self._is_trusted_internal_call(request)
+        is_authenticated = bool(getattr(request.user, 'is_authenticated', False))
+
+        if not trusted_internal and not is_authenticated:
+            return Response({
+                "status": "error",
+                "message": "Forbidden"
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        payment = get_object_or_404(Payment.objects.select_related('order', 'customer'), reference=reference)
+
+        if is_authenticated and not trusted_internal:
+            is_admin = request.user.role in ['admin', 'super_admin']
+            is_owner = request.user.role == 'customer' and payment.customer_id == request.user.id
+            if not (is_admin or is_owner):
+                return Response({
+                    "status": "error",
+                    "message": "Forbidden"
+                }, status=status.HTTP_403_FORBIDDEN)
+
+        return Response({
+            "status": "success",
+            "data": {
+                "reference": payment.reference,
+                "payment_status": payment.status,
+                "transaction_id": payment.transaction_id,
+                "payment_method": payment.payment_method,
+                "payment_provider": payment.payment_provider,
+                "amount": payment.amount,
+                "fees": payment.fees,
+                "net_amount": payment.net_amount,
+                "order_id": payment.order_id,
+                "order_number": payment.order.order_number,
+                "order_payment_status": payment.order.payment_status,
+                "customer_id": payment.customer_id,
+                "customer_email": payment.customer.email,
+            }
+        }, status=status.HTTP_200_OK)
 
 
 class InternalPaymentStatusSyncView(APIView):
@@ -348,6 +383,115 @@ class InternalPaymentStatusSyncView(APIView):
                     "payment": PaymentSerializer(payment).data,
                 }
             })
+        except Exception as e:
+            return Response({
+                "status": "error",
+                "message": str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class PaystackWebhookView(APIView):
+    """Receive and process Paystack webhook events."""
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    @staticmethod
+    def _is_valid_signature(raw_body, signature):
+        secret_key = getattr(settings, 'PAYSTACK_SECRET_KEY', '')
+        if not secret_key or not signature:
+            return False
+
+        expected_signature = hmac.new(
+            secret_key.encode('utf-8'),
+            raw_body,
+            hashlib.sha512,
+        ).hexdigest()
+        return secrets.compare_digest(expected_signature, signature)
+
+    @staticmethod
+    def _map_webhook_status(event_name, provider_status):
+        event_name = (event_name or '').lower()
+        provider_status = (provider_status or '').lower()
+
+        if event_name.startswith('refund.') or provider_status in ['refunded', 'reversed']:
+            return 'refunded'
+        if event_name == 'charge.success' or provider_status in ['success', 'completed']:
+            return 'completed'
+        if event_name in ['charge.failed', 'charge.abandoned'] or provider_status in ['failed', 'abandoned']:
+            return 'failed'
+        if provider_status in ['pending', 'ongoing', 'processing']:
+            return 'processing'
+        return 'failed'
+
+    @staticmethod
+    def _build_event_id(event_name, reference, payload_data, payload):
+        base_id = payload.get('id') or payload_data.get('id')
+        if base_id:
+            return f"paystack-webhook-{event_name}-{base_id}"
+        return f"paystack-webhook-{event_name}-{reference}"
+
+    def post(self, request):
+        signature = (
+            request.headers.get('X-Paystack-Signature') or
+            request.META.get('HTTP_X_PAYSTACK_SIGNATURE') or
+            ''
+        )
+
+        raw_body = request.body or b''
+        if not self._is_valid_signature(raw_body, signature):
+            return Response({
+                "status": "error",
+                "message": "Forbidden"
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            payload = json.loads(raw_body.decode('utf-8') if raw_body else '{}')
+        except json.JSONDecodeError:
+            return Response({
+                "status": "error",
+                "message": "Invalid JSON payload"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        event_name = payload.get('event', '')
+        payload_data = payload.get('data') if isinstance(payload.get('data'), dict) else {}
+        reference = str(payload_data.get('reference') or '').strip()
+
+        if not reference:
+            # Ignore non-transaction webhook payloads while acknowledging receipt.
+            return Response({
+                "status": "success",
+                "message": "Ignored webhook without transaction reference",
+                "data": {"idempotent": True}
+            }, status=status.HTTP_200_OK)
+
+        provider_status = payload_data.get('status', '')
+        canonical_status = self._map_webhook_status(event_name, provider_status)
+        event_id = self._build_event_id(event_name, reference, payload_data, payload)
+        transaction_id = str(payload_data.get('id') or '')
+        failure_reason = (
+            payload_data.get('gateway_response') or
+            payload_data.get('message') or
+            ''
+        )
+
+        try:
+            payment, is_duplicate = PaymentService.sync_payment_status(
+                reference=reference,
+                status_value=canonical_status,
+                event_id=event_id,
+                transaction_id=transaction_id,
+                failure_reason=failure_reason,
+                provider_response=payload,
+            )
+
+            return Response({
+                "status": "success",
+                "message": "Webhook already processed" if is_duplicate else "Webhook processed successfully",
+                "data": {
+                    "idempotent": is_duplicate,
+                    "payment": PaymentSerializer(payment).data,
+                }
+            }, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({
                 "status": "error",

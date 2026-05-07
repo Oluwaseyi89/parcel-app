@@ -19,12 +19,14 @@ interface PaymentFormState {
   shipping_txn_ref: string;
 }
 
-interface PaymentInitiateResponse {
+interface PaymentRegisterResponse {
   status?: string;
   message?: string;
   data?: {
+    idempotent?: boolean;
     payment?: {
       reference?: string;
+      status?: string;
     };
   };
   errors?: unknown;
@@ -81,7 +83,7 @@ export default function PaymentView() {
     return "cash_on_delivery";
   }
 
-  async function initiateOrderPayment(paymentType: string) {
+  async function registerOrderPayment(paymentType: string, reference: string, amountValue: number) {
     const currentOrder = await ensureOrderFromDraft(checkoutDraft);
     const numericOrderId = Number(currentOrder);
 
@@ -89,18 +91,21 @@ export default function PaymentView() {
       throw new Error("Invalid order id for payment initialization.");
     }
 
-    const response = await apiRequest<PaymentInitiateResponse>("/order/payments/initiate/", {
+    const response = await apiRequest<PaymentRegisterResponse>("/order/payments/register/", {
       method: "POST",
       body: {
         order_id: numericOrderId,
+        reference,
         payment_method: normalizePaymentMethod(paymentType),
-        save_card: false,
+        amount: Number(amountValue.toFixed(2)),
+        payment_provider: "paystack",
+        status: "processing",
       },
       json: true,
     });
 
     if (String(response.status ?? "").toLowerCase() !== "success") {
-      throw new Error(String(response.message ?? "Unable to initialize order payment."));
+      throw new Error(String(response.message ?? "Unable to register order payment."));
     }
 
     const backendReference = response.data?.payment?.reference;
@@ -150,7 +155,7 @@ export default function PaymentView() {
       const data = (await response.json()) as { data?: { authorization_url?: string; reference?: string } };
       const reference = data?.data?.reference ?? `local-${Date.now()}`;
       storage.setPaymentReference(reference);
-      await initiateOrderPayment(form.payment_type || "Card Payment");
+      await registerOrderPayment(form.payment_type || "Card Payment", reference, grandTotal);
 
       const redirectUrl = data?.data?.authorization_url;
       if (redirectUrl) {
@@ -164,7 +169,7 @@ export default function PaymentView() {
       const fallbackReference = `local-${Date.now()}`;
       storage.setPaymentReference(fallbackReference);
       try {
-        await initiateOrderPayment(form.payment_type || "Card Payment");
+        await registerOrderPayment(form.payment_type || "Card Payment", fallbackReference, grandTotal);
         showError("Unable to reach payment gateway. A local reference has been created for retry.");
         router.push("/verify");
       } catch {
@@ -186,7 +191,7 @@ export default function PaymentView() {
     setProcessing(true);
     try {
       storage.setPaymentReference(form.txn_ref);
-      await initiateOrderPayment(form.payment_type || "Bank Transfer");
+      await registerOrderPayment(form.payment_type || "Bank Transfer", form.txn_ref, grandTotal);
       showSuccess("Bank transfer reference recorded.");
       router.push("/verify");
     } catch {
@@ -214,7 +219,7 @@ export default function PaymentView() {
     setProcessing(true);
     try {
       storage.setPaymentReference(shippingRef);
-      await initiateOrderPayment(form.shipping_pay_type || "Bank Transfer for Shipping");
+      await registerOrderPayment(form.shipping_pay_type || "Bank Transfer for Shipping", shippingRef, shippingFee || grandTotal);
       showSuccess("Shipping payment recorded. Continue to final verification.");
       router.push("/verify");
     } catch {
