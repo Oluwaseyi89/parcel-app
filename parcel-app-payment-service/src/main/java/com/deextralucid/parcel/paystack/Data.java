@@ -18,7 +18,7 @@ public  class Data {
                 return authorization_url;
             }
         
-    public void setAuthorizaton_url(String authorization_url) {
+    public void setAuthorization_url(String authorization_url) {
         this.authorization_url = authorization_url;
     }
         
