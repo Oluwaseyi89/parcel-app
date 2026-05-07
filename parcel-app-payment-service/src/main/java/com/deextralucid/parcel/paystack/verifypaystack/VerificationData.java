@@ -3,51 +3,25 @@ package com.deextralucid.parcel.paystack.verifypaystack;
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+@Getter
+@Setter
+@NoArgsConstructor
 public class VerificationData {
     private Integer id;
     private String status;
     private String reference;
     private String gateway_response;
+    @Getter(AccessLevel.NONE)
     @JsonIgnore
     private final Map<String, Object> additionalFields = new LinkedHashMap<>();
-
-    public VerificationData () {}
-
-    public Integer getId() {
-        return id;
-    }
-
-    public void setId(Integer id) {
-        this.id = id;
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    public void setStatus(String status) {
-        this.status = status;
-    }
-
-    public String getReference() {
-        return reference;
-    }
-
-    public void setReference(String reference) {
-        this.reference = reference;
-    }
-
-    public String getGateway_response() {
-        return gateway_response;
-    }
-
-    public void setGateway_response(String gateway_response) {
-        this.gateway_response = gateway_response;
-    }
 
     @JsonAnySetter
     public void captureAdditionalField(String name, Object value) {
