@@ -13,7 +13,8 @@ interface VerifyPaymentResponse {
   status?: string;
   message?: string;
   data?: {
-    status?: string;
+    payment_status?: string;
+    order_payment_status?: string;
     reference?: string;
   };
 }
@@ -30,15 +31,17 @@ export default function VerifyPaymentView() {
     setLoading(true);
 
     try {
-      const response = await apiRequest<VerifyPaymentResponse>(`/order/payments/verify/${encodeURIComponent(reference)}/`, {
-        method: "POST",
-        body: {},
-        json: true,
+      const response = await apiRequest<VerifyPaymentResponse>(`/order/payments/${encodeURIComponent(reference)}/context/`, {
+        method: "GET",
       });
 
       const isSuccess = String(response.status ?? "").toLowerCase() === "success";
-      const paymentStatus = String(response.data?.status ?? "").toLowerCase();
-      const verified = isSuccess && ["completed", "paid", "success"].includes(paymentStatus || "completed");
+      const paymentStatus = String(response.data?.payment_status ?? "").toLowerCase();
+      const orderPaymentStatus = String(response.data?.order_payment_status ?? "").toLowerCase();
+      const verified = isSuccess && (
+        ["completed", "paid", "success"].includes(paymentStatus) ||
+        ["paid"].includes(orderPaymentStatus)
+      );
 
       if (verified) {
         setStatus("verified");
