@@ -230,31 +230,78 @@ class PaymentService:
     @staticmethod
     def sync_payment_status(reference, status_value, event_id, transaction_id='', failure_reason='', provider_response=None):
         """
-        Minimal read-only idempotent sync logic for Payment.
-        - Looks up Payment by reference.
-        - Simulates idempotency by event_id (no DB writes).
+        Idempotent payment status synchronization.
+        - Looks up and locks Payment by reference.
+        - Persists status and provider data updates.
+        - Applies order payment status transitions.
         - Returns (payment, is_duplicate) tuple.
         """
         if provider_response is None:
             provider_response = {}
 
-        try:
-            payment = Payment.objects.get(reference=reference)
-        except Payment.DoesNotExist:
-            raise ValidationError(f"Payment with reference {reference} not found.")
+        with transaction.atomic():
+            try:
+                payment = Payment.objects.select_for_update().select_related('order').get(reference=reference)
+            except Payment.DoesNotExist:
+                raise ValidationError(f"Payment with reference {reference} not found.")
 
-        # Simulate idempotency: if event_id == 'evt-1', first call is not duplicate, second is duplicate
-        # In real code, you'd check a DB table for processed event_ids
-        from threading import Lock
-        if not hasattr(PaymentService, '_event_id_cache'):
-            PaymentService._event_id_cache = set()
-            PaymentService._event_id_lock = Lock()
-        with PaymentService._event_id_lock:
-            is_duplicate = event_id in PaymentService._event_id_cache
-            PaymentService._event_id_cache.add(event_id)
+            existing_response = payment.provider_response if isinstance(payment.provider_response, dict) else {}
+            sync_meta = existing_response.get('_sync_meta', {}) if isinstance(existing_response.get('_sync_meta', {}), dict) else {}
+            processed_event_ids = sync_meta.get('event_ids', [])
+            if not isinstance(processed_event_ids, list):
+                processed_event_ids = []
 
-        # Do not update payment or order (read-only)
-        return payment, is_duplicate
+            if event_id in processed_event_ids:
+                return payment, True
+
+            if transaction_id:
+                duplicate_txn = Payment.objects.filter(transaction_id=transaction_id).exclude(pk=payment.pk).exists()
+                if duplicate_txn:
+                    raise ValidationError(f"transaction_id {transaction_id} already belongs to another payment.")
+                payment.transaction_id = transaction_id
+
+            payment.status = status_value
+
+            if status_value == 'failed':
+                payment.failure_reason = failure_reason or payment.failure_reason or 'Payment failed'
+            else:
+                payment.failure_reason = ''
+
+            now = timezone.now()
+            if status_value == 'completed' and payment.completed_at is None:
+                payment.completed_at = now
+            if status_value in ('refunded', 'partially_refunded') and payment.refunded_at is None:
+                payment.refunded_at = now
+
+            merged_response = dict(existing_response)
+            if isinstance(provider_response, dict):
+                merged_response.update(provider_response)
+
+            processed_event_ids.append(event_id)
+            sync_meta['event_ids'] = processed_event_ids[-50:]
+            sync_meta['last_event_id'] = event_id
+            sync_meta['last_synced_at'] = now.isoformat()
+            merged_response['_sync_meta'] = sync_meta
+
+            payment.provider_response = merged_response
+            payment.save()
+
+            order = payment.order
+            order_status_map = {
+                'completed': 'paid',
+                'failed': 'failed',
+                'refunded': 'refunded',
+            }
+            next_order_payment_status = order_status_map.get(status_value)
+            if next_order_payment_status:
+                order.payment_status = next_order_payment_status
+                if not order.payment_reference:
+                    order.payment_reference = payment.reference
+                if not order.payment_method:
+                    order.payment_method = payment.payment_method
+                order.save(update_fields=['payment_status', 'payment_reference', 'payment_method', 'updated_at'])
+
+            return payment, False
 class ShippingService:
     """Service for shipping operations"""
     

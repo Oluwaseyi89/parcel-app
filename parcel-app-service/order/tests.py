@@ -186,7 +186,7 @@ class InternalPaymentSyncTests(TestCase):
 			HTTP_X_INTERNAL_SERVICE_TOKEN='sync-secret',
 		)
 
-		# self.payment.refresh_from_db()  # Disabled for read-only enforcement
+		self.payment.refresh_from_db()
 		self.order.refresh_from_db()
 
 		self.assertEqual(first.status_code, 200)
@@ -194,7 +194,7 @@ class InternalPaymentSyncTests(TestCase):
 		self.assertEqual(second.status_code, 200)
 		self.assertTrue(second.data['data']['idempotent'])
 		self.assertEqual(self.payment.status, 'completed')
-		self.assertEqual(self.order.payment_status, 'pending')
+		self.assertEqual(self.order.payment_status, 'paid')
 
 
 class VendorOrderVisibilityTests(TestCase):
