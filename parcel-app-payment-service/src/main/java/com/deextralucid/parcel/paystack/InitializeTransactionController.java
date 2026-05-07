@@ -7,9 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -18,7 +16,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -34,7 +32,11 @@ public class InitializeTransactionController {
 
     private static final Logger logger = LoggerFactory.getLogger(InitializeTransactionController.class);
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final WebClient webClient;
+
+    public InitializeTransactionController(WebClient.Builder webClientBuilder) {
+        this.webClient = webClientBuilder.build();
+    }
 
     @Autowired
     private InitializeTransactionService initializeTransactionService;
@@ -139,14 +141,17 @@ public class InitializeTransactionController {
         headers.set("X-Internal-Service-Token", paymentSyncToken);
 
         try {
-            ResponseEntity<String> response = restTemplate.exchange(
-                    url,
-                    HttpMethod.POST,
-                    new HttpEntity<>(body, headers),
-                    String.class);
+            ResponseEntity<Void> response = webClient.post()
+                    .uri(url)
+                    .headers(httpHeaders -> httpHeaders.addAll(headers))
+                    .bodyValue(body)
+                    .retrieve()
+                    .toBodilessEntity()
+                    .block();
 
-            if (!response.getStatusCode().is2xxSuccessful()) {
-                logger.error("Parcel payment sync failed for ref {} with status {}", paymentRef, response.getStatusCode());
+            if (response == null || !response.getStatusCode().is2xxSuccessful()) {
+                String status = response == null ? "no-response" : response.getStatusCode().toString();
+                logger.error("Parcel payment sync failed for ref {} with status {}", paymentRef, status);
                 return false;
             }
 
