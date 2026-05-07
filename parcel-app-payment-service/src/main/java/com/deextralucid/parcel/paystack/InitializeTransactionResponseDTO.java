@@ -1,15 +1,15 @@
 package com.deextralucid.parcel.paystack;
 
 public class InitializeTransactionResponseDTO {
-    private String status;
+    private Boolean status;
     private String message;
     private Data data;
 
-    public String getStatus() {
+    public Boolean getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(Boolean status) {
         this.status = status;
     }
 
