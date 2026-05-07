@@ -12,7 +12,7 @@ from django.conf import settings
 from .services import OrderService, PaymentService, ShippingService
 from .serializers import (
     OrderSerializer, OrderCreateSerializer, OrderItemSerializer,
-    PaymentSerializer, PaymentInitiateSerializer, OrderStatusUpdateSerializer,
+    PaymentSerializer, OrderStatusUpdateSerializer,
     ShippingAddressSerializer, OrderStatsSerializer, PaymentStatusSyncSerializer
 )
 from .models import Order, OrderItem, Payment, ShippingAddress
@@ -192,55 +192,6 @@ class OrderStatusUpdateView(APIView):
                 "status": "success",
                 "message": f"Order status updated to {serializer.validated_data['status']}",
                 "data": OrderSerializer(updated_order).data
-            })
-            
-        except Exception as e:
-            return Response({
-                "status": "error",
-                "message": str(e)
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-class PaymentInitiateView(APIView):
-    """Initiate payment for an order"""
-    permission_classes = [IsAuthenticated]
-    
-    def post(self, request):
-        serializer = PaymentInitiateSerializer(
-            data=request.data,
-            context={'request': request}
-        )
-        
-        if not serializer.is_valid():
-            return Response({
-                "status": "error",
-                "errors": serializer.errors
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        order = serializer.context['order']
-        
-        # Verify order belongs to customer
-        if request.user.role == 'customer' and order.customer != request.user:
-            return Response({
-                "status": "error",
-                "message": "You can only pay for your own orders."
-            }, status=status.HTTP_403_FORBIDDEN)
-        
-        try:
-            payment = PaymentService.initiate_payment(
-                order,
-                serializer.validated_data['payment_method'],
-                request=request
-            )
-            
-            # In production, this would return payment gateway URL
-            # For now, return payment details
-            return Response({
-                "status": "success",
-                "message": "Payment initiated",
-                "data": {
-                    "payment": PaymentSerializer(payment).data,
-                    "payment_url": f"/api/payments/{payment.reference}/verify/"  # Mock URL
-                }
             })
             
         except Exception as e:

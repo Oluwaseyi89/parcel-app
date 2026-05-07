@@ -217,23 +217,6 @@ class PaymentSerializer(serializers.ModelSerializer):
             'completed_at', 'refunded_at'
         ]
 
-class PaymentInitiateSerializer(serializers.Serializer):
-    """Serializer for initiating payments"""
-    order_id = serializers.IntegerField()
-    payment_method = serializers.ChoiceField(choices=Payment.PAYMENT_METHOD_CHOICES)
-    save_card = serializers.BooleanField(default=False)
-    
-    def validate_order_id(self, value):
-        try:
-            order = Order.objects.get(id=value)
-            if order.payment_status == 'paid':
-                raise serializers.ValidationError('Order is already paid.')
-            self.context['order'] = order
-            return value
-        except Order.DoesNotExist:
-            raise serializers.ValidationError('Order not found.')
-
-
 class PaymentStatusSyncSerializer(serializers.Serializer):
     """Serializer for trusted internal payment status synchronization."""
     status = serializers.ChoiceField(choices=['completed', 'failed', 'processing', 'refunded'])
