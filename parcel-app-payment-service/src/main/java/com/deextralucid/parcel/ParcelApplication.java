@@ -20,6 +20,8 @@ public class ParcelApplication {
 		setPropertyIfPresent(dotenv, "SPRING_PROFILES_ACTIVE");
 		setPropertyIfPresent(dotenv, "SERVER_PORT");
 		setPropertyIfPresent(dotenv, "PAYSTACK_SECRET_KEY");
+		setPropertyIfPresent(dotenv, "PARCEL_APP_SERVICE_BASE_URL");
+		setPropertyIfPresent(dotenv, "PAYMENT_SYNC_TOKEN");
 
 		SpringApplication.run(ParcelApplication.class, args);
 	}

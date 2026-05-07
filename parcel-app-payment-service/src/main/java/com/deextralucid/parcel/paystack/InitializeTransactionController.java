@@ -1,30 +1,40 @@
 package com.deextralucid.parcel.paystack;
 
-import com.deextralucid.parcel.paystack.orderpaymentcrud.OrderItemRepo;
-import com.deextralucid.parcel.paystack.orderpaymentcrud.OrderRepo;
-import com.deextralucid.parcel.paystack.orderpaymentcrud.PaymentRepo;
-import com.deextralucid.parcel.paystack.orderpaymentcrud.ProductRepo;
-import com.deextralucid.parcel.paystack.ordersandpayments.Order;
-import com.deextralucid.parcel.paystack.ordersandpayments.Payment;
-import com.deextralucid.parcel.paystack.ordersandpayments.Product;
-import java.util.Optional;
-import java.util.List;
-import com.deextralucid.parcel.paystack.ordersandpayments.OrderItem;
+import com.deextralucid.parcel.paystack.verifypaystack.VerificationData;
 import com.deextralucid.parcel.paystack.verifypaystack.VerificationResponseDTO;
 import com.deextralucid.parcel.paystack.verifypaystack.VerificationService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.UUID;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RestController
 @CrossOrigin(origins = "http://localhost:3000")
 @RequestMapping("/v1")
 public class InitializeTransactionController {
+
+    private static final Logger logger = LoggerFactory.getLogger(InitializeTransactionController.class);
+
+    private final RestTemplate restTemplate = new RestTemplate();
 
     @Autowired
     private InitializeTransactionService initializeTransactionService;
@@ -33,16 +43,16 @@ public class InitializeTransactionController {
     private VerificationService verificationService;
 
     @Autowired
-    private PaymentRepo paymentRepo;
+    private ObjectMapper objectMapper;
 
-    @Autowired
-    private OrderRepo orderRepo;
+    @Value("${parcelapp.service.base-url:http://localhost:8000}")
+    private String parcelAppServiceBaseUrl;
 
-    @Autowired
-    private OrderItemRepo orderItemRepo;
+    @Value("${parcelapp.service.payment-sync-token:}")
+    private String paymentSyncToken;
 
-    @Autowired
-    private ProductRepo productRepo;
+    @Value("${parcelapp.service.payment-sync-path:/order/payments/internal/sync}")
+    private String paymentSyncPath;
 
     @RequestMapping(path = "/initializetransaction", method = RequestMethod.POST)
     public InitializeTransactionResponseDTO initializeTransaction(
@@ -55,52 +65,21 @@ public class InitializeTransactionController {
     @RequestMapping(path = "/verifypayment/{paymentRef}", method = RequestMethod.GET)
     public boolean verifyMyPayment(@PathVariable("paymentRef") String paymentRef) {
         VerificationResponseDTO myResponse = verificationService.getPaymentWithCustomHeaders(paymentRef);
-        System.out.println(myResponse.getMessage());
-        String paymentStatus = myResponse.getData().getStatus();
-
-        if (paymentStatus.equals("success")) {
-            System.out.println(paymentStatus);
-            Payment currPayment = paymentRepo.findByReference(paymentRef);
-            currPayment.setStatus("Successful");
-            paymentRepo.save(currPayment);
-
-            Long currOrderId = currPayment.getOrder_id();
-
-            java.util.Optional<Order> orderOpt = orderRepo.findById(currOrderId);
-            if (!orderOpt.isPresent()) {
-                System.out.println("Order not found for id: " + currOrderId);
-                return false; // or handle according to business rules
-            }
-            Order currOrder = orderOpt.get();
-            currOrder.setIs_completed(true);
-            orderRepo.save(currOrder);
-
-            List<OrderItem> orderItems = orderItemRepo.findByOrderId(currOrderId);
-
-            for (OrderItem item : orderItems) {
-                item.setIs_completed(true);
-                Optional<Product> productOpt = productRepo.findById(item.getProduct_id());
-                if (!productOpt.isPresent()) {
-                    // Product not found: skip updating stock for this item (or handle as needed)
-                    System.out.println("Product not found for id: " + item.getProduct_id());
-                    continue;
-                }
-                Product product = productOpt.get();
-                Integer purchasedQty = item.getQuantity() == null ? 0 : item.getQuantity();
-                Integer stockQty = product.getProd_qty() == null ? 0 : product.getProd_qty();
-                int stockBalance = stockQty - purchasedQty;
-                product.setProd_qty(stockBalance);
-                productRepo.save(product);
-                orderItemRepo.save(item);
-            }
-            return true;
-        } else {
-            System.out.println(paymentStatus);
-            Payment currPayment = paymentRepo.findByReference(paymentRef);
-            currPayment.setStatus(myResponse.getData().getGateway_response());
-            paymentRepo.save(currPayment);
+        if (myResponse == null || myResponse.getData() == null) {
+            logger.warn("Paystack verification response is empty for reference {}", paymentRef);
             return false;
         }
+
+        VerificationData verificationData = myResponse.getData();
+        String providerStatus = verificationData.getStatus() == null ? "" : verificationData.getStatus().toLowerCase();
+        String canonicalStatus = mapProviderStatus(providerStatus);
+
+        boolean syncOk = syncPaymentStatusWithParcelService(paymentRef, canonicalStatus, verificationData, myResponse);
+        if (!syncOk) {
+            return false;
+        }
+
+        return "completed".equals(canonicalStatus);
     }
 
     @RequestMapping(path = "/verifypaydetail/{paymentRef}", method = RequestMethod.GET)
@@ -108,6 +87,82 @@ public class InitializeTransactionController {
         VerificationResponseDTO myResponse = verificationService.getPaymentWithCustomHeaders(paymentRef);
 
         return myResponse;
+    }
+
+    private String mapProviderStatus(String providerStatus) {
+        if ("success".equals(providerStatus)) {
+            return "completed";
+        }
+        if ("pending".equals(providerStatus) || "ongoing".equals(providerStatus)) {
+            return "processing";
+        }
+        if ("reversed".equals(providerStatus) || "refunded".equals(providerStatus)) {
+            return "refunded";
+        }
+        return "failed";
+    }
+
+    private boolean syncPaymentStatusWithParcelService(
+            String paymentRef,
+            String canonicalStatus,
+            VerificationData verificationData,
+            VerificationResponseDTO verificationResponse) {
+        if (paymentSyncToken == null || paymentSyncToken.isBlank()) {
+            logger.error("Missing parcel-app-service sync token (parcelapp.service.payment-sync-token)");
+            return false;
+        }
+
+        String baseUrl = parcelAppServiceBaseUrl.endsWith("/")
+                ? parcelAppServiceBaseUrl.substring(0, parcelAppServiceBaseUrl.length() - 1)
+                : parcelAppServiceBaseUrl;
+        String syncPath = paymentSyncPath.startsWith("/") ? paymentSyncPath : "/" + paymentSyncPath;
+        String url = baseUrl + syncPath + "/" + paymentRef + "/";
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("status", canonicalStatus);
+        body.put("event_id", buildEventId(paymentRef, verificationData));
+
+        String transactionId = verificationData.getId() == null ? "" : String.valueOf(verificationData.getId());
+        body.put("transaction_id", transactionId);
+
+        String failureReason = "";
+        if ("failed".equals(canonicalStatus)) {
+            failureReason = verificationData.getGateway_response() == null
+                    ? "Paystack verification returned non-success status"
+                    : verificationData.getGateway_response();
+        }
+        body.put("failure_reason", failureReason);
+        body.put("provider_response", objectMapper.convertValue(verificationResponse, Map.class));
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("X-Internal-Service-Token", paymentSyncToken);
+
+        try {
+            ResponseEntity<String> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.POST,
+                    new HttpEntity<>(body, headers),
+                    String.class);
+
+            if (!response.getStatusCode().is2xxSuccessful()) {
+                logger.error("Parcel payment sync failed for ref {} with status {}", paymentRef, response.getStatusCode());
+                return false;
+            }
+
+            logger.info("Parcel payment sync succeeded for ref {} with canonical status {}", paymentRef, canonicalStatus);
+            return true;
+        } catch (Exception ex) {
+            logger.error("Parcel payment sync call failed for ref {}", paymentRef, ex);
+            return false;
+        }
+    }
+
+    private String buildEventId(String paymentRef, VerificationData verificationData) {
+        if (verificationData.getId() != null) {
+            return "paystack-txn-" + verificationData.getId();
+        }
+        return "paystack-ref-" + paymentRef + "-" + UUID.randomUUID();
     }
 
 }
