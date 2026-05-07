@@ -217,6 +217,36 @@ class PaymentSerializer(serializers.ModelSerializer):
             'completed_at', 'refunded_at'
         ]
 
+
+class PaymentRegistrationSerializer(serializers.Serializer):
+    """Serializer for creating/updating canonical payment records from trusted clients."""
+    order_id = serializers.IntegerField()
+    reference = serializers.CharField(max_length=100)
+    payment_method = serializers.ChoiceField(choices=Payment.PAYMENT_METHOD_CHOICES)
+    amount = serializers.DecimalField(max_digits=12, decimal_places=2)
+    payment_provider = serializers.CharField(max_length=50, required=False, allow_blank=True, default='paystack')
+    fees = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, default=0)
+    status = serializers.ChoiceField(choices=[
+        'pending', 'processing', 'completed', 'failed', 'refunded', 'partially_refunded'
+    ], required=False, default='pending')
+    transaction_id = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    failure_reason = serializers.CharField(required=False, allow_blank=True)
+    provider_response = serializers.DictField(required=False)
+
+    def validate_order_id(self, value):
+        try:
+            order = Order.objects.get(id=value)
+            self.context['order'] = order
+            return value
+        except Order.DoesNotExist:
+            raise serializers.ValidationError('Order not found.')
+
+    def validate_reference(self, value):
+        value = (value or '').strip()
+        if not value:
+            raise serializers.ValidationError('reference is required.')
+        return value
+
 class PaymentStatusSyncSerializer(serializers.Serializer):
     """Serializer for trusted internal payment status synchronization."""
     status = serializers.ChoiceField(choices=['completed', 'failed', 'processing', 'refunded'])

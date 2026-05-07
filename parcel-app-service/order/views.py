@@ -16,7 +16,8 @@ from .services import OrderService, PaymentService, ShippingService
 from .serializers import (
     OrderSerializer, OrderCreateSerializer, OrderItemSerializer,
     PaymentSerializer, OrderStatusUpdateSerializer,
-    ShippingAddressSerializer, OrderStatsSerializer, PaymentStatusSyncSerializer
+    ShippingAddressSerializer, OrderStatsSerializer, PaymentStatusSyncSerializer,
+    PaymentRegistrationSerializer
 )
 from .models import Order, OrderItem, Payment, ShippingAddress
 
@@ -203,16 +204,9 @@ class OrderStatusUpdateView(APIView):
                 "message": str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
 
-class PaymentVerifyView(APIView):
-    """Verify payment completion"""
+class PaymentRegistrationView(APIView):
+    """Create or update canonical payment records for an order."""
     permission_classes = [AllowAny]
-
-    @staticmethod
-    def _is_admin_user(user):
-        return bool(
-            getattr(user, 'is_authenticated', False) and
-            getattr(user, 'role', None) in ['admin', 'super_admin']
-        )
 
     @staticmethod
     def _is_trusted_internal_call(request):
@@ -226,31 +220,118 @@ class PaymentVerifyView(APIView):
             ''
         )
         return secrets.compare_digest(str(provided), str(expected))
-    
-    def post(self, request, reference):
-        if not (self._is_admin_user(request.user) or self._is_trusted_internal_call(request)):
+
+    def post(self, request):
+        trusted_internal = self._is_trusted_internal_call(request)
+        is_authenticated = bool(getattr(request.user, 'is_authenticated', False))
+
+        if not trusted_internal and not is_authenticated:
             return Response({
                 "status": "error",
                 "message": "Forbidden"
             }, status=status.HTTP_403_FORBIDDEN)
 
+        serializer = PaymentRegistrationSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                "status": "error",
+                "errors": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        order = serializer.context['order']
+
+        if is_authenticated and not trusted_internal:
+            if request.user.role == 'customer' and order.customer != request.user:
+                return Response({
+                    "status": "error",
+                    "message": "You can only register payments for your own orders."
+                }, status=status.HTTP_403_FORBIDDEN)
+
         try:
-            payment = PaymentService.verify_payment(
-                reference,
-                provider_response=request.data
+            payment, is_duplicate = PaymentService.register_payment(
+                order=order,
+                reference=serializer.validated_data['reference'],
+                payment_method=serializer.validated_data['payment_method'],
+                amount=serializer.validated_data['amount'],
+                payment_provider=serializer.validated_data.get('payment_provider', 'paystack') or 'paystack',
+                fees=serializer.validated_data.get('fees', 0),
+                status=serializer.validated_data.get('status', 'pending'),
+                transaction_id=serializer.validated_data.get('transaction_id', ''),
+                failure_reason=serializer.validated_data.get('failure_reason', ''),
+                provider_response=serializer.validated_data.get('provider_response', {}),
             )
-            
+
             return Response({
                 "status": "success",
-                "message": "Payment verified successfully",
-                "data": PaymentSerializer(payment).data
-            })
-            
+                "message": "Payment already registered" if is_duplicate else "Payment registered successfully",
+                "data": {
+                    "idempotent": is_duplicate,
+                    "payment": PaymentSerializer(payment).data,
+                }
+            }, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({
                 "status": "error",
                 "message": str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class PaymentContextView(APIView):
+    """Read-only payment context for reference-based status checks."""
+    permission_classes = [AllowAny]
+
+    @staticmethod
+    def _is_trusted_internal_call(request):
+        expected = getattr(settings, 'PAYMENT_SYNC_TOKEN', '')
+        if not expected:
+            return False
+
+        provided = (
+            request.headers.get('X-Internal-Service-Token') or
+            request.META.get('HTTP_X_INTERNAL_SERVICE_TOKEN') or
+            ''
+        )
+        return secrets.compare_digest(str(provided), str(expected))
+
+    def get(self, request, reference):
+        trusted_internal = self._is_trusted_internal_call(request)
+        is_authenticated = bool(getattr(request.user, 'is_authenticated', False))
+
+        if not trusted_internal and not is_authenticated:
+            return Response({
+                "status": "error",
+                "message": "Forbidden"
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        payment = get_object_or_404(Payment.objects.select_related('order', 'customer'), reference=reference)
+
+        if is_authenticated and not trusted_internal:
+            is_admin = request.user.role in ['admin', 'super_admin']
+            is_owner = request.user.role == 'customer' and payment.customer_id == request.user.id
+            if not (is_admin or is_owner):
+                return Response({
+                    "status": "error",
+                    "message": "Forbidden"
+                }, status=status.HTTP_403_FORBIDDEN)
+
+        return Response({
+            "status": "success",
+            "data": {
+                "reference": payment.reference,
+                "payment_status": payment.status,
+                "transaction_id": payment.transaction_id,
+                "payment_method": payment.payment_method,
+                "payment_provider": payment.payment_provider,
+                "amount": payment.amount,
+                "fees": payment.fees,
+                "net_amount": payment.net_amount,
+                "order_id": payment.order_id,
+                "order_number": payment.order.order_number,
+                "order_payment_status": payment.order.payment_status,
+                "customer_id": payment.customer_id,
+                "customer_email": payment.customer.email,
+            }
+        }, status=status.HTTP_200_OK)
 
 
 class InternalPaymentStatusSyncView(APIView):

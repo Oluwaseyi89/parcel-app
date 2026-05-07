@@ -224,8 +224,98 @@ class OrderService:
 class PaymentService:
     """Service for payment operations"""
     
+    @staticmethod
+    def register_payment(
+        order,
+        reference,
+        payment_method,
+        amount,
+        payment_provider='paystack',
+        fees=Decimal('0.00'),
+        status='pending',
+        transaction_id='',
+        failure_reason='',
+        provider_response=None,
+        customer=None,
+    ):
+        """Create or update a canonical payment record idempotently by reference."""
+        if provider_response is None:
+            provider_response = {}
 
-    
+        if customer is None:
+            customer = order.customer
+
+        with transaction.atomic():
+            payment, created = Payment.objects.select_for_update().get_or_create(
+                reference=reference,
+                defaults={
+                    'order': order,
+                    'customer': customer,
+                    'payment_method': payment_method,
+                    'payment_provider': payment_provider,
+                    'transaction_id': transaction_id,
+                    'amount': amount,
+                    'fees': fees,
+                    'status': status,
+                    'failure_reason': failure_reason,
+                    'provider_response': provider_response,
+                },
+            )
+
+            if not created:
+                updates = []
+
+                if payment.order_id != order.id:
+                    payment.order = order
+                    updates.append('order')
+                if payment.customer_id != customer.id:
+                    payment.customer = customer
+                    updates.append('customer')
+                if payment.payment_method != payment_method:
+                    payment.payment_method = payment_method
+                    updates.append('payment_method')
+                if payment.payment_provider != payment_provider:
+                    payment.payment_provider = payment_provider
+                    updates.append('payment_provider')
+                if payment.amount != amount:
+                    payment.amount = amount
+                    updates.append('amount')
+                if payment.fees != fees:
+                    payment.fees = fees
+                    updates.append('fees')
+                if payment.status != status:
+                    payment.status = status
+                    updates.append('status')
+                if failure_reason and payment.failure_reason != failure_reason:
+                    payment.failure_reason = failure_reason
+                    updates.append('failure_reason')
+                if transaction_id and payment.transaction_id != transaction_id:
+                    duplicate_txn = Payment.objects.filter(transaction_id=transaction_id).exclude(pk=payment.pk).exists()
+                    if duplicate_txn:
+                        raise ValidationError(f"transaction_id {transaction_id} already belongs to another payment.")
+                    payment.transaction_id = transaction_id
+                    updates.append('transaction_id')
+                if isinstance(provider_response, dict) and provider_response:
+                    merged_response = payment.provider_response if isinstance(payment.provider_response, dict) else {}
+                    merged_response = dict(merged_response)
+                    merged_response.update(provider_response)
+                    payment.provider_response = merged_response
+                    updates.append('provider_response')
+
+                if updates:
+                    payment.save(update_fields=updates)
+
+            order_updates = []
+            if order.payment_reference != reference:
+                order.payment_reference = reference
+                order_updates.append('payment_reference')
+            if not order.payment_method or order.payment_method != payment_method:
+                order.payment_method = payment_method
+                order_updates.append('payment_method')
+            if order_updates:
+                order.save(update_fields=order_updates + ['updated_at'])
+
+            return payment, (not created)
 
     @staticmethod
     def sync_payment_status(reference, status_value, event_id, transaction_id='', failure_reason='', provider_response=None):

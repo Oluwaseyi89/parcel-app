@@ -200,6 +200,100 @@ class InternalPaymentSyncTests(TestCase):
 		self.assertEqual(self.order.payment_status, 'paid')
 
 
+class PaymentRegistrationContextTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.customer = CustomerUser.objects.create(
+            email='customer-register@example.com',
+            first_name='Register',
+            last_name='Customer',
+            role='customer',
+            is_email_verified=True,
+        )
+        self.customer.set_password('StrongPassword123')
+        self.customer.save()
+
+        self.vendor = VendorUser.objects.create(
+            email='vendor-register@example.com',
+            first_name='Register',
+            last_name='Vendor',
+            phone='08000000123',
+            business_name='Register Vendor',
+            role='vendor',
+            is_approved=True,
+            is_email_verified=True,
+        )
+        self.vendor.set_password('StrongPassword123')
+        self.vendor.save()
+
+        product = Product.objects.create(
+            vendor=self.vendor,
+            name='Register Product',
+            description='A sample product',
+            price='2500.00',
+            quantity=20,
+            main_image=SimpleUploadedFile('register-product.jpg', b'img', content_type='image/jpeg'),
+            sku='SKU-REGISTER-001',
+            slug='register-product-001',
+            status='active',
+        )
+
+        self.order = OrderService.create_order(
+            self.customer,
+            {
+                'shipping_method': 'pickup',
+                'shipping_address': {
+                    'street': 'Main Street',
+                    'city': 'Lagos',
+                    'state': 'Lagos',
+                    'country': 'Nigeria',
+                    'postal_code': '100001',
+                },
+                'items': [{'product_id': product.id, 'quantity': 1}],
+            },
+        )
+        self.reference = 'PAY-REGISTER-001'
+
+    def test_register_payment_and_fetch_context(self):
+        self.client.force_authenticate(user=self.customer)
+
+        register_response = self.client.post(
+            '/order/payments/register/',
+            {
+                'order_id': self.order.id,
+                'reference': self.reference,
+                'payment_method': 'card',
+                'amount': '2500.00',
+                'payment_provider': 'paystack',
+                'status': 'processing',
+            },
+            format='json',
+        )
+
+        self.assertEqual(register_response.status_code, 200, register_response.data)
+        self.assertEqual(register_response.data['status'], 'success')
+
+        context_response = self.client.get(f'/order/payments/{self.reference}/context/')
+
+        self.assertEqual(context_response.status_code, 200)
+        self.assertEqual(context_response.data['data']['reference'], self.reference)
+        self.assertEqual(context_response.data['data']['payment_status'], 'processing')
+
+    def test_register_payment_requires_auth_or_internal_token(self):
+        response = self.client.post(
+            '/order/payments/register/',
+            {
+                'order_id': self.order.id,
+                'reference': self.reference,
+                'payment_method': 'card',
+                'amount': '2500.00',
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+
 @override_settings(PAYSTACK_SECRET_KEY='paystack-secret')
 class PaystackWebhookTests(TestCase):
     def setUp(self):
