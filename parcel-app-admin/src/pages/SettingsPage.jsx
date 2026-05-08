@@ -49,7 +49,9 @@ export default function SettingsPage({ token, session }) {
   }
 
   useEffect(() => {
-    loadProfile()
+    queueMicrotask(() => {
+      void loadProfile()
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token])
 

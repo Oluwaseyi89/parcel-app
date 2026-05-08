@@ -65,7 +65,9 @@ export default function ComplaintsPage({ token }) {
   }
 
   useEffect(() => {
-    loadComplaints()
+    queueMicrotask(() => {
+      void loadComplaints()
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, resolvedFilter, satisfiedFilter, page, pageSize])
 

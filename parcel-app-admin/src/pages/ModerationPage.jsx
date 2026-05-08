@@ -113,7 +113,9 @@ export default function ModerationPage({ token }) {
   }
 
   useEffect(() => {
-    loadQueue()
+    queueMicrotask(() => {
+      void loadQueue()
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, queueType, statusFilter])
 

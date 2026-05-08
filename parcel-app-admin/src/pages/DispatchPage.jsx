@@ -115,13 +115,17 @@ export default function DispatchPage({ token }) {
   }
 
   useEffect(() => {
-    loadAll()
+    queueMicrotask(() => {
+      void loadAll()
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token])
 
   useEffect(() => {
     if (!token) return
-    loadDispatches().catch((err) => setError(err.message || 'Failed to load dispatches.'))
+    queueMicrotask(() => {
+      void loadDispatches().catch((err) => setError(err.message || 'Failed to load dispatches.'))
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter, page, pageSize])
 
