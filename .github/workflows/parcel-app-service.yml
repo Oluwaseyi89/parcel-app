@@ -1,0 +1,118 @@
+name: parcel-app-service
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'parcel-app-service/**'
+      - '.github/workflows/parcel-app-service.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'parcel-app-service/**'
+      - '.github/workflows/parcel-app-service.yml'
+
+defaults:
+  run:
+    working-directory: parcel-app-service
+
+jobs:
+  ci:
+    name: Django Check, Migrate & Test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: parcel_db
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d parcel_db"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DJANGO_SECRET_KEY: ci-secret-key
+      DJANGO_DEBUG: "True"
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
+      DATABASE_NAME: parcel_db
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: postgres
+      DATABASE_HOST: 127.0.0.1
+      DATABASE_PORT: "5432"
+      REDIS_URL: redis://127.0.0.1:6379/0
+      USE_S3: "False"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: parcel-app-service/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Wait for PostgreSQL
+        run: |
+          python - <<'PY'
+          import os
+          import time
+          import psycopg
+
+          host = os.environ["DATABASE_HOST"]
+          port = os.environ["DATABASE_PORT"]
+          dbname = os.environ["DATABASE_NAME"]
+          user = os.environ["DATABASE_USER"]
+          password = os.environ["DATABASE_PASSWORD"]
+
+          for attempt in range(30):
+              try:
+                  with psycopg.connect(
+                      host=host,
+                      port=port,
+                      dbname=dbname,
+                      user=user,
+                      password=password,
+                  ):
+                      print("PostgreSQL is ready")
+                      break
+              except Exception:
+                  if attempt == 29:
+                      raise
+                  time.sleep(2)
+          PY
+
+      - name: Django system check
+        run: python manage.py check
+
+      - name: Ensure migrations are up to date
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Apply migrations
+        run: python manage.py migrate --noinput
+
+      - name: Run test suite
+        run: python manage.py test --verbosity 2
