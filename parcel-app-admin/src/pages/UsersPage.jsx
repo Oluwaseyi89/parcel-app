@@ -123,13 +123,17 @@ export default function UsersPage({ token, role }) {
 
   useEffect(() => {
     if (canManageAdmins) {
-      loadAdmins()
+      queueMicrotask(() => {
+        void loadAdmins()
+      })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, canManageAdmins, adminPage, adminPageSize])
 
   useEffect(() => {
-    loadCustomers()
+    queueMicrotask(() => {
+      void loadCustomers()
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, customerActiveFilter, customerVerifiedFilter, customerPage, customerPageSize])
 

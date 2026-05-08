@@ -1,0 +1,30 @@
+repos:
+  - repo: local
+    hooks:
+      - id: springboot-tests
+        name: Spring Boot tests
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        entry: >-
+          bash -c 'cd parcel-app-payment-service &&
+          chmod +x gradlew &&
+          export SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-test} &&
+          export PAYSTACK_SECRET_KEY=${PAYSTACK_SECRET_KEY:-test-key} &&
+          export PAYMENT_SYNC_TOKEN=${PAYMENT_SYNC_TOKEN:-test-sync-token} &&
+          export PARCEL_APP_SERVICE_BASE_URL=${PARCEL_APP_SERVICE_BASE_URL:-http://localhost:7000} &&
+          ./gradlew --no-daemon test'
+
+      - id: springboot-build
+        name: Spring Boot build (pre-push)
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+        entry: >-
+          bash -c 'cd parcel-app-payment-service &&
+          chmod +x gradlew &&
+          export SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-test} &&
+          export PAYSTACK_SECRET_KEY=${PAYSTACK_SECRET_KEY:-test-key} &&
+          export PAYMENT_SYNC_TOKEN=${PAYMENT_SYNC_TOKEN:-test-sync-token} &&
+          export PARCEL_APP_SERVICE_BASE_URL=${PARCEL_APP_SERVICE_BASE_URL:-http://localhost:7000} &&
+          ./gradlew --no-daemon clean bootJar'

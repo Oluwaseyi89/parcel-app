@@ -1,0 +1,13 @@
+#!/usr/bin/env sh
+# Mirrors the CI lint and test steps.
+# Blocks the commit if either check fails.
+
+cd "$(git rev-parse --show-toplevel)/parcel-app-admin"
+
+echo "→ [pre-commit] Running ESLint..."
+npm run lint || { echo "✖ Lint failed. Commit aborted."; exit 1; }
+
+echo "→ [pre-commit] Running Vitest..."
+npm run test || { echo "✖ Tests failed. Commit aborted."; exit 1; }
+
+echo "✔ [pre-commit] All checks passed."

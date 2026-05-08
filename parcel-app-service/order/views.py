@@ -7,7 +7,7 @@ import secrets
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
 from rest_framework.pagination import PageNumberPagination
 from django.db.models import Q
 from authentication.permissions import IsAdminOrSuperAdmin, IsVendorOrAdmin, IsCourierOrAdmin
@@ -20,6 +20,18 @@ from .serializers import (
     PaymentRegistrationSerializer
 )
 from .models import Order, OrderItem, Payment, ShippingAddress
+
+
+class IsAuthenticatedOrTrustedInternalPaymentRequest(BasePermission):
+    """Allow authenticated users or callers presenting the internal sync token."""
+
+    def has_permission(self, request, view):
+        user = getattr(request, 'user', None)
+        if user and user.is_authenticated:
+            return True
+
+        trusted_checker = getattr(view, '_is_trusted_internal_call', None)
+        return callable(trusted_checker) and trusted_checker(request)
 
 class StandardPagination(PageNumberPagination):
     page_size = 20
@@ -206,7 +218,7 @@ class OrderStatusUpdateView(APIView):
 
 class PaymentRegistrationView(APIView):
     """Create or update canonical payment records for an order."""
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticatedOrTrustedInternalPaymentRequest]
 
     @staticmethod
     def _is_trusted_internal_call(request):
@@ -278,7 +290,7 @@ class PaymentRegistrationView(APIView):
 
 class PaymentContextView(APIView):
     """Read-only payment context for reference-based status checks."""
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticatedOrTrustedInternalPaymentRequest]
 
     @staticmethod
     def _is_trusted_internal_call(request):

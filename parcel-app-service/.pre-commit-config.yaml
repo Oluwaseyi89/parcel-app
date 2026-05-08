@@ -1,0 +1,35 @@
+repos:
+  - repo: local
+    hooks:
+      - id: django-system-check
+        name: Django system check
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        entry: >-
+          bash -c 'cd parcel-app-service &&
+          PYTHON_BIN="${PYTHON_BIN:-python}" &&
+          command -v "$PYTHON_BIN" >/dev/null 2>&1 || PYTHON_BIN="python3" &&
+          "$PYTHON_BIN" manage.py check'
+
+      - id: django-migration-drift
+        name: Django migration drift check
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+        entry: >-
+          bash -c 'cd parcel-app-service &&
+          PYTHON_BIN="${PYTHON_BIN:-python}" &&
+          command -v "$PYTHON_BIN" >/dev/null 2>&1 || PYTHON_BIN="python3" &&
+          "$PYTHON_BIN" manage.py makemigrations --check --dry-run'
+
+      - id: django-tests-pre-push
+        name: Django tests (pre-push)
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+        entry: >-
+          bash -c 'cd parcel-app-service &&
+          PYTHON_BIN="${PYTHON_BIN:-python}" &&
+          command -v "$PYTHON_BIN" >/dev/null 2>&1 || PYTHON_BIN="python3" &&
+          "$PYTHON_BIN" manage.py test --verbosity 2'

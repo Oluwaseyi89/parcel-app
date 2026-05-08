@@ -71,7 +71,9 @@ export default function BankingPage({ token }) {
   }
 
   useEffect(() => {
-    loadBanking()
+    queueMicrotask(() => {
+      void loadBanking()
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, activeType])
 

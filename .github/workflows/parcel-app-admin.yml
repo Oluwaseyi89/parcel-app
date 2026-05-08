@@ -1,0 +1,61 @@
+name: parcel-app-admin
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'parcel-app-admin/**'
+      - '.github/workflows/parcel-app-admin.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'parcel-app-admin/**'
+      - '.github/workflows/parcel-app-admin.yml'
+
+defaults:
+  run:
+    working-directory: parcel-app-admin
+
+jobs:
+  ci:
+    name: Lint, Test & Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: parcel-app-admin/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run tests
+        run: npm run test
+        env:
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL || 'http://localhost:7000' }}
+          VITE_PAYMENT_API_BASE_URL: ${{ secrets.VITE_PAYMENT_API_BASE_URL || 'http://localhost:8080' }}
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL || 'http://localhost:7000' }}
+          VITE_PAYMENT_API_BASE_URL: ${{ secrets.VITE_PAYMENT_API_BASE_URL || 'http://localhost:8080' }}
+
+      - name: Upload build artifact
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: parcel-app-admin-dist
+          path: parcel-app-admin/dist/
+          retention-days: 7

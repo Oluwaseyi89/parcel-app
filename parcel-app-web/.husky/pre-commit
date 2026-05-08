@@ -1,0 +1,9 @@
+#!/usr/bin/env sh
+# Runs fast validation before each commit.
+
+cd "$(git rev-parse --show-toplevel)/parcel-app-web"
+
+echo "-> [pre-commit] Running tests..."
+npm run test || { echo "x Tests failed. Commit aborted."; exit 1; }
+
+echo "OK [pre-commit] Tests passed."

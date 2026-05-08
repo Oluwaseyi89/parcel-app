@@ -81,7 +81,9 @@ export default function OrdersPage({ token }) {
   }
 
   useEffect(() => {
-    loadOrders()
+    queueMicrotask(() => {
+      void loadOrders()
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, statusFilter, paymentStatusFilter, page, pageSize])
 

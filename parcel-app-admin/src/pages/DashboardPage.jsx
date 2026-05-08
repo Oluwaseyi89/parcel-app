@@ -37,7 +37,9 @@ export default function DashboardPage({ token }) {
   }, [token]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    fetchMetrics()
+    queueMicrotask(() => {
+      void fetchMetrics()
+    })
   }, [fetchMetrics])
 
   if (isLoading) {
