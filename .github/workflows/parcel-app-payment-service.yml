@@ -1,0 +1,61 @@
+name: parcel-app-payment-service
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'parcel-app-payment-service/**'
+      - '.github/workflows/parcel-app-payment-service.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'parcel-app-payment-service/**'
+      - '.github/workflows/parcel-app-payment-service.yml'
+
+defaults:
+  run:
+    working-directory: parcel-app-payment-service
+
+jobs:
+  ci:
+    name: Build and Test (Java 17)
+    runs-on: ubuntu-latest
+
+    env:
+      SPRING_PROFILES_ACTIVE: test
+      PAYSTACK_SECRET_KEY: test-key
+      PAYMENT_SYNC_TOKEN: test-sync-token
+      PARCEL_APP_SERVICE_BASE_URL: http://localhost:7000
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@v4
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x gradlew
+
+      - name: Run tests
+        run: ./gradlew --no-daemon test
+
+      - name: Build application
+        run: ./gradlew --no-daemon clean bootJar
+
+      - name: Upload build artifact
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: parcel-app-payment-service-jar
+          path: parcel-app-payment-service/build/libs/*.jar
+          retention-days: 7
