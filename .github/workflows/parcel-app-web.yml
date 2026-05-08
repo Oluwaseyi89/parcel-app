@@ -1,0 +1,59 @@
+name: parcel-app-web
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'parcel-app-web/**'
+      - '.github/workflows/parcel-app-web.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'parcel-app-web/**'
+      - '.github/workflows/parcel-app-web.yml'
+
+defaults:
+  run:
+    working-directory: parcel-app-web
+
+jobs:
+  ci:
+    name: Test & Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: parcel-app-web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm run test
+        env:
+          NEXT_PUBLIC_API_BASE: ${{ secrets.NEXT_PUBLIC_API_BASE || 'http://localhost:7000' }}
+          NEXT_PUBLIC_PAYMENT_API_BASE: ${{ secrets.NEXT_PUBLIC_PAYMENT_API_BASE || 'http://localhost:8080' }}
+
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_API_BASE: ${{ secrets.NEXT_PUBLIC_API_BASE || 'http://localhost:7000' }}
+          NEXT_PUBLIC_PAYMENT_API_BASE: ${{ secrets.NEXT_PUBLIC_PAYMENT_API_BASE || 'http://localhost:8080' }}
+          NEXT_TELEMETRY_DISABLED: '1'
+
+      - name: Upload Next.js build artifact
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: parcel-app-web-next-build
+          path: parcel-app-web/.next/
+          retention-days: 7
