@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+# Mirrors the CI build step.
+# Blocks the push if the production bundle cannot be produced.
+
+cd "$(git rev-parse --show-toplevel)/parcel-app-admin"
+
+echo "→ [pre-push] Running Vite build..."
+npm run build || { echo "✖ Build failed. Push aborted."; exit 1; }
+
+echo "✔ [pre-push] Build passed. Proceeding with push."
