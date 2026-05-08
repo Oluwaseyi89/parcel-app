@@ -25,6 +25,12 @@ const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS", "TRACE"]);
 let csrfTokenCache: string | null = null;
 let csrfTokenPromise: Promise<string | null> | null = null;
 
+// Test helper to avoid cross-test leakage from module-scoped CSRF cache.
+export function resetApiRequestStateForTests(): void {
+  csrfTokenCache = null;
+  csrfTokenPromise = null;
+}
+
 function toAbsoluteUrl(path: string): string {
   if (path.startsWith("http://") || path.startsWith("https://")) {
     return path;

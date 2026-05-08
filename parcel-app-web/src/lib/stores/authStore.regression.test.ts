@@ -1,4 +1,5 @@
 import { STORAGE_KEYS } from "@/lib/constants";
+import { resetApiRequestStateForTests } from "@/lib/api";
 import { useAuthStore } from "@/lib/stores/authStore";
 import type { User } from "@/lib/types";
 import { beforeEach, describe, expect, it, test, vi } from "vitest";
@@ -24,6 +25,7 @@ function hasAnyAuthInStorage(): boolean {
 
 describe("authStore regression: cookie-first session contract", () => {
   beforeEach(() => {
+    resetApiRequestStateForTests();
     useAuthStore.setState({
       customer: null,
       vendor: null,
