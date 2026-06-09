@@ -18,13 +18,16 @@ public class VerificationServiceImpl implements VerificationService {
     @Value("${paystack.secret.key}")
     private String paystackSecretKey;
 
+    @Value("${paystack.api.base.url}")
+    private String paystackApiBaseUrl;
+
     public VerificationServiceImpl(WebClient.Builder webClientBuilder) {
         this.webClient = webClientBuilder.build();
     }
 
     @Override
     public String getPayment() {
-        String url = "https://api.paystack.co/transaction/verify";
+        String url = paystackApiBaseUrl + "/transaction/verify";
         return this.webClient.get()
                 .uri(url)
                 .retrieve()
@@ -34,7 +37,7 @@ public class VerificationServiceImpl implements VerificationService {
 
     @Override
     public VerificationResponseDTO getPaymentStatus(@PathVariable("paymentRef") String paymentRef) {
-        String url = "https://api.paystack.co/transaction/verify/" + paymentRef;
+        String url = paystackApiBaseUrl + "/transaction/verify/" + paymentRef;
         return this.webClient.get()
                 .uri(url)
                 .retrieve()

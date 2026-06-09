@@ -16,10 +16,13 @@ public class InitializeTransactionServiceImpl implements InitializeTransactionSe
     @Value("${paystack.secret.key}")
     private String paystackSecretKey;
 
+    @Value("${paystack.api.base.url}")
+    private String paystackApiBaseUrl;
+
     @Override
     public InitializeTransactionResponseDTO initializeTransaction(
             InitializeTransactionRequestDTO initializeTransactionRequestDTO) {
-        String url = "https://api.paystack.co/transaction/initialize";
+        String url = paystackApiBaseUrl + "/transaction/initialize";
         return webClient.post()
                 .uri(url)
                 .contentType(MediaType.APPLICATION_JSON)
