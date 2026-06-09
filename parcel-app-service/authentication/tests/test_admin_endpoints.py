@@ -42,7 +42,8 @@ class AdminCustomerEndpointTests(TestCase):
 
 	def test_admin_can_list_customers(self):
 		self._authenticate(self.admin, 'admin-token')
-		response = self.client.get('/auth/api/customers/')
+		# Updated path to match the namespaced v1 API route layout
+		response = self.client.get('/api/v1/auth/customers/')
 
 		self.assertEqual(response.status_code, 200)
 		self.assertEqual(response.data['status'], 'success')
@@ -50,6 +51,7 @@ class AdminCustomerEndpointTests(TestCase):
 
 	def test_customer_cannot_list_customers(self):
 		self._authenticate(self.customer, 'customer-token')
-		response = self.client.get('/auth/api/customers/')
+		# Updated path to match the namespaced v1 API route layout
+		response = self.client.get('/api/v1/auth/customers/')
 
 		self.assertEqual(response.status_code, 403)
