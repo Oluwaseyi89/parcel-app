@@ -166,7 +166,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   logoutCustomer: async () => {
     set(emptyState());
     try {
-      await apiRequest<{ status?: string }>("/auth/api/logout/", { method: "POST" });
+      await apiRequest<{ status?: string }>("/auth/logout/", { method: "POST" });
     } catch {
       // Keep local state cleared even if backend session already expired.
     }
@@ -175,7 +175,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   logoutVendor: async () => {
     set(emptyState());
     try {
-      await apiRequest<{ status?: string }>("/auth/api/logout/", { method: "POST" });
+      await apiRequest<{ status?: string }>("/auth/logout/", { method: "POST" });
     } catch {
       // Keep local state cleared even if backend session already expired.
     }
@@ -184,7 +184,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   logoutCourier: async () => {
     set(emptyState());
     try {
-      await apiRequest<{ status?: string }>("/auth/api/logout/", { method: "POST" });
+      await apiRequest<{ status?: string }>("/auth/logout/", { method: "POST" });
     } catch {
       // Keep local state cleared even if backend session already expired.
     }
@@ -193,7 +193,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   logout: async () => {
     set(emptyState());
     try {
-      await apiRequest<{ status?: string }>("/auth/api/logout/", { method: "POST" });
+      await apiRequest<{ status?: string }>("/auth/logout/", { method: "POST" });
     } catch {
       // Keep local state cleared even if backend session already expired.
     }
