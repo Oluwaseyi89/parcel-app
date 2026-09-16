@@ -29,7 +29,7 @@ export default function ComplaintsPage({ token }) {
     if (resolvedFilter !== 'all') params.set('is_resolved', resolvedFilter)
     if (satisfiedFilter !== 'all') params.set('is_satisfied', satisfiedFilter)
     const query = params.toString()
-    return query ? `/auth/api/complaints/?${query}` : '/auth/api/complaints/'
+    return query ? `/auth/complaints/?${query}` : '/auth/complaints/'
   }
 
   async function loadComplaints() {
@@ -76,7 +76,7 @@ export default function ComplaintsPage({ token }) {
       setIsSubmitting(true)
       setError('')
       setNotice('')
-      const payload = await apiRequest(`/auth/api/complaints/${complaintId}/update/`, {
+      const payload = await apiRequest(`/auth/complaints/${complaintId}/update/`, {
         method: 'PATCH',
         token,
         body: {
