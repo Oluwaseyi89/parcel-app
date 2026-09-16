@@ -199,7 +199,7 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
       formData.append("discount_percentage", uploadForm.prod_disc || "0");
       formData.append("image", uploadPhoto, uploadPhoto.name);
 
-      const res = await apiForm<{ status?: string; message?: string; data?: string }>("/product/products/create/", "POST", formData);
+      const res = await apiForm<{ status?: string; message?: string; data?: string }>("/product/create/", "POST", formData);
       if (res.status === "success") {
         setMessage(String(res.message ?? res.data ?? "Product uploaded."));
       } else {
@@ -235,7 +235,7 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
     setError("");
     setMessage("");
     try {
-      const res = await request<ApiResponse>(`/product/products/${productId}/update/`, {
+      const res = await request<ApiResponse>(`/product/${productId}/update/`, {
         method: "PATCH",
         body: {
           status: "archived",
@@ -268,7 +268,7 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
         quantity: Number(editForm.edit_qty),
         discount_percentage: Number(editForm.edit_disc),
       };
-      const res = await request<ApiResponse>(`/product/products/${productId}/update/`, {
+      const res = await request<ApiResponse>(`/product/${productId}/update/`, {
         method: "PATCH",
         body: payload as Record<string, unknown>,
         json: true,
