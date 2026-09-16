@@ -49,7 +49,7 @@ class ComplaintOwnershipTests(TestCase):
 		self.client.credentials(HTTP_X_SESSION_TOKEN='customer-token')
 
 	def test_customer_cannot_view_other_customer_complaints(self):
-		response = self.client.get(f'/complaints/customer/{self.other_customer.email}/')
+		response = self.client.get(f'/api/v1/complaints/customer/{self.other_customer.email}/')
 
 		self.assertEqual(response.status_code, 403)
 		self.assertEqual(response.data['status'], 'error')
