@@ -72,7 +72,7 @@ export async function createOrderFromCheckoutDraft(draft: CheckoutDraft): Promis
     })),
   };
 
-  const response = await apiRequest<ApiResponse<OrderResponseData>>("/order/orders/create/", {
+  const response = await apiRequest<ApiResponse<OrderResponseData>>("/order/create/", {
     method: "POST",
     body: payload as Record<string, unknown>,
     json: true,
