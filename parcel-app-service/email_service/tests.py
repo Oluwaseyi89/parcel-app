@@ -43,19 +43,19 @@ class EmailServiceRestrictionTests(TestCase):
 
 	def test_admin_can_list_email_templates(self):
 		self._authenticate(self.admin, 'admin-email-token')
-		response = self.client.get('/email/api/templates/')
+		response = self.client.get('/api/v1/email/templates/')
 
 		self.assertEqual(response.status_code, 200)
 		self.assertEqual(response.data['status'], 'success')
 
 	def test_customer_cannot_list_email_templates(self):
 		self._authenticate(self.customer, 'customer-email-token')
-		response = self.client.get('/email/api/templates/')
+		response = self.client.get('/api/v1/email/templates/')
 
 		self.assertEqual(response.status_code, 403)
 
 	@override_settings(DEBUG=False)
 	def test_preview_is_hidden_outside_debug(self):
-		response = self.client.get('/email/preview/')
+		response = self.client.get('/api/v1/email/preview/')
 
 		self.assertEqual(response.status_code, 404)
