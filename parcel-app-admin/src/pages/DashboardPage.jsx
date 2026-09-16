@@ -23,7 +23,7 @@ export default function DashboardPage({ token }) {
     try {
       setIsLoading(true)
       setError(null)
-      const payload = await apiRequest('/auth/api/dashboard/metrics/', {
+      const payload = await apiRequest('/auth/dashboard/metrics/', {
         method: 'GET',
         token,
       })
