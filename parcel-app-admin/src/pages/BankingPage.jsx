@@ -37,7 +37,7 @@ export default function BankingPage({ token }) {
       if (activeType !== 'all') params.set('type', activeType)
       if (search.trim()) params.set('search', search.trim())
       const query = params.toString()
-      const path = query ? `/auth/api/banking/?${query}` : '/auth/api/banking/'
+      const path = query ? `/auth/banking/?${query}` : '/auth/banking/'
 
       const payload = await apiRequest(path, {
         method: 'GET',
@@ -102,7 +102,7 @@ export default function BankingPage({ token }) {
         body.courier_email = form.email
       }
 
-      const payload = await apiRequest(`/auth/api/banking/${row.type}/${row.id}/update/`, {
+      const payload = await apiRequest(`/auth/banking/${row.type}/${row.id}/update/`, {
         method: 'PATCH',
         token,
         body,
