@@ -40,7 +40,7 @@ async function getTrustedActiveRole(request: NextRequest): Promise<"customer" | 
   }
 
   const cookieHeader = request.headers.get("cookie") || "";
-  const meUrl = `${getAuthApiBase()}/auth/me/`;
+  const meUrl = `${getAuthApiBase()}/api/v1/auth/me/`;
   const abort = new AbortController();
   const timeout = setTimeout(() => abort.abort(), 4_000);
 
