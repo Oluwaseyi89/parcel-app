@@ -24,7 +24,7 @@ class SessionContractTests(TestCase):
 		customer.save()
 
 		response = self.client.post(
-			'/auth/customer/login/',
+			'/api/v1/auth/customer/login/',
 			{'email': customer.email, 'password': 'StrongPassword123'},
 			format='json',
 		)
@@ -48,7 +48,7 @@ class SessionContractTests(TestCase):
 		vendor.save()
 
 		response = self.client.post(
-			'/vendors/login/',
+			'/api/v1/vendors/login/',
 			{'email': vendor.email, 'password': 'StrongPassword123'},
 			format='json',
 		)
@@ -72,7 +72,7 @@ class SessionContractTests(TestCase):
 		courier.save()
 
 		response = self.client.post(
-			'/couriers/login/',
+			'/api/v1/couriers/login/',
 			{'email': courier.email, 'password': 'StrongPassword123'},
 			format='json',
 		)
@@ -103,7 +103,7 @@ class SessionContractTests(TestCase):
 		)
 
 		self.client.cookies['auth_session'] = 'cookie-session-token'
-		response = self.client.get('/auth/me/')
+		response = self.client.get('/api/v1/auth/me/')
 
 		self.assertEqual(response.status_code, 200)
 		self.assertEqual(response.data['status'], 'success')
