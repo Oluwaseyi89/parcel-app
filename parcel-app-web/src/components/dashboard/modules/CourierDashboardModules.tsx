@@ -100,7 +100,7 @@ export default function CourierDashboardModules({ tab, user }: { tab: CourierTab
     }
 
     if (tab === "deals") {
-      readRequest<ApiResponse>("/dispatch/dispatches/?status=assigned", { method: "GET" })
+      readRequest<ApiResponse>("/dispatch/?status=assigned", { method: "GET" })
         .then((res) => {
           const rows = unwrapListData<Record<string, unknown>>(res).map((dispatch) => {
             const orderDetails = (dispatch.order_details ?? {}) as Record<string, unknown>;
@@ -132,7 +132,7 @@ export default function CourierDashboardModules({ tab, user }: { tab: CourierTab
     }
 
     if (tab === "dispatches") {
-      readRequest<ApiResponse>("/dispatch/dispatches/", { method: "GET" })
+      readRequest<ApiResponse>("/dispatch/", { method: "GET" })
         .then((res) => {
           const rows = unwrapListData<Record<string, unknown>>(res)
             .map((dispatch) => {
@@ -187,7 +187,7 @@ export default function CourierDashboardModules({ tab, user }: { tab: CourierTab
         status: "picking_up",
         notes: `Accepted by ${courierName}`,
       };
-      await request<ApiResponse>(`/dispatch/dispatches/${dispatchId}/status/`, {
+      await request<ApiResponse>(`/dispatch/${dispatchId}/status/`, {
         method: "POST",
         body: payload as Record<string, unknown>,
         json: true,

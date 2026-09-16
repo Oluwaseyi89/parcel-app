@@ -36,7 +36,7 @@ class SessionExpiryTests(TestCase):
 		self._create_session('expired-header-token', -timedelta(minutes=1))
 		self.client.credentials(HTTP_X_SESSION_TOKEN='expired-header-token')
 
-		response = self.client.get('/auth/me/')
+		response = self.client.get('/api/v1/auth/me/')
 
 		self.assertIn(response.status_code, {401, 403})
 
@@ -44,7 +44,7 @@ class SessionExpiryTests(TestCase):
 		self._create_session('expired-cookie-token', -timedelta(minutes=1))
 		self.client.cookies['auth_session'] = 'expired-cookie-token'
 
-		response = self.client.get('/auth/me/')
+		response = self.client.get('/api/v1/auth/me/')
 
 		self.assertIn(response.status_code, {401, 403})
 
@@ -53,7 +53,7 @@ class SessionExpiryTests(TestCase):
 		self.assertTrue(session.is_active)
 
 		self.client.credentials(HTTP_X_SESSION_TOKEN='expired-auto-token')
-		self.client.get('/auth/me/')
+		self.client.get('/api/v1/auth/me/')
 
 		session.refresh_from_db()
 		self.assertFalse(session.is_active)
@@ -62,7 +62,7 @@ class SessionExpiryTests(TestCase):
 		self._create_session('valid-token', timedelta(hours=1))
 		self.client.credentials(HTTP_X_SESSION_TOKEN='valid-token')
 
-		response = self.client.get('/auth/me/')
+		response = self.client.get('/api/v1/auth/me/')
 
 		self.assertEqual(response.status_code, 200)
 		self.assertEqual(response.data['data']['user']['email'], self.customer.email)
@@ -72,7 +72,7 @@ class SessionExpiryTests(TestCase):
 		self._create_session('just-expired-token', -timedelta(seconds=1))
 		self.client.credentials(HTTP_X_SESSION_TOKEN='just-expired-token')
 
-		response = self.client.get('/auth/me/')
+		response = self.client.get('/api/v1/auth/me/')
 
 		self.assertIn(response.status_code, {401, 403})
 
@@ -124,7 +124,7 @@ class SessionExpiryTests(TestCase):
 				client = APIClient()
 				client.credentials(HTTP_X_SESSION_TOKEN=f'expired-{label}-token')
 
-				response = client.get('/auth/me/')
+				response = client.get('/api/v1/auth/me/')
 
 				self.assertIn(response.status_code, {401, 403})
 
@@ -148,7 +148,7 @@ class LogoutInvalidationTests(TestCase):
 
 	def _login(self):
 		response = self.client.post(
-			'/auth/customer/login/',
+			'/api/v1/auth/customer/login/',
 			{'email': self.customer.email, 'password': 'StrongPassword123'},
 			format='json',
 		)
@@ -156,7 +156,7 @@ class LogoutInvalidationTests(TestCase):
 		return response
 
 	def _issue_csrf_token(self):
-		response = self.client.get('/auth/csrf/')
+		response = self.client.get('/api/v1/auth/csrf/')
 		self.assertEqual(response.status_code, 200)
 		return response.data['data']['csrf_token']
 
@@ -170,7 +170,7 @@ class LogoutInvalidationTests(TestCase):
 		self.assertTrue(session.is_active)
 
 		csrf = self._issue_csrf_token()
-		logout = self.client.post('/auth/api/logout/', {}, format='json', HTTP_X_CSRFTOKEN=csrf)
+		logout = self.client.post('/api/v1/auth/logout/', {}, format='json', HTTP_X_CSRFTOKEN=csrf)
 		self.assertEqual(logout.status_code, 200)
 
 		session.refresh_from_db()
@@ -180,7 +180,7 @@ class LogoutInvalidationTests(TestCase):
 		self._login()
 
 		csrf = self._issue_csrf_token()
-		logout = self.client.post('/auth/api/logout/', {}, format='json', HTTP_X_CSRFTOKEN=csrf)
+		logout = self.client.post('/api/v1/auth/logout/', {}, format='json', HTTP_X_CSRFTOKEN=csrf)
 
 		self.assertIn('auth_session', logout.cookies)
 		self.assertEqual(logout.cookies['auth_session']['max-age'], 0)
@@ -189,7 +189,7 @@ class LogoutInvalidationTests(TestCase):
 		self._login()
 
 		csrf = self._issue_csrf_token()
-		logout = self.client.post('/auth/api/logout/', {}, format='json', HTTP_X_CSRFTOKEN=csrf)
+		logout = self.client.post('/api/v1/auth/logout/', {}, format='json', HTTP_X_CSRFTOKEN=csrf)
 
 		self.assertIn('logcus', logout.cookies)
 		self.assertEqual(logout.cookies['logcus']['max-age'], 0)
@@ -198,9 +198,9 @@ class LogoutInvalidationTests(TestCase):
 		self._login()
 
 		csrf = self._issue_csrf_token()
-		self.client.post('/auth/api/logout/', {}, format='json', HTTP_X_CSRFTOKEN=csrf)
+		self.client.post('/api/v1/auth/logout/', {}, format='json', HTTP_X_CSRFTOKEN=csrf)
 
-		me = self.client.get('/auth/me/')
+		me = self.client.get('/api/v1/auth/me/')
 		self.assertIn(me.status_code, {401, 403})
 
 	def test_reusing_invalidated_session_token_is_denied(self):
@@ -213,12 +213,12 @@ class LogoutInvalidationTests(TestCase):
 		token = session.session_token
 
 		csrf = self._issue_csrf_token()
-		self.client.post('/auth/api/logout/', {}, format='json', HTTP_X_CSRFTOKEN=csrf)
+		self.client.post('/api/v1/auth/logout/', {}, format='json', HTTP_X_CSRFTOKEN=csrf)
 
 		# Build a fresh client with the old token as header — must be denied
 		fresh_client = APIClient()
 		fresh_client.credentials(HTTP_X_SESSION_TOKEN=token)
-		me = fresh_client.get('/auth/me/')
+		me = fresh_client.get('/api/v1/auth/me/')
 		self.assertIn(me.status_code, {401, 403})
 
 	def test_logout_via_header_auth_marks_session_inactive(self):
@@ -233,7 +233,7 @@ class LogoutInvalidationTests(TestCase):
 		client = APIClient()
 		client.credentials(HTTP_X_SESSION_TOKEN='header-logout-token')
 
-		logout = client.post('/auth/api/logout/', {}, format='json')
+		logout = client.post('/api/v1/auth/logout/', {}, format='json')
 		self.assertEqual(logout.status_code, 200)
 
 		session.refresh_from_db()
@@ -244,10 +244,10 @@ class LogoutInvalidationTests(TestCase):
 		self._login()
 
 		csrf = self._issue_csrf_token()
-		first_logout = self.client.post('/auth/api/logout/', {}, format='json', HTTP_X_CSRFTOKEN=csrf)
+		first_logout = self.client.post('/api/v1/auth/logout/', {}, format='json', HTTP_X_CSRFTOKEN=csrf)
 		self.assertEqual(first_logout.status_code, 200)
 
-		second_logout = self.client.post('/auth/api/logout/', {}, format='json')
+		second_logout = self.client.post('/api/v1/auth/logout/', {}, format='json')
 		self.assertIn(second_logout.status_code, {401, 403})
 
 	def test_logout_does_not_affect_other_active_sessions(self):
@@ -267,7 +267,7 @@ class LogoutInvalidationTests(TestCase):
 
 		client_a = APIClient()
 		client_a.credentials(HTTP_X_SESSION_TOKEN='session-a-token')
-		logout = client_a.post('/auth/api/logout/', {}, format='json')
+		logout = client_a.post('/api/v1/auth/logout/', {}, format='json')
 		self.assertEqual(logout.status_code, 200)
 
 		session_a.refresh_from_db()
@@ -278,7 +278,7 @@ class LogoutInvalidationTests(TestCase):
 
 		client_b = APIClient()
 		client_b.credentials(HTTP_X_SESSION_TOKEN='session-b-token')
-		me = client_b.get('/auth/me/')
+		me = client_b.get('/api/v1/auth/me/')
 		self.assertEqual(me.status_code, 200)
 
 
@@ -349,5 +349,5 @@ class SessionModelTests(TestCase):
 
 		client = APIClient()
 		client.credentials(HTTP_X_SESSION_TOKEN='model-inactive-token')
-		response = client.get('/auth/me/')
+		response = client.get('/api/v1/auth/me/')
 		self.assertIn(response.status_code, {401, 403})

@@ -63,7 +63,7 @@ export default function UsersPage({ token, role }) {
     }
 
     const query = params.toString()
-    return query ? `/auth/api/customers/?${query}` : '/auth/api/customers/'
+    return query ? `/auth/customers/?${query}` : '/auth/customers/'
   }
 
   async function loadAdmins() {
@@ -72,7 +72,7 @@ export default function UsersPage({ token, role }) {
     try {
       setIsLoadingAdmins(true)
       setAdminError('')
-      const payload = await apiRequest('/auth/api/admins/', {
+      const payload = await apiRequest('/auth/admins/', {
         method: 'GET',
         token,
       })
@@ -146,7 +146,7 @@ export default function UsersPage({ token, role }) {
 
     try {
       setIsCreatingAdmin(true)
-      const payload = await apiRequest('/auth/api/admins/', {
+      const payload = await apiRequest('/auth/admins/', {
         method: 'POST',
         token,
         body: newAdmin,
@@ -178,7 +178,7 @@ export default function UsersPage({ token, role }) {
     try {
       setAdminError('')
       setAdminNotice('')
-      const payload = await apiRequest(`/auth/api/admins/${adminId}/`, {
+      const payload = await apiRequest(`/auth/admins/${adminId}/`, {
         method: 'DELETE',
         token,
       })
@@ -196,7 +196,7 @@ export default function UsersPage({ token, role }) {
 
     try {
       setCustomerError('')
-      await apiRequest(`/auth/api/customers/${customerId}/`, {
+      await apiRequest(`/auth/customers/${customerId}/`, {
         method: 'PATCH',
         token,
         body: {

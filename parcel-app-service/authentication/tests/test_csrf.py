@@ -1,5 +1,6 @@
 from django.test import TestCase
 from django.contrib.contenttypes.models import ContentType
+from django.urls import reverse
 from django.utils import timezone
 import inspect
 from datetime import timedelta
@@ -42,17 +43,18 @@ class CsrfEnforcementTests(TestCase):
 		self.client.cookies['auth_session'] = 'csrf-session-token'
 
 	def _issue_csrf_token(self):
-		response = self.client.get('/auth/csrf/')
+		response = self.client.get(reverse('v1:auth:csrf_token'))
 		self.assertEqual(response.status_code, 200)
 		return response.data['data']['csrf_token']
 
 	def test_patch_requires_csrf_with_cookie_auth(self):
-		without_csrf = self.client.patch('/auth/api/profile/', {'first_name': 'NoCsrf'}, format='json')
+		profile_url = reverse('v1:auth:admin_profile')
+		without_csrf = self.client.patch(profile_url, {'first_name': 'NoCsrf'}, format='json')
 		self.assertEqual(without_csrf.status_code, 403)
 
 		csrf_token = self._issue_csrf_token()
 		with_csrf = self.client.patch(
-			'/auth/api/profile/',
+			profile_url,
 			{'first_name': 'WithCsrf'},
 			format='json',
 			HTTP_X_CSRFTOKEN=csrf_token,
@@ -60,20 +62,22 @@ class CsrfEnforcementTests(TestCase):
 		self.assertEqual(with_csrf.status_code, 200)
 
 	def test_post_requires_csrf_with_cookie_auth(self):
-		without_csrf = self.client.post('/auth/api/logout/', {}, format='json')
+		logout_url = reverse('v1:auth:admin_logout')
+		without_csrf = self.client.post(logout_url, {}, format='json')
 		self.assertEqual(without_csrf.status_code, 403)
 
 		csrf_token = self._issue_csrf_token()
-		with_csrf = self.client.post('/auth/api/logout/', {}, format='json', HTTP_X_CSRFTOKEN=csrf_token)
+		with_csrf = self.client.post(logout_url, {}, format='json', HTTP_X_CSRFTOKEN=csrf_token)
 		self.assertEqual(with_csrf.status_code, 200)
 
 	def test_delete_requires_csrf_with_cookie_auth(self):
-		without_csrf = self.client.delete(f'/auth/api/customers/{self.customer.id}/')
+		customer_url = reverse('v1:auth:customer_detail', kwargs={'pk': self.customer.id})
+		without_csrf = self.client.delete(customer_url)
 		self.assertEqual(without_csrf.status_code, 403)
 
 		csrf_token = self._issue_csrf_token()
 		with_csrf = self.client.delete(
-			f'/auth/api/customers/{self.customer.id}/',
+			customer_url,
 			HTTP_X_CSRFTOKEN=csrf_token,
 		)
 		self.assertEqual(with_csrf.status_code, 200)
@@ -84,19 +88,19 @@ class CsrfExemptSurfaceAuditTests(TestCase):
 	P0: CSRF enforcement matrix and csrf_exempt surface audit.
 
 	Documented routed csrf_exempt surface:
-	- auth:   /auth/api/sessions/active/
-	- auth:   /auth/api/mobile/login/
-	- auth:   /auth/customer/register/mobile/
-	- auth:   /auth/customer/login/mobile/
-	- auth:   /auth/customer/profile/mobile/
-	- auth:   /auth/customer/password/reset/mobile/
-	- vendor: /vendors/register/mobile/
-	- vendor: /vendors/login/mobile/
-	- courier:/couriers/register/mobile/
-	- courier:/couriers/login/mobile/
-	- order:  /order/orders/create/mobile/
-	- product:/product/products/create/mobile/
-	- product:/product/products/1/update/mobile/
+	- auth:   /api/v1/auth/sessions/active/
+	- auth:   /api/v1/auth/mobile/login/
+	- auth:   /api/v1/auth/customer/register/mobile/
+	- auth:   /api/v1/auth/customer/login/mobile/
+	- auth:   /api/v1/auth/customer/profile/mobile/
+	- auth:   /api/v1/auth/customer/password/reset/mobile/
+	- vendor: /api/v1/vendors/register/mobile/
+	- vendor: /api/v1/vendors/login/mobile/
+	- courier:/api/v1/couriers/register/mobile/
+	- courier:/api/v1/couriers/login/mobile/
+	- order:  /api/v1/order/create/mobile/
+	- product:/api/v1/product/create/mobile/
+	- product:/api/v1/product/1/update/mobile/
 
 	The paired web routes remain CSRF-protected for unsafe cookie-auth requests.
 	"""
@@ -105,8 +109,8 @@ class CsrfExemptSurfaceAuditTests(TestCase):
 		'authentication.urls': {
 			'count': 6,
 			'snippets': [
-				"path('api/sessions/active/', csrf_exempt(AdminLoginView.as_view()), name=\"active_sessions\")",
-				"path('api/mobile/login/', csrf_exempt(AdminLoginView.as_view()), name=\"mobile_admin_login\")",
+				"path('sessions/active/', csrf_exempt(AdminLoginView.as_view()), name=\"active_sessions\")",
+				"path('mobile/login/', csrf_exempt(AdminLoginView.as_view()), name=\"mobile_admin_login\")",
 				"path('customer/register/mobile/', csrf_exempt(CustomerRegistrationView.as_view()), name=\"customer_register_mobile\")",
 				"path('customer/login/mobile/', csrf_exempt(CustomerLoginView.as_view()), name=\"customer_login_mobile\")",
 				"path('customer/profile/mobile/', csrf_exempt(CustomerProfileView.as_view()), name=\"customer_profile_mobile\")",
@@ -130,14 +134,14 @@ class CsrfExemptSurfaceAuditTests(TestCase):
 		'order.urls': {
 			'count': 1,
 			'snippets': [
-				"path('orders/create/mobile/', csrf_exempt(OrderCreateView.as_view()), name=\"order_create_mobile\")",
+				"path('create/mobile/', csrf_exempt(OrderCreateView.as_view()), name=\"order_create_mobile\")",
 			],
 		},
 		'product.urls': {
 			'count': 2,
 			'snippets': [
-				"path('products/create/mobile/', csrf_exempt(ProductCreateView.as_view()), name=\"product_create_mobile\")",
-				"path('products/<int:product_id>/update/mobile/', csrf_exempt(ProductUpdateView.as_view()), name=\"product_update_mobile\")",
+				"path('create/mobile/', csrf_exempt(ProductCreateView.as_view()), name=\"product_create_mobile\")",
+				"path('<int:product_id>/update/mobile/', csrf_exempt(ProductUpdateView.as_view()), name=\"product_update_mobile\")",
 			],
 		},
 		'dispatch.urls': {
@@ -231,35 +235,35 @@ class CsrfEnforcementMatrixTests(TestCase):
 			{
 				'name': 'auth_logout',
 				'method': 'post',
-				'path': '/auth/api/logout/',
+				'path': reverse('v1:auth:admin_logout'),
 				'token': 'csrf-matrix-customer-token',
 				'data': {},
 			},
 			{
 				'name': 'auth_profile_patch',
 				'method': 'patch',
-				'path': '/auth/api/profile/',
+				'path': reverse('v1:auth:admin_profile'),
 				'token': 'csrf-matrix-customer-token',
 				'data': {'first_name': 'Updated'},
 			},
 			{
 				'name': 'order_create_web',
 				'method': 'post',
-				'path': '/order/orders/create/',
+				'path': reverse('v1:order:order_create'),
 				'token': 'csrf-matrix-customer-token',
 				'data': {},
 			},
 			{
 				'name': 'product_create_web',
 				'method': 'post',
-				'path': '/product/products/create/',
+				'path': reverse('v1:product:product_create'),
 				'token': 'csrf-matrix-vendor-token',
 				'data': {},
 			},
 			{
 				'name': 'product_update_web',
 				'method': 'patch',
-				'path': f'/product/products/{self.product.id}/update/',
+				'path': reverse('v1:product:product_update', kwargs={'product_id': self.product.id}),
 				'token': 'csrf-matrix-vendor-token',
 				'data': {'name': 'Blocked Without CSRF'},
 			},
@@ -276,70 +280,70 @@ class CsrfEnforcementMatrixTests(TestCase):
 			{
 				'name': 'customer_register_mobile',
 				'method': 'post',
-				'path': '/auth/customer/register/mobile/',
+				'path': reverse('v1:auth:customer_register_mobile'),
 				'token': None,
 				'data': {},
 			},
 			{
 				'name': 'customer_login_mobile',
 				'method': 'post',
-				'path': '/auth/customer/login/mobile/',
+				'path': reverse('v1:auth:customer_login_mobile'),
 				'token': None,
 				'data': {},
 			},
 			{
 				'name': 'customer_reset_mobile',
 				'method': 'post',
-				'path': '/auth/customer/password/reset/mobile/',
+				'path': reverse('v1:auth:customer_password_reset_mobile'),
 				'token': None,
 				'data': {},
 			},
 			{
 				'name': 'vendor_register_mobile',
 				'method': 'post',
-				'path': '/vendors/register/mobile/',
+				'path': reverse('v1:vendors:vendor_register_mobile'),
 				'token': None,
 				'data': {},
 			},
 			{
 				'name': 'vendor_login_mobile',
 				'method': 'post',
-				'path': '/vendors/login/mobile/',
+				'path': reverse('v1:vendors:vendor_login_mobile'),
 				'token': None,
 				'data': {},
 			},
 			{
 				'name': 'courier_register_mobile',
 				'method': 'post',
-				'path': '/couriers/register/mobile/',
+				'path': reverse('v1:couriers:courier_register_mobile'),
 				'token': None,
 				'data': {},
 			},
 			{
 				'name': 'courier_login_mobile',
 				'method': 'post',
-				'path': '/couriers/login/mobile/',
+				'path': reverse('v1:couriers:courier_login_mobile'),
 				'token': None,
 				'data': {},
 			},
 			{
 				'name': 'order_create_mobile',
 				'method': 'post',
-				'path': '/order/orders/create/mobile/',
+				'path': reverse('v1:order:order_create_mobile'),
 				'token': 'csrf-matrix-customer-token',
 				'data': {},
 			},
 			{
 				'name': 'product_create_mobile',
 				'method': 'post',
-				'path': '/product/products/create/mobile/',
+				'path': reverse('v1:product:product_create_mobile'),
 				'token': 'csrf-matrix-vendor-token',
 				'data': {},
 			},
 			{
 				'name': 'product_update_mobile',
 				'method': 'patch',
-				'path': f'/product/products/{self.product.id}/update/mobile/',
+				'path': reverse('v1:product:product_update_mobile', kwargs={'product_id': self.product.id}),
 				'token': 'csrf-matrix-vendor-token',
 				'data': {'name': 'Allowed Without CSRF'},
 			},

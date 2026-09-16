@@ -1,4 +1,3 @@
-# dispatch/urls.py
 from django.urls import path
 from django.views.decorators.csrf import csrf_exempt
 from .views import (
@@ -9,29 +8,32 @@ from .views import (
     DispatchStatsView, RouteOptimizationView
 )
 
+# CRITICAL: Links this routing fleet to the 'dispatch' block in project urls.py
+app_name = 'dispatch'
+
 urlpatterns = [
-    # Template view
-    path('', dispatch, name="dispatch"),
+    # Template view (legacy dashboard) -> /api/v1/dispatch/view/
+    path('view/', dispatch, name="dispatch"),
     
-    # Dispatch management
-    path('dispatches/', DispatchListView.as_view(), name="dispatch_list"),
-    path('dispatches/create/', DispatchCreateView.as_view(), name="dispatch_create"),
-    path('dispatches/<int:dispatch_id>/', DispatchDetailView.as_view(), name="dispatch_detail"),
-    path('dispatches/<int:dispatch_id>/assign/', DispatchAssignView.as_view(), name="dispatch_assign"),
-    path('dispatches/<int:dispatch_id>/status/', DispatchStatusUpdateView.as_view(), name="dispatch_status_update"),
-    path('dispatches/<int:dispatch_id>/optimize-route/', RouteOptimizationView.as_view(), name="dispatch_optimize_route"),
+    # Dispatch management -> /api/v1/dispatch/
+    path('', DispatchListView.as_view(), name="dispatch_list"),
+    path('create/', DispatchCreateView.as_view(), name="dispatch_create"),
+    path('<int:dispatch_id>/', DispatchDetailView.as_view(), name="dispatch_detail"),
+    path('<int:dispatch_id>/assign/', DispatchAssignView.as_view(), name="dispatch_assign"),
+    path('<int:dispatch_id>/status/', DispatchStatusUpdateView.as_view(), name="dispatch_status_update"),
+    path('<int:dispatch_id>/optimize-route/', RouteOptimizationView.as_view(), name="dispatch_optimize_route"),
     
-    # Ready orders for dispatch
+    # Ready orders for dispatch -> /api/v1/dispatch/ready-orders/
     path('ready-orders/', ReadyForDispatchView.as_view(), name="ready_orders"),
     
-    # Vendor-specific
+    # Vendor-specific views -> /api/v1/dispatch/vendor/items/
     path('vendor/items/', VendorDispatchItemsView.as_view(), name="vendor_dispatch_items"),
     path('items/<int:item_id>/update/', DispatchItemUpdateView.as_view(), name="dispatch_item_update"),
     
-    # Courier operations
+    # Courier operations -> /api/v1/dispatch/courier/location/
     path('courier/location/', CourierLocationUpdateView.as_view(), name="courier_location_update"),
     
-    # Statistics
+    # Statistics -> /api/v1/dispatch/stats/
     path('stats/', DispatchStatsView.as_view(), name="dispatch_stats"),
     
     # Legacy URLs for backward compatibility

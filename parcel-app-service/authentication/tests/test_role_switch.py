@@ -49,7 +49,7 @@ class ActiveRoleSwitchTests(TestCase):
 		self.client.credentials(HTTP_X_SESSION_TOKEN='multi-role-session-token')
 
 	def test_me_returns_all_available_roles_for_same_email(self):
-		response = self.client.get('/auth/me/')
+		response = self.client.get('/api/v1/auth/me/')
 
 		self.assertEqual(response.status_code, 200)
 		self.assertEqual(response.data['data']['active_role'], 'vendor')
@@ -57,7 +57,7 @@ class ActiveRoleSwitchTests(TestCase):
 		self.assertIn('courier', response.data['data']['allowed_roles'])
 
 	def test_switch_role_updates_active_session_user(self):
-		response = self.client.post('/auth/switch-role/', {'role': 'courier'}, format='json')
+		response = self.client.post('/api/v1/auth/switch-role/', {'role': 'courier'}, format='json')
 
 		self.assertEqual(response.status_code, 200)
 		self.assertEqual(response.data['data']['active_role'], 'courier')
@@ -68,11 +68,11 @@ class ActiveRoleSwitchTests(TestCase):
 		self.session.refresh_from_db()
 		self.assertEqual(self.session.object_id, self.courier.id)
 
-		me_response = self.client.get('/auth/me/')
+		me_response = self.client.get('/api/v1/auth/me/')
 		self.assertEqual(me_response.status_code, 200)
 		self.assertEqual(me_response.data['data']['active_role'], 'courier')
 
 	def test_switch_role_rejects_unavailable_role(self):
-		response = self.client.post('/auth/switch-role/', {'role': 'customer'}, format='json')
+		response = self.client.post('/api/v1/auth/switch-role/', {'role': 'customer'}, format='json')
 
 		self.assertEqual(response.status_code, 403)

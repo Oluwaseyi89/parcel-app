@@ -29,7 +29,7 @@ export default function SettingsPage({ token, session }) {
     try {
       setIsLoading(true)
       setError('')
-      const payload = await apiRequest('/auth/api/profile/', {
+      const payload = await apiRequest('/auth/profile/', {
         method: 'GET',
         token,
       })
@@ -61,7 +61,7 @@ export default function SettingsPage({ token, session }) {
       setIsSavingProfile(true)
       setError('')
       setNotice('')
-      const payload = await apiRequest('/auth/api/profile/', {
+      const payload = await apiRequest('/auth/profile/', {
         method: 'PATCH',
         token,
         body: profileForm,
@@ -83,7 +83,7 @@ export default function SettingsPage({ token, session }) {
       setIsChangingPassword(true)
       setError('')
       setNotice('')
-      const payload = await apiRequest('/auth/api/change-password/', {
+      const payload = await apiRequest('/auth/change-password/', {
         method: 'POST',
         token,
         body: passwordForm,

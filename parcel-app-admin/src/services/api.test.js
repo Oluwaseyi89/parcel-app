@@ -9,7 +9,7 @@ describe('apiRequest', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    await apiRequest('/auth/api/orders/', {
+    await apiRequest('/auth/orders/', {
       method: 'POST',
       token: 'session-token',
       body: { status: 'approved' },
@@ -19,7 +19,7 @@ describe('apiRequest', () => {
     })
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:7000/auth/api/orders/',
+      'http://localhost:7000/api/v1/auth/orders/',
       expect.objectContaining({
         method: 'POST',
         credentials: 'include',
@@ -46,7 +46,7 @@ describe('apiRequest', () => {
       }),
     )
 
-    await expect(apiRequest('/auth/api/profile/', { method: 'GET' })).rejects.toThrow(
+    await expect(apiRequest('/auth/profile/', { method: 'GET' })).rejects.toThrow(
       'Session token expired',
     )
   })
@@ -60,7 +60,7 @@ describe('apiRequest', () => {
       }),
     )
 
-    await expect(apiRequest('/auth/api/profile/', { method: 'GET' })).rejects.toThrow(
+    await expect(apiRequest('/auth/profile/', { method: 'GET' })).rejects.toThrow(
       'Request failed. Please try again.',
     )
   })

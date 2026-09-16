@@ -1,7 +1,14 @@
 import { API_BASE_URL } from '../config/constants'
 
+const API_VERSION_PREFIX = '/api/v1'
+
 function buildApiUrl(path) {
-  return `${API_BASE_URL}${path}`
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`
+  const versionedPath = normalizedPath.startsWith(API_VERSION_PREFIX)
+    ? normalizedPath
+    : `${API_VERSION_PREFIX}${normalizedPath}`
+
+  return `${API_BASE_URL}${versionedPath}`
 }
 
 export async function apiRequest(path, options = {}) {

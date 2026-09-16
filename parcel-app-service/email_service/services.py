@@ -1,6 +1,7 @@
 from django.core.mail import EmailMessage
 from django.template.loader import render_to_string
 from django.contrib.sites.shortcuts import get_current_site
+from django.urls import reverse
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 from core.tokens import account_activation_token
@@ -16,12 +17,13 @@ class EmailService:
 
     @staticmethod
     def _activation_path(email_type, uid, token):
-        activation_paths = {
-            'vendor': f"/vendors/activate/{uid}/{token}/",
-            'courier': f"/couriers/activate/{uid}/{token}/",
-            'customer': f"/auth/customer/activate/{uid}/{token}/",
+        activation_urls = {
+            'vendor': 'v1:vendors:vendor_activate',
+            'courier': 'v1:couriers:courier_activate',
+            'customer': 'v1:auth:activate_customer',
         }
-        return activation_paths.get(email_type, f"/auth/customer/activate/{uid}/{token}/")
+        url_name = activation_urls.get(email_type, 'v1:auth:activate_customer')
+        return reverse(url_name, kwargs={'uidb64': uid, 'token': token})
     
     @staticmethod
     def send_activation_email(user, request, template_name='emails/email_verification.html', email_type=None):

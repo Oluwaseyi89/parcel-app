@@ -213,7 +213,7 @@ class CookieVsHeaderPrecedenceTests(TestCase):
 		client.cookies['auth_session'] = 'prec-token-alpha'      # user A in cookie
 		client.credentials(HTTP_X_SESSION_TOKEN='prec-token-beta')  # user B in header
 
-		response = client.get('/auth/me/')
+		response = client.get('/api/v1/auth/me/')
 
 		self.assertEqual(response.status_code, 200)
 		self.assertEqual(response.data['data']['user']['email'], self.customer_b.email)
@@ -223,7 +223,7 @@ class CookieVsHeaderPrecedenceTests(TestCase):
 		client = APIClient()
 		client.cookies['auth_session'] = 'prec-token-alpha'
 
-		response = client.get('/auth/me/')
+		response = client.get('/api/v1/auth/me/')
 
 		self.assertEqual(response.status_code, 200)
 		self.assertEqual(response.data['data']['user']['email'], self.customer_a.email)
@@ -234,7 +234,7 @@ class CookieVsHeaderPrecedenceTests(TestCase):
 		client.cookies['auth_session'] = 'prec-token-alpha'   # valid
 		client.credentials(HTTP_X_SESSION_TOKEN='no-such-token')  # invalid
 
-		response = client.get('/auth/me/')
+		response = client.get('/api/v1/auth/me/')
 
 		self.assertIn(response.status_code, {401, 403})
 
@@ -244,12 +244,12 @@ class CookieVsHeaderPrecedenceTests(TestCase):
 		client.cookies['auth_session'] = 'prec-token-alpha'        # valid
 		client.credentials(HTTP_X_SESSION_TOKEN='prec-token-expired')  # expired
 
-		response = client.get('/auth/me/')
+		response = client.get('/api/v1/auth/me/')
 
 		self.assertIn(response.status_code, {401, 403})
 
 	def test_no_credentials_denied_on_protected_endpoint(self):
-		response = APIClient().get('/auth/me/')
+		response = APIClient().get('/api/v1/auth/me/')
 		self.assertIn(response.status_code, {401, 403})
 
 	# ── CSRF source-binding tests ─────────────────────────────────────
@@ -259,7 +259,7 @@ class CookieVsHeaderPrecedenceTests(TestCase):
 		client = APIClient(enforce_csrf_checks=True)
 		client.credentials(HTTP_X_SESSION_TOKEN='prec-token-alpha')
 
-		response = client.post('/auth/api/logout/', {}, format='json')
+		response = client.post('/api/v1/auth/logout/', {}, format='json')
 
 		# Source is 'header' → enforce_csrf() is never called → not a 403
 		self.assertNotEqual(response.status_code, 403)
@@ -269,7 +269,7 @@ class CookieVsHeaderPrecedenceTests(TestCase):
 		client = APIClient(enforce_csrf_checks=True)
 		client.cookies['auth_session'] = 'prec-token-alpha'
 
-		response = client.post('/auth/api/logout/', {}, format='json')
+		response = client.post('/api/v1/auth/logout/', {}, format='json')
 
 		self.assertEqual(response.status_code, 403)
 
@@ -282,7 +282,7 @@ class CookieVsHeaderPrecedenceTests(TestCase):
 		client.cookies['auth_session'] = 'prec-token-alpha'         # cookie source
 		client.credentials(HTTP_X_SESSION_TOKEN='prec-token-alpha')  # header source (same user)
 
-		response = client.post('/auth/api/logout/', {}, format='json')
+		response = client.post('/api/v1/auth/logout/', {}, format='json')
 
 		# Header wins → source='header' → no CSRF enforcement → not 403
 		self.assertNotEqual(response.status_code, 403)

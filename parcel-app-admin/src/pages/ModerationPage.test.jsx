@@ -66,7 +66,7 @@ describe('ModerationPage', () => {
     await user.click(within(vendorRow).getByRole('button', { name: 'Approve' }))
 
     expect(within(screen.getByText('Ada Stores').closest('tr')).getByText('approved')).toBeInTheDocument()
-    expect(apiRequest).toHaveBeenCalledWith('/auth/api/moderation/vendors/1/', {
+    expect(apiRequest).toHaveBeenCalledWith('/auth/moderation/vendors/1/', {
       method: 'PATCH',
       token: 'session-token',
       body: {

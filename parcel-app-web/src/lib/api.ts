@@ -31,12 +31,19 @@ export function resetApiRequestStateForTests(): void {
   csrfTokenPromise = null;
 }
 
+const API_VERSION_PREFIX = "/api/v1";
+
 function toAbsoluteUrl(path: string): string {
   if (path.startsWith("http://") || path.startsWith("https://")) {
     return path;
   }
 
-  return `${env.apiBase}${path.startsWith("/") ? path : `/${path}`}`;
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const versionedPath = normalizedPath.startsWith(API_VERSION_PREFIX)
+    ? normalizedPath
+    : `${API_VERSION_PREFIX}${normalizedPath}`;
+
+  return `${env.apiBase}${versionedPath}`;
 }
 
 async function ensureCsrfToken(): Promise<string | null> {

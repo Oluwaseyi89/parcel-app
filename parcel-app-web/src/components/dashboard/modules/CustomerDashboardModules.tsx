@@ -122,7 +122,7 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
     }
 
     if (tab === "deliveries") {
-      readRequest<ApiResponse>("/dispatch/dispatches/", { method: "GET" })
+      readRequest<ApiResponse>("/dispatch/", { method: "GET" })
         .then((res) => {
           const rows = unwrapListData<Record<string, unknown>>(res)
             .map((dispatch) => {
@@ -182,7 +182,7 @@ export default function CustomerDashboardModules({ tab, user }: { tab: CustomerT
 
     Promise.all(
       cartRows.map((row) =>
-        readRequest<ApiResponse<Product>>(`/product/products/${row.product_id}/`, { method: "GET" })
+        readRequest<ApiResponse<Product>>(`/product/${row.product_id}/`, { method: "GET" })
           .then((res) => [String(row.product_id), res.data] as const)
           .catch(() => [String(row.product_id), undefined] as const),
       ),

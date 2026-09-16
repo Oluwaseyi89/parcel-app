@@ -48,7 +48,7 @@ export default function ProductGrid() {
     setError(null);
 
     try {
-      const result = await apiRequest<ProductListResponse>("/product/products/", { method: "GET" });
+      const result = await apiRequest<ProductListResponse>("/product/", { method: "GET" });
       const resolvedProducts = result.data;
       if (resolvedProducts && resolvedProducts.length > 0) {
         setProducts(resolvedProducts);

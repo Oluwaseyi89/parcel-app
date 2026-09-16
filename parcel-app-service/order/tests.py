@@ -161,7 +161,7 @@ class InternalPaymentSyncTests(TestCase):
 
 	def test_internal_sync_requires_trusted_token(self):
 		response = self.client.post(
-			f'/order/payments/internal/sync/{self.payment.reference}/',
+			f'/api/v1/order/payments/internal/sync/{self.payment.reference}/',
 			{'status': 'completed', 'event_id': 'evt-1'},
 			format='json',
 		)
@@ -177,13 +177,13 @@ class InternalPaymentSyncTests(TestCase):
 		}
 
 		first = self.client.post(
-			f'/order/payments/internal/sync/{self.payment.reference}/',
+			f'/api/v1/order/payments/internal/sync/{self.payment.reference}/',
 			payload,
 			format='json',
 			HTTP_X_INTERNAL_SERVICE_TOKEN='sync-secret',
 		)
 		second = self.client.post(
-			f'/order/payments/internal/sync/{self.payment.reference}/',
+			f'/api/v1/order/payments/internal/sync/{self.payment.reference}/',
 			payload,
 			format='json',
 			HTTP_X_INTERNAL_SERVICE_TOKEN='sync-secret',
@@ -258,7 +258,7 @@ class PaymentRegistrationContextTests(TestCase):
         self.client.force_authenticate(user=self.customer)
 
         register_response = self.client.post(
-            '/order/payments/register/',
+            '/api/v1/order/payments/register/',
             {
                 'order_id': self.order.id,
                 'reference': self.reference,
@@ -273,7 +273,7 @@ class PaymentRegistrationContextTests(TestCase):
         self.assertEqual(register_response.status_code, 200, register_response.data)
         self.assertEqual(register_response.data['status'], 'success')
 
-        context_response = self.client.get(f'/order/payments/{self.reference}/context/')
+        context_response = self.client.get(f'/api/v1/order/payments/{self.reference}/context/')
 
         self.assertEqual(context_response.status_code, 200)
         self.assertEqual(context_response.data['data']['reference'], self.reference)
@@ -281,7 +281,7 @@ class PaymentRegistrationContextTests(TestCase):
 
     def test_register_payment_requires_auth_or_internal_token(self):
         response = self.client.post(
-            '/order/payments/register/',
+            '/api/v1/order/payments/register/',
             {
                 'order_id': self.order.id,
                 'reference': self.reference,
@@ -384,7 +384,7 @@ class PaystackWebhookTests(TestCase):
         }
         raw, _ = self._signature_for(payload)
         response = self.client.post(
-            '/order/payments/webhooks/paystack/',
+            '/api/v1/order/payments/webhooks/paystack/',
             data=raw,
             content_type='application/json',
             HTTP_X_PAYSTACK_SIGNATURE='bad-signature',
@@ -406,7 +406,7 @@ class PaystackWebhookTests(TestCase):
         raw, signature = self._signature_for(payload)
 
         response = self.client.post(
-            '/order/payments/webhooks/paystack/',
+            '/api/v1/order/payments/webhooks/paystack/',
             data=raw,
             content_type='application/json',
             HTTP_X_PAYSTACK_SIGNATURE=signature,
@@ -466,7 +466,7 @@ class VendorOrderVisibilityTests(TestCase):
         })
     def test_vendor_sees_only_own_order_items(self):
         self.client.force_authenticate(user=self.vendor1)
-        resp = self.client.get('/order/vendor/orders/')
+        resp = self.client.get('/api/v1/order/vendor/')
         self.assertEqual(resp.status_code, 200)
         data = resp.data['data']
         self.assertTrue(all(item['vendor'] == self.vendor1.id for item in data))
@@ -474,7 +474,7 @@ class VendorOrderVisibilityTests(TestCase):
         self.assertFalse(any(item['vendor'] == self.vendor2.id for item in data))
         # Now check vendor2
         self.client.force_authenticate(user=self.vendor2)
-        resp2 = self.client.get('/order/vendor/orders/')
+        resp2 = self.client.get('/api/v1/order/vendor/')
         self.assertEqual(resp2.status_code, 200)
         data2 = resp2.data['data']
         self.assertTrue(all(item['vendor'] == self.vendor2.id for item in data2))
@@ -534,14 +534,14 @@ class CourierOrderVisibilityTests(TestCase):
         self.order2.save()
     def test_courier_sees_only_assigned_orders(self):
         self.client.force_authenticate(user=self.courier1)
-        resp = self.client.get('/order/courier/orders/')
+        resp = self.client.get('/api/v1/order/courier/')
         self.assertEqual(resp.status_code, 200)
         data = resp.data['data']
         self.assertTrue(all(order['courier'] == self.courier1.id for order in data))
         self.assertFalse(any(order['courier'] == self.courier2.id for order in data))
         # Now check courier2
         self.client.force_authenticate(user=self.courier2)
-        resp2 = self.client.get('/order/courier/orders/')
+        resp2 = self.client.get('/api/v1/order/courier/')
         self.assertEqual(resp2.status_code, 200)
         data2 = resp2.data['data']
         self.assertTrue(all(order['courier'] == self.courier2.id for order in data2))
@@ -572,20 +572,20 @@ class ShippingAddressOwnershipTests(TestCase):
         )
     def test_user_can_only_see_own_addresses(self):
         self.client.force_authenticate(user=self.user1)
-        resp = self.client.get('/order/shipping-addresses/')
+        resp = self.client.get('/api/v1/order/shipping-addresses/')
         self.assertEqual(resp.status_code, 200)
         data = resp.data['data']
         self.assertTrue(any(addr['id'] == self.addr1.id for addr in data))
         # User2 should see nothing
         self.client.force_authenticate(user=self.user2)
-        resp2 = self.client.get('/order/shipping-addresses/')
+        resp2 = self.client.get('/api/v1/order/shipping-addresses/')
         self.assertEqual(resp2.status_code, 200)
         data2 = resp2.data['data']
         self.assertFalse(any(addr['id'] == self.addr1.id for addr in data2))
     def test_user_cannot_create_address_for_another_user(self):
         self.client.force_authenticate(user=self.user2)
         # Try to create address for user1 by passing customer field (should be ignored)
-        resp = self.client.post('/order/shipping-addresses/', {
+        resp = self.client.post('/api/v1/order/shipping-addresses/', {
             'full_name': 'User One', 'phone': '08000000001', 'email': 'user1@example.com',
             'street_address': '2 Main St', 'apartment': '', 'city': 'Lagos', 'state': 'Lagos', 'country': 'Nigeria', 'postal_code': '100002',
             'is_default': True, 'is_active': True, 'customer': self.user1.id
@@ -599,7 +599,7 @@ class ShippingAddressOwnershipTests(TestCase):
         self.client.force_authenticate(user=self.user2)
         # Try to update user1's address (should not be allowed, but endpoint does not expose PUT/PATCH by id)
         # Simulate by attempting to create with same id (should create new, not update)
-        resp = self.client.post('/order/shipping-addresses/', {
+        resp = self.client.post('/api/v1/order/shipping-addresses/', {
             'id': self.addr1.id,
             'full_name': 'Hacker', 'phone': '08000000009', 'email': 'hacker@example.com',
             'street_address': 'Hacker St', 'apartment': '', 'city': 'Lagos', 'state': 'Lagos', 'country': 'Nigeria', 'postal_code': '999999',

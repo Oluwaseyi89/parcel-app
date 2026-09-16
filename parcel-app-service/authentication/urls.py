@@ -13,18 +13,20 @@ from .views import (
     AdminComplaintListView, AdminComplaintUpdateView,
     AdminBankingListView, AdminBankingUpdateView,
     staff_reg_page, staff_login, desk_login, desk_login_external, reg_staff,
-    # Add customer views
     CustomerRegistrationView, CustomerLoginView, CustomerProfileView,
-    activate_customer, customer_reset, dev_verify_email
+    activate_customer, customer_reset, dev_verify_email,
+    CustomerResetView, CustomerSaveResetView
 )
-from .views import CustomerResetView, CustomerSaveResetView  # You'll need to create these
+
+# CRITICAL: Links this routing fleet to the 'auth' block in project urls.py
+app_name = 'authentication'
 
 urlpatterns = [
-    # Main pages
+    # --------------------------------------------------------------------------
+    # Root & Template-Based Admin Views (Legacy / Base HTML)
+    # --------------------------------------------------------------------------
     path('', home, name="home"),
     path('base/', base, name="base"),
-    
-    # Template-based admin views (legacy)
     path('super_admin/', super_admin_login, name="super_admin_login"),
     path('admin_dashboard/', super_admin_dashboard, name="admin_dashboard"),
     path('staff_reg_page/', staff_reg_page, name="staff_reg_page"),
@@ -33,135 +35,73 @@ urlpatterns = [
     path('desk_login_ext/<str:email>/<str:password>/', desk_login_external, name="desk_login_ext"),
     path('reg_staff/', reg_staff, name="reg_staff"),
     
-    # API Authentication Endpoints
-    path('api/login/', AdminLoginView.as_view(), name="admin_login"),
-    path('api/logout/', AdminLogoutView.as_view(), name="admin_logout"),
+    # --------------------------------------------------------------------------
+    # Core API Authentication Endpoints -> /api/v1/auth/...
+    # --------------------------------------------------------------------------
+    path('login/', AdminLoginView.as_view(), name="admin_login"),
+    path('logout/', AdminLogoutView.as_view(), name="admin_logout"),
     path('csrf/', CsrfTokenView.as_view(), name="csrf_token"),
     path('me/', SessionMeView.as_view(), name="session_me"),
     path('switch-role/', SwitchActiveRoleView.as_view(), name="switch_active_role"),
-    path('api/profile/', AdminProfileView.as_view(), name="admin_profile"),
-    path('api/change-password/', ChangePasswordView.as_view(), name="change_password"),
+    path('profile/', AdminProfileView.as_view(), name="admin_profile"),
+    path('change-password/', ChangePasswordView.as_view(), name="change_password"),
     
     # Admin Dashboard Metrics
-    path('api/dashboard/metrics/', AdminDashboardMetricsView.as_view(), name="admin_dashboard_metrics"),
+    path('dashboard/metrics/', AdminDashboardMetricsView.as_view(), name="admin_dashboard_metrics"),
 
-    # Admin Moderation
-    path('api/moderation/queue/', AdminModerationQueueView.as_view(), name="admin_moderation_queue"),
-    path('api/moderation/<str:queue_type>/<int:pk>/', AdminModerationActionView.as_view(), name="admin_moderation_action"),
+    # Admin Moderation Queue
+    path('moderation/queue/', AdminModerationQueueView.as_view(), name="admin_moderation_queue"),
+    path('moderation/<str:queue_type>/<int:pk>/', AdminModerationActionView.as_view(), name="admin_moderation_action"),
 
-    # Admin Orders
-    path('api/orders/', AdminOrderListView.as_view(), name="admin_orders"),
-    path('api/orders/<int:pk>/', AdminOrderListView.as_view(), name="admin_order_detail"),
-    path('api/orders/<int:pk>/status/', AdminOrderStatusUpdateView.as_view(), name="admin_order_status_update"),
+    # Admin Orders Operations
+    path('orders/', AdminOrderListView.as_view(), name="admin_orders"),
+    path('orders/<int:pk>/', AdminOrderListView.as_view(), name="admin_order_detail"),
+    path('orders/<int:pk>/status/', AdminOrderStatusUpdateView.as_view(), name="admin_order_status_update"),
 
-    # Admin Dispatch
-    path('api/dispatches/', AdminDispatchListView.as_view(), name="admin_dispatches"),
-    path('api/dispatches/create/', AdminDispatchListView.as_view(), name="admin_dispatches_create"),
-    path('api/dispatches/<int:pk>/status/', AdminDispatchStatusUpdateView.as_view(), name="admin_dispatch_status_update"),
-    path('api/dispatches/<int:pk>/assign/', AdminDispatchAssignView.as_view(), name="admin_dispatch_assign"),
-    path('api/dispatches/ready-orders/', AdminDispatchReadyOrdersView.as_view(), name="admin_dispatch_ready_orders"),
-    path('api/couriers/', AdminCourierListView.as_view(), name="admin_courier_list"),
+    # Admin Dispatch Management
+    path('dispatches/', AdminDispatchListView.as_view(), name="admin_dispatches"),
+    path('dispatches/create/', AdminDispatchListView.as_view(), name="admin_dispatches_create"),
+    path('dispatches/<int:pk>/status/', AdminDispatchStatusUpdateView.as_view(), name="admin_dispatch_status_update"),
+    path('dispatches/<int:pk>/assign/', AdminDispatchAssignView.as_view(), name="admin_dispatch_assign"),
+    path('dispatches/ready-orders/', AdminDispatchReadyOrdersView.as_view(), name="admin_dispatch_ready_orders"),
+    path('couriers/', AdminCourierListView.as_view(), name="admin_courier_list"),
 
-    # Admin Complaints
-    path('api/complaints/', AdminComplaintListView.as_view(), name="admin_complaints"),
-    path('api/complaints/<int:pk>/', AdminComplaintListView.as_view(), name="admin_complaint_detail"),
-    path('api/complaints/<int:pk>/update/', AdminComplaintUpdateView.as_view(), name="admin_complaint_update"),
+    # Admin Complaints Reporting
+    path('complaints/', AdminComplaintListView.as_view(), name="admin_complaints"),
+    path('complaints/<int:pk>/', AdminComplaintListView.as_view(), name="admin_complaint_detail"),
+    path('complaints/<int:pk>/update/', AdminComplaintUpdateView.as_view(), name="admin_complaint_update"),
 
-    # Admin Banking
-    path('api/banking/', AdminBankingListView.as_view(), name="admin_banking_list"),
-    path('api/banking/<str:account_kind>/<int:pk>/update/', AdminBankingUpdateView.as_view(), name="admin_banking_update"),
+    # Admin Banking Settlement Core
+    path('banking/', AdminBankingListView.as_view(), name="admin_banking_list"),
+    path('banking/<str:account_kind>/<int:pk>/update/', AdminBankingUpdateView.as_view(), name="admin_banking_update"),
     
-    # Admin Management (super admin only)
-    path('api/admins/', AdminUserListView.as_view(), name="admin_list"),
-    path('api/admins/<int:pk>/', AdminUserListView.as_view(), name="admin_detail"),
+    # Platform Administration Management (Super Admin Level Access)
+    path('admins/', AdminUserListView.as_view(), name="admin_list"),
+    path('admins/<int:pk>/', AdminUserListView.as_view(), name="admin_detail"),
     
-    # Session management
-    path('api/sessions/active/', csrf_exempt(AdminLoginView.as_view()), name="active_sessions"),
+    # Stateful Engine Session Overviews
+    path('sessions/active/', csrf_exempt(AdminLoginView.as_view()), name="active_sessions"),
+    path('mobile/login/', csrf_exempt(AdminLoginView.as_view()), name="mobile_admin_login"),
     
-    # Legacy mobile endpoints with csrf exempt
-    path('api/mobile/login/', csrf_exempt(AdminLoginView.as_view()), name="mobile_admin_login"),
-    
-    # ==================== CUSTOMER ENDPOINTS ====================
-    # Customer Registration & Activation
+    # --------------------------------------------------------------------------
+    # Customer Operations -> /api/v1/auth/customer/...
+    # --------------------------------------------------------------------------
     path('customer/register/', CustomerRegistrationView.as_view(), name="customer_register"),
     path('customer/register/mobile/', csrf_exempt(CustomerRegistrationView.as_view()), name="customer_register_mobile"),
     path('customer/activate/<uidb64>/<token>/', activate_customer, name="activate_customer"),
     path('dev/verify-email/<str:role>/<uidb64>/<token>/', dev_verify_email, name='dev_verify_email'),
     
-    # Customer Authentication
     path('customer/login/', CustomerLoginView.as_view(), name="customer_login"),
     path('customer/login/mobile/', csrf_exempt(CustomerLoginView.as_view()), name="customer_login_mobile"),
     
-    # Customer Profile
     path('customer/profile/', CustomerProfileView.as_view(), name="customer_profile"),
     path('customer/profile/mobile/', csrf_exempt(CustomerProfileView.as_view()), name="customer_profile_mobile"),
     
-    # Password Reset
     path('customer/password/reset/', CustomerResetView.as_view(), name="customer_password_reset"),
     path('customer/password/reset/mobile/', csrf_exempt(CustomerResetView.as_view()), name="customer_password_reset_mobile"),
     path('customer/password/reset/<uidb64>/<token>/', customer_reset, name="customer_reset_confirm"),
     path('customer/password/save/', CustomerSaveResetView.as_view(), name="customer_password_save"),
     
-    # Customer Management (Admin only - optional)
-    path('api/customers/', AdminCustomerListView.as_view(), name="customer_list"),
-    path('api/customers/<int:pk>/', AdminCustomerListView.as_view(), name="customer_detail"),
+    path('customers/', AdminCustomerListView.as_view(), name="customer_list"),
+    path('customers/<int:pk>/', AdminCustomerListView.as_view(), name="customer_detail"),
 ]
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# from django.urls import path
-# from django.views.decorators.csrf import csrf_exempt
-# from .views import (
-#     home, base, super_admin_login, super_admin_dashboard,
-#     AdminLoginView, AdminLogoutView, AdminProfileView, 
-#     ChangePasswordView, AdminUserListView, staff_reg_page,
-#     staff_login, desk_login, desk_login_external, reg_staff
-# )
-
-# urlpatterns = [
-#     # Main pages
-#     path('', home, name="home"),
-#     path('base/', base, name="base"),
-    
-#     # Template-based admin views (legacy)
-#     path('super_admin/', super_admin_login, name="super_admin_login"),
-#     path('admin_dashboard/', super_admin_dashboard, name="admin_dashboard"),
-#     path('staff_reg_page/', staff_reg_page, name="staff_reg_page"),
-#     path('staff_login/', staff_login, name="staff_login"),
-#     path('desk_login/', desk_login, name="desk_login"),
-#     path('desk_login_ext/<str:email>/<str:password>/', desk_login_external, name="desk_login_ext"),
-#     path('reg_staff/', reg_staff, name="reg_staff"),
-    
-#     # API Authentication Endpoints
-#     path('api/login/', AdminLoginView.as_view(), name="admin_login"),
-#     path('api/logout/', AdminLogoutView.as_view(), name="admin_logout"),
-#     path('api/profile/', AdminProfileView.as_view(), name="admin_profile"),
-#     path('api/change-password/', ChangePasswordView.as_view(), name="change_password"),
-    
-#     # Admin Management (super admin only)
-#     path('api/admins/', AdminUserListView.as_view(), name="admin_list"),
-#     path('api/admins/<int:pk>/', AdminUserListView.as_view(), name="admin_detail"),
-    
-#     # Session management
-#     path('api/sessions/active/', csrf_exempt(AdminLoginView.as_view()), name="active_sessions"),
-    
-#     # Legacy mobile endpoints with csrf exempt
-#     path('api/mobile/login/', csrf_exempt(AdminLoginView.as_view()), name="mobile_admin_login"),
-# ]
-

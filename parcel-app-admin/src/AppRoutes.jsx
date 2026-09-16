@@ -41,7 +41,7 @@ export default function AppRoutes() {
       }
 
       try {
-        const profilePayload = await apiRequest('/auth/api/profile/', {
+        const profilePayload = await apiRequest('/auth/profile/', {
           method: 'GET',
           token: existing.token,
         })
@@ -77,7 +77,7 @@ export default function AppRoutes() {
   }, [])
 
   async function handleLogin(credentials) {
-    const payload = await apiRequest('/auth/api/login/', {
+    const payload = await apiRequest('/auth/login/', {
       method: 'POST',
       body: credentials,
     })
@@ -99,7 +99,7 @@ export default function AppRoutes() {
     const sessionToken = session?.token
     try {
       if (sessionToken) {
-        await apiRequest('/auth/api/logout/', {
+        await apiRequest('/auth/logout/', {
           method: 'POST',
           token: sessionToken,
         })

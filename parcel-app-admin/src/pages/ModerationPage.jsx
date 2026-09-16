@@ -97,7 +97,7 @@ export default function ModerationPage({ token }) {
         type: queueType,
         status: statusFilter,
       })
-      const payload = await apiRequest(`/auth/api/moderation/queue/?${params.toString()}`, {
+      const payload = await apiRequest(`/auth/moderation/queue/?${params.toString()}`, {
         method: 'GET',
         token,
       })
@@ -150,7 +150,7 @@ export default function ModerationPage({ token }) {
           }
         },
         mutate: () =>
-          apiRequest(`/auth/api/moderation/${type}/${id}/`, {
+          apiRequest(`/auth/moderation/${type}/${id}/`, {
             method: 'PATCH',
             token,
             body: {

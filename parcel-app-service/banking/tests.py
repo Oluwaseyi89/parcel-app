@@ -55,7 +55,7 @@ class BankingOwnershipTests(TestCase):
 		self.client.credentials(HTTP_X_SESSION_TOKEN='vendor-token')
 
 	def test_vendor_cannot_view_other_vendor_bank_record(self):
-		response = self.client.get(f'/banking/vendor/get/{self.other_vendor.email}/')
+		response = self.client.get(f'/api/v1/banking/vendor/get/{self.other_vendor.email}/')
 
 		self.assertEqual(response.status_code, 403)
 		self.assertEqual(response.data['status'], 'error')

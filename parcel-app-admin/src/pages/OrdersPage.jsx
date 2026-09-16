@@ -54,7 +54,7 @@ export default function OrdersPage({ token }) {
       if (paymentStatusFilter) params.set('payment_status', paymentStatusFilter)
 
       const query = params.toString()
-      const basePath = query ? `/auth/api/orders/?${query}` : '/auth/api/orders/'
+      const basePath = query ? `/auth/orders/?${query}` : '/auth/orders/'
       const path = withPaginationParams(basePath, page, pageSize)
 
       const payload = await apiRequest(path, {
@@ -95,7 +95,7 @@ export default function OrdersPage({ token }) {
       setIsUpdating(true)
       setError('')
       setNotice('')
-      const payload = await apiRequest(`/auth/api/orders/${orderId}/status/`, {
+      const payload = await apiRequest(`/auth/orders/${orderId}/status/`, {
         method: 'PATCH',
         token,
         body: {
