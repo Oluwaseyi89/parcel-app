@@ -57,7 +57,7 @@ export default function DispatchPage({ token }) {
     if (search.trim()) params.set('search', search.trim())
     if (statusFilter) params.set('status', statusFilter)
     const query = params.toString()
-    const basePath = query ? `/auth/api/dispatches/?${query}` : '/auth/api/dispatches/'
+    const basePath = query ? `/auth/dispatches/?${query}` : '/auth/dispatches/'
     const path = withPaginationParams(basePath, page, pageSize)
 
     const payload = await apiRequest(path, {
@@ -85,9 +85,9 @@ export default function DispatchPage({ token }) {
       setIsLoading(true)
       setError('')
       const [dispatchPayload, courierPayload, readyPayload] = await Promise.all([
-        apiRequest('/auth/api/dispatches/', { method: 'GET', token }),
-        apiRequest('/auth/api/couriers/', { method: 'GET', token }),
-        apiRequest('/auth/api/dispatches/ready-orders/', { method: 'GET', token }),
+        apiRequest('/auth/dispatches/', { method: 'GET', token }),
+        apiRequest('/auth/couriers/', { method: 'GET', token }),
+        apiRequest('/auth/dispatches/ready-orders/', { method: 'GET', token }),
       ])
 
       const dispatchList = Array.isArray(dispatchPayload?.data) ? dispatchPayload.data : []
@@ -136,7 +136,7 @@ export default function DispatchPage({ token }) {
       setIsSubmitting(true)
       setError('')
       setNotice('')
-      const payload = await apiRequest('/auth/api/dispatches/create/', {
+      const payload = await apiRequest('/auth/dispatches/create/', {
         method: 'POST',
         token,
         body: {
@@ -165,7 +165,7 @@ export default function DispatchPage({ token }) {
       setIsSubmitting(true)
       setError('')
       setNotice('')
-      const payload = await apiRequest(`/auth/api/dispatches/${dispatchId}/assign/`, {
+      const payload = await apiRequest(`/auth/dispatches/${dispatchId}/assign/`, {
         method: 'PATCH',
         token,
         body: {
@@ -192,7 +192,7 @@ export default function DispatchPage({ token }) {
       setIsSubmitting(true)
       setError('')
       setNotice('')
-      const payload = await apiRequest(`/auth/api/dispatches/${dispatchId}/status/`, {
+      const payload = await apiRequest(`/auth/dispatches/${dispatchId}/status/`, {
         method: 'PATCH',
         token,
         body: {
