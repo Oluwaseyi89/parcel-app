@@ -35,7 +35,4 @@ urlpatterns = [
     
     # Statistics -> /api/v1/dispatch/stats/
     path('stats/', DispatchStatsView.as_view(), name="dispatch_stats"),
-    
-    # Legacy URLs for backward compatibility
-    path('legacy/ready/', ReadyForDispatchView.as_view(), name="legacy_ready_orders"),
 ]
