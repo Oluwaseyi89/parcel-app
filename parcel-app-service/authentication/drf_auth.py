@@ -35,6 +35,12 @@ class SessionTokenAuthentication(authentication.BaseAuthentication):
         if not token:
             return None
 
+        # csrf_exempt mobile routes skip CSRF, so they must only trust explicit
+        # header tokens. Ignoring the cookie stops a browser's ambient session
+        # from being replayed cross-site against these routes.
+        if source == "cookie" and self._is_explicitly_csrf_exempt(request):
+            return None
+
         try:
             session = UserSession.objects.get(session_token=token, is_active=True)
         except UserSession.DoesNotExist:
@@ -53,14 +59,8 @@ class SessionTokenAuthentication(authentication.BaseAuthentication):
             session.invalidate()
             raise AuthenticationFailed("User account is inactive.")
 
-        # Enforce CSRF only for cookie-authenticated unsafe methods, except for
-        # routes explicitly declared csrf_exempt in the URLconf for mobile/API
-        # compatibility.
-        if (
-            source == "cookie"
-            and request.method not in {"GET", "HEAD", "OPTIONS", "TRACE"}
-            and not self._is_explicitly_csrf_exempt(request)
-        ):
+        # Enforce CSRF for cookie-authenticated unsafe methods.
+        if source == "cookie" and request.method not in {"GET", "HEAD", "OPTIONS", "TRACE"}:
             self.enforce_csrf(request)
 
         return (user, session)

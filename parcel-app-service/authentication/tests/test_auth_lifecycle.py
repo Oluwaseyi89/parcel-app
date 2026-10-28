@@ -1,3 +1,4 @@
+from django.core.cache import cache
 from django.test import TestCase
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -14,6 +15,8 @@ from core.tokens import account_activation_token
 
 class AuthLifecycleEndToEndTests(TestCase):
 	def setUp(self):
+		# Auth endpoints are rate limited; reset throttle history between tests.
+		cache.clear()
 		self.client = APIClient()
 		self.admin = AdminUser.objects.create(
 			email='lifecycle-admin@example.com',

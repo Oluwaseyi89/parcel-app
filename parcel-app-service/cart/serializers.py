@@ -26,3 +26,9 @@ class CartDetailSerializer(serializers.ModelSerializer):
             'unit_price', 'total_price', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'total_price']
+
+
+class CartItemAddSerializer(serializers.Serializer):
+    """Client input for adding to cart; name and price are looked up server-side."""
+    product_id = serializers.IntegerField(min_value=1)
+    quantity = serializers.IntegerField(min_value=1, default=1)
