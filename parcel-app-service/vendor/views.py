@@ -9,6 +9,7 @@ from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.throttling import ScopedRateThrottle
 from authentication.permissions import IsAdminOrSuperAdmin
+from core.pagination import paginated_response
 from authentication.models import AdminUser, UserSession
 from .services import VendorService
 from .serializers import (
@@ -86,24 +87,16 @@ class TempVendorListView(APIView):
     
     def get(self, request):
         # Stage 3: use primary VendorUser table for pending approvals.
-        vendors = VendorUser.objects.filter(is_active=True, is_approved=False)
-        serializer = VendorApprovalSerializer(vendors, many=True)
-        return Response({
-            "status": "success",
-            "data": serializer.data
-        })
+        vendors = VendorUser.objects.filter(is_active=True, is_approved=False).order_by('-created_at', '-id')
+        return paginated_response(request, vendors, lambda page: VendorApprovalSerializer(page, many=True).data)
 
 class VendorListView(APIView):
     permission_classes = [IsAuthenticated, IsAdminOrSuperAdmin]
     
     def get(self, request):
         from authentication.models import VendorUser
-        vendors = VendorUser.objects.filter(is_active=True)
-        serializer = VendorApprovalSerializer(vendors, many=True)
-        return Response({
-            "status": "success",
-            "data": serializer.data
-        })
+        vendors = VendorUser.objects.filter(is_active=True).order_by('-created_at', '-id')
+        return paginated_response(request, vendors, lambda page: VendorApprovalSerializer(page, many=True).data)
 
 class VendorLoginView(APIView):
     permission_classes = [AllowAny]
