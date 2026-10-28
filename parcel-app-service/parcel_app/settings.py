@@ -311,18 +311,22 @@ if USE_S3:
     if AWS_S3_ENCRYPTION and AWS_S3_ENCRYPTION.lower() != 'none':
         AWS_S3_OBJECT_PARAMETERS['ServerSideEncryption'] = AWS_S3_ENCRYPTION
 
-    AWS_S3_ADDRESSING_STYLE = os.getenv('AWS_S3_ADDRESSING_STYLE', 'virtual')
+    # Set for S3-compatible providers (Supabase Storage, Cloudflare R2, MinIO); unset means AWS.
+    AWS_S3_ENDPOINT_URL = os.getenv('AWS_S3_ENDPOINT_URL') or None
+    # Most non-AWS providers only support path-style URLs (endpoint/bucket/key).
+    AWS_S3_ADDRESSING_STYLE = os.getenv('AWS_S3_ADDRESSING_STYLE') or ('path' if AWS_S3_ENDPOINT_URL else 'virtual')
     AWS_S3_URL_PROTOCOL = os.getenv('AWS_S3_URL_PROTOCOL', 'https:')
     AWS_S3_VERIFY = _as_bool(os.getenv('AWS_S3_VERIFY'), default=True)
 
     AWS_LOCATION = os.getenv('AWS_LOCATION', 'media')
-    AWS_S3_CUSTOM_DOMAIN = os.getenv('AWS_S3_CUSTOM_DOMAIN')
-    AWS_S3_ENDPOINT_URL = os.getenv('AWS_S3_ENDPOINT_URL') or None
+    AWS_S3_CUSTOM_DOMAIN = os.getenv('AWS_S3_CUSTOM_DOMAIN') or None
 
     if not AWS_STORAGE_BUCKET_NAME:
         raise ValueError('USE_S3=True but AWS_STORAGE_BUCKET_NAME is not set.')
 
-    if not AWS_S3_CUSTOM_DOMAIN:
+    # Only derive an amazonaws.com domain for real AWS. With a custom endpoint and no custom
+    # domain, django-storages builds object URLs from the endpoint itself.
+    if not AWS_S3_CUSTOM_DOMAIN and not AWS_S3_ENDPOINT_URL:
         if AWS_S3_REGION_NAME:
             AWS_S3_CUSTOM_DOMAIN = f"{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com"
         else:
@@ -337,7 +341,10 @@ if USE_S3:
         },
     }
 
-    MEDIA_URL = f"{AWS_S3_URL_PROTOCOL}//{AWS_S3_CUSTOM_DOMAIN}/{AWS_LOCATION}/"
+    if AWS_S3_CUSTOM_DOMAIN:
+        MEDIA_URL = f"{AWS_S3_URL_PROTOCOL}//{AWS_S3_CUSTOM_DOMAIN}/{AWS_LOCATION}/"
+    else:
+        MEDIA_URL = f"{AWS_S3_ENDPOINT_URL.rstrip('/')}/{AWS_STORAGE_BUCKET_NAME}/{AWS_LOCATION}/"
 else:
     STORAGES = {
         'default': {
