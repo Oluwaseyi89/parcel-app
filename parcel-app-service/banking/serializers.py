@@ -28,3 +28,18 @@ class CourierBankDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = CourierBankDetail
         fields = '__all__'
+
+class AdminVendorBankUpdateSerializer(serializers.ModelSerializer):
+    """Admin edits to a vendor bank record; timestamps are set server-side."""
+
+    class Meta:
+        model = VendorBankDetail
+        fields = ['bank_name', 'account_type', 'account_name', 'account_no', 'vendor_email']
+
+
+class AdminCourierBankUpdateSerializer(serializers.ModelSerializer):
+    """Admin edits to a courier bank record; timestamps are set server-side."""
+
+    class Meta:
+        model = CourierBankDetail
+        fields = ['bank_name', 'account_type', 'account_name', 'account_no', 'courier_email']
