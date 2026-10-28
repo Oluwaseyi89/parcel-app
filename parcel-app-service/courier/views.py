@@ -9,7 +9,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.throttling import ScopedRateThrottle
-from authentication.permissions import IsAdminOrSuperAdmin
+from authentication.permissions import IsAdminOrSuperAdmin, IsCourier, IsCourierOrAdmin
 from authentication.models import AdminUser, UserSession
 from .services import CourierService
 from .serializers import (
@@ -151,7 +151,7 @@ class CourierLoginView(APIView):
         }, status=status.HTTP_400_BAD_REQUEST)
 
 class CourierProfileView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsCourier]
     
     def get(self, request):
         # Assuming request.user is authenticated courier
@@ -162,7 +162,7 @@ class CourierProfileView(APIView):
         })
 
 class CourierLocationUpdateView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsCourier]
     
     def post(self, request):
         serializer = CourierLocationUpdateSerializer(data=request.data)
@@ -184,7 +184,7 @@ class CourierLocationUpdateView(APIView):
         }, status=status.HTTP_400_BAD_REQUEST)
 
 class CourierStatusUpdateView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsCourier]
     
     def post(self, request):
         serializer = CourierStatusUpdateSerializer(data=request.data)
@@ -205,7 +205,7 @@ class CourierStatusUpdateView(APIView):
         }, status=status.HTTP_400_BAD_REQUEST)
 
 class AvailableCouriersView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsCourierOrAdmin]
     
     def get(self, request):
         latitude = request.query_params.get('lat')
