@@ -323,7 +323,7 @@ class NotificationService:
         from .models import Notification
         
         notification = Notification.objects.create(
-            recipient=recipient,
+            **Notification.recipient_fields(recipient),
             title=title,
             message=message,
             notification_type=notification_type,
@@ -396,12 +396,12 @@ class NotificationService:
     @staticmethod
     def get_unread_count(user) -> int:
         """Get count of unread notifications for user"""
-        return Notification.objects.filter(recipient=user, is_read=False).count()
+        return Notification.for_recipient(user).filter(is_read=False).count()
     
     @staticmethod
     def mark_all_as_read(user):
         """Mark all notifications as read for user"""
-        Notification.objects.filter(recipient=user, is_read=False).update(
+        Notification.for_recipient(user).filter(is_read=False).update(
             is_read=True,
             read_at=timezone.now()
         )
