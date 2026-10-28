@@ -3,7 +3,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
-from core.pagination import StandardPagination
+from core.pagination import StandardPagination, paginated_response
 from django.db.models import Q
 from authentication.permissions import IsAdminOrSuperAdmin, IsVendorOrAdmin, IsCourierOrAdmin, IsVendor
 from .services import DispatchService, RouteOptimizationService
@@ -19,19 +19,9 @@ class ReadyForDispatchView(APIView):
     permission_classes = [IsAuthenticated, IsAdminOrSuperAdmin]
     
     def get(self, request):
-        try:
-            ready_orders = DispatchService.get_ready_for_dispatch()
-            serializer = ReadyOrdersSerializer(ready_orders, many=True)
-            
-            return Response({
-                "status": "success",
-                "data": serializer.data
-            })
-        except Exception as e:
-            return Response({
-                "status": "error",
-                "message": str(e)
-            }, status=status.HTTP_400_BAD_REQUEST)
+        return paginated_response(request, DispatchService.get_ready_for_dispatch(), lambda page: ReadyOrdersSerializer(
+            [DispatchService.build_ready_order_data(order) for order in page], many=True
+        ).data)
 
 class DispatchListView(APIView):
     """List dispatches with filters"""
