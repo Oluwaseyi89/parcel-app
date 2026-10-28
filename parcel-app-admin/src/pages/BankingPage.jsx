@@ -3,7 +3,7 @@ import PaginationControls from '../components/common/PaginationControls'
 import TableStateRows from '../components/common/TableStateRows'
 import useToast from '../hooks/useToast'
 import { apiRequest } from '../services/api'
-import { paginateLocal } from '../services/pagination'
+import { summarizeGroupPagination, withPaginationParams } from '../services/pagination'
 
 export default function BankingPage({ token }) {
   const toast = useToast()
@@ -18,6 +18,7 @@ export default function BankingPage({ token }) {
   const [notice, setNotice] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
+  const [groupPagination, setGroupPagination] = useState({})
 
   const [formByKey, setFormByKey] = useState({})
 
@@ -27,7 +28,10 @@ export default function BankingPage({ token }) {
     return [...vendors, ...couriers]
   }, [activeType, vendors, couriers])
 
-  const pagedRows = useMemo(() => paginateLocal(visibleRows, page, pageSize), [visibleRows, page, pageSize])
+  const pageSummary = useMemo(() => {
+    const groups = activeType === 'all' ? ['vendors', 'couriers'] : [activeType]
+    return summarizeGroupPagination(groupPagination, groups)
+  }, [activeType, groupPagination])
 
   async function loadBanking() {
     try {
@@ -37,7 +41,8 @@ export default function BankingPage({ token }) {
       if (activeType !== 'all') params.set('type', activeType)
       if (search.trim()) params.set('search', search.trim())
       const query = params.toString()
-      const path = query ? `/auth/banking/?${query}` : '/auth/banking/'
+      const basePath = query ? `/auth/banking/?${query}` : '/auth/banking/'
+      const path = withPaginationParams(basePath, page, pageSize)
 
       const payload = await apiRequest(path, {
         method: 'GET',
@@ -48,6 +53,7 @@ export default function BankingPage({ token }) {
       const courierRows = Array.isArray(payload?.data?.couriers) ? payload.data.couriers : []
       setVendors(vendorRows)
       setCouriers(courierRows)
+      setGroupPagination(payload?.pagination || {})
 
       const defaults = {}
       ;[...vendorRows, ...courierRows].forEach((row) => {
@@ -75,7 +81,7 @@ export default function BankingPage({ token }) {
       void loadBanking()
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, activeType])
+  }, [token, activeType, page, pageSize])
 
   async function handleSave(row) {
     const key = `${row.type}-${row.id}`
@@ -136,11 +142,17 @@ export default function BankingPage({ token }) {
           <h2>Banking Management</h2>
           <p>Review and update vendor/courier payout account records.</p>
         </div>
-        <div className="banking-stat-chip">Records: {visibleRows.length}</div>
+        <div className="banking-stat-chip">Records: {pageSummary.total}</div>
       </div>
 
       <div className="banking-filters">
-        <select value={activeType} onChange={(event) => setActiveType(event.target.value)}>
+        <select
+          value={activeType}
+          onChange={(event) => {
+            setActiveType(event.target.value)
+            setPage(1)
+          }}
+        >
           <option value="all">All accounts</option>
           <option value="vendors">Vendor accounts</option>
           <option value="couriers">Courier accounts</option>
@@ -164,7 +176,8 @@ export default function BankingPage({ token }) {
       <PaginationControls
         page={page}
         pageSize={pageSize}
-        total={visibleRows.length}
+        total={pageSummary.total}
+        totalPages={pageSummary.totalPages}
         onPageChange={setPage}
         onPageSizeChange={(next) => {
           setPageSize(next)
@@ -190,7 +203,7 @@ export default function BankingPage({ token }) {
             <TableStateRows
               isLoading={isLoading}
               error={error}
-              rows={pagedRows.items}
+              rows={visibleRows}
               colSpan={8}
               loadingMessage="Loading banking records..."
               emptyMessage="No banking records found."
