@@ -10,6 +10,7 @@ from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.throttling import ScopedRateThrottle
 from authentication.permissions import IsAdminOrSuperAdmin, IsCourier, IsCourierOrAdmin
+from core.pagination import paginated_response
 from authentication.models import AdminUser, UserSession
 from .services import CourierService
 from .serializers import (
@@ -89,24 +90,16 @@ class TempCourierListView(APIView):
     
     def get(self, request):
         # Stage 3: use primary CourierUser table for pending approvals.
-        couriers = CourierUser.objects.filter(is_active=True, is_approved=False)
-        serializer = CourierApprovalSerializer(couriers, many=True)
-        return Response({
-            "status": "success",
-            "data": serializer.data
-        })
+        couriers = CourierUser.objects.filter(is_active=True, is_approved=False).order_by('-created_at', '-id')
+        return paginated_response(request, couriers, lambda page: CourierApprovalSerializer(page, many=True).data)
 
 class CourierListView(APIView):
     permission_classes = [IsAuthenticated, IsAdminOrSuperAdmin]
 
     def get(self, request):
         from authentication.models import CourierUser
-        couriers = CourierUser.objects.filter(is_active=True)
-        serializer = CourierApprovalSerializer(couriers, many=True)
-        return Response({
-            "status": "success",
-            "data": serializer.data
-        })
+        couriers = CourierUser.objects.filter(is_active=True).order_by('-created_at', '-id')
+        return paginated_response(request, couriers, lambda page: CourierApprovalSerializer(page, many=True).data)
 
 class CourierLoginView(APIView):
     permission_classes = [AllowAny]
