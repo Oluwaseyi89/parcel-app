@@ -2,10 +2,11 @@ export default function PaginationControls({
   page,
   pageSize,
   total,
+  totalPages: totalPagesOverride,
   onPageChange,
   onPageSizeChange,
 }) {
-  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const totalPages = totalPagesOverride ?? Math.max(1, Math.ceil(total / pageSize))
   const canPrev = page > 1
   const canNext = page < totalPages
 
