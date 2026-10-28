@@ -5,7 +5,7 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from authentication.permissions import IsCustomer
 from .services import CartService
-from .serializers import CartSessionSerializer, CartDetailSerializer
+from .serializers import CartSessionSerializer, CartDetailSerializer, CartItemAddSerializer
 
 class CartSessionView(APIView):
     """Hardened cart views kept unrouted until the backend cart module is adopted."""
@@ -25,13 +25,18 @@ class CartItemView(APIView):
     
     def post(self, request, session_id=None):
         """Add item to cart"""
-        product_id = request.data.get('product_id')
-        product_name = request.data.get('product_name')
-        quantity = request.data.get('quantity', 1)
-        unit_price = request.data.get('unit_price', 0)
+        serializer = CartItemAddSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({
+                "status": "error",
+                "errors": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
         
         cart_item, error = CartService.add_to_cart(
-            session_id, request.user, product_id, product_name, quantity, unit_price
+            session_id,
+            request.user,
+            serializer.validated_data['product_id'],
+            serializer.validated_data['quantity'],
         )
         
         if error:
