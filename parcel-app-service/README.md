@@ -180,22 +180,53 @@ Run this after enabling S3 to migrate existing local files.
     python manage.py backfill_media_to_storage --dry-run --only vendor courier product --limit 5
 ```
 
-## 🐳 Docker Deployment
+## 🐳 Docker Image
 
-### Quick Start with Docker Compose
+The `Dockerfile` builds a web-only image: static files are collected at build time, and on start
+`start-services.sh` applies migrations (unless `RUN_MIGRATIONS=false`) and runs gunicorn on `$PORT`
+(default `10000`) with logs on stdout.
+
 ```bash
-    docker-compose -f docker-compose.prod.yml up -d
-
-    docker-compose -f docker-compose.prod.yml exec web python manage.py migrate
-```
-
-### Manual Docker Build
-```bash
-    docker build -t parcel-app .
-    docker run -p 80:8080 \
+    docker build -t parcel-app-service .
+    docker run -p 10000:10000 \
     -e DJANGO_SECRET_KEY=your-secret-key \
-    -e DATABASE_URL=postgresql://user:pass@host:5432/db \
-    -e REDIS_URL=redis://host:6379/0 \
-    parcel-app
+    -e DATABASE_URL=postgres://user:pass@host:5432/db \
+    -e USE_S3=True -e AWS_STORAGE_BUCKET_NAME=your-bucket \
+    -e AWS_ACCESS_KEY_ID=... -e AWS_SECRET_ACCESS_KEY=... \
+    parcel-app-service
 ```
 
+With `DJANGO_DEBUG` unset (production), settings require `DJANGO_SECRET_KEY`, `DATABASE_URL` and
+`USE_S3=True`, require TLS to the database, and redirect HTTP to HTTPS based on the proxy's
+`X-Forwarded-Proto` header.
+
+## ☁️ Deploying to Render
+
+The repository root contains a Render Blueprint (`render.yaml`) for this service.
+
+1. In Render, choose **New → Blueprint** and select this repository.
+2. Enter the values Render prompts for (they are `sync: false` in the Blueprint and never stored
+   in the repo): `DATABASE_URL`, `DJANGO_CORS_ALLOWED_ORIGINS`, the bucket credentials, SMTP
+   settings, `PAYMENT_SYNC_TOKEN` and `PAYSTACK_SECRET_KEY`.
+3. Render builds the image, runs migrations on start, and checks `GET /healthz`.
+
+**Database (Supabase):** use the Session pooler connection string from Supabase → Connect. The
+direct `db.<ref>.supabase.co` host is IPv6-only, which Render cannot reach. For the transaction
+pooler (port 6543) also set `DATABASE_TRANSACTION_POOLER=True`.
+
+**Media (Supabase Storage or S3):** for Supabase set `AWS_S3_ENDPOINT_URL` to
+`https://<project-ref>.supabase.co/storage/v1/s3` and `AWS_S3_REGION_NAME` to the project region.
+
+**Background tasks:** Celery is optional. Without `REDIS_URL`, tasks run inline in the web
+process. To use a worker, uncomment the Key Value and worker services in `render.yaml`
+(workers need a paid instance type).
+
+**Free plan:** there is no pre-deploy step, so migrations run when the container starts. On a
+paid plan, add `preDeployCommand: python manage.py migrate --noinput` and set
+`RUN_MIGRATIONS=false`.
+
+**Custom domain:** Render sends health checks with the custom domain once one is verified, so add
+it to `DJANGO_ALLOWED_HOSTS`.
+
+**Health endpoints:** `GET /healthz` (process is up) and `GET /readyz` (database reachable; add
+`READINESS_CHECK_REDIS=true` to also check Redis).

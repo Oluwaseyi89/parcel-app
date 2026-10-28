@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/3.2/ref/settings/
 """
 import os
 from pathlib import Path
+import dj_database_url
 from dotenv import load_dotenv
 
 
@@ -39,12 +40,31 @@ def _as_list(value, default=None):
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
+if not SECRET_KEY:
+    raise ValueError('DJANGO_SECRET_KEY must be set.')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = _as_bool(os.getenv('DJANGO_DEBUG'), default=True)
+# Off unless explicitly enabled, so a missing variable can never expose debug pages.
+DEBUG = _as_bool(os.getenv('DJANGO_DEBUG'), default=False)
 
 DEFAULT_ALLOWED_HOSTS = ['localhost', '127.0.0.1', '192.168.42.70']
 ALLOWED_HOSTS = _as_list(os.getenv('DJANGO_ALLOWED_HOSTS'), DEFAULT_ALLOWED_HOSTS)
+
+# Render sets the service's public hostname (e.g. parcel-api.onrender.com).
+RENDER_EXTERNAL_HOSTNAME = os.getenv('RENDER_EXTERNAL_HOSTNAME')
+if RENDER_EXTERNAL_HOSTNAME and RENDER_EXTERNAL_HOSTNAME not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
+
+# HTTPS. Render terminates TLS at its proxy and forwards the original scheme.
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SECURE_SSL_REDIRECT = _as_bool(os.getenv('DJANGO_SECURE_SSL_REDIRECT'), default=not DEBUG)
+# Platform health checks call the app over plain HTTP inside the network.
+SECURE_REDIRECT_EXEMPT = [r'^healthz$', r'^readyz$']
+# Start low; raise to 31536000 once HTTPS is confirmed for every host serving the API.
+SECURE_HSTS_SECONDS = int(os.getenv('DJANGO_SECURE_HSTS_SECONDS', '0' if DEBUG else '3600'))
+SECURE_HSTS_INCLUDE_SUBDOMAINS = _as_bool(os.getenv('DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS'), default=False)
+SECURE_HSTS_PRELOAD = _as_bool(os.getenv('DJANGO_SECURE_HSTS_PRELOAD'), default=False)
 
 # Application definition
 
@@ -200,8 +220,13 @@ CRISPY_TEMPLATE_PACK = 'bootstrap4'
 WSGI_APPLICATION = 'parcel_app.wsgi.application'
 
 
-CELERY_BROKER_URL = 'redis://localhost:6379/0'
-CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+# Celery is optional. With REDIS_URL set, tasks are queued for a worker process; without it
+# they run inline in the web process, so no broker or worker service is required.
+REDIS_URL = os.getenv('REDIS_URL', '')
+CELERY_BROKER_URL = REDIS_URL or 'memory://'
+CELERY_RESULT_BACKEND = REDIS_URL or 'cache+memory://'
+CELERY_TASK_ALWAYS_EAGER = not REDIS_URL
+CELERY_TASK_EAGER_PROPAGATES = True
 
 # Include a Redis ping in /readyz. Enable only where a broker is actually provisioned.
 READINESS_CHECK_REDIS = _as_bool(os.getenv('READINESS_CHECK_REDIS'), default=False)
@@ -209,32 +234,38 @@ READINESS_CHECK_REDIS = _as_bool(os.getenv('READINESS_CHECK_REDIS'), default=Fal
 # Database
 # https://docs.djangoproject.com/en/3.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('DATABASE_NAME', 'parcel_db'),
-        'USER': os.getenv('DATABASE_USER', 'postgres'),
-        'PASSWORD': os.getenv('DATABASE_PASSWORD', ''),
-        'HOST': os.getenv('DATABASE_HOST', '127.0.0.1'),
-        'PORT': os.getenv('DATABASE_PORT', '5432'),
+# Production uses DATABASE_URL (e.g. a Supabase pooler connection string). Local development
+# may instead use the individual DATABASE_* variables.
+DATABASE_URL = os.getenv('DATABASE_URL')
+if DATABASE_URL:
+    DATABASES = {
+        'default': dj_database_url.parse(
+            DATABASE_URL,
+            conn_max_age=int(os.getenv('DATABASE_CONN_MAX_AGE', '60')),
+            conn_health_checks=True,
+            ssl_require=_as_bool(os.getenv('DATABASE_SSL_REQUIRE'), default=not DEBUG),
+        )
     }
-}
+elif not DEBUG:
+    raise ValueError('DATABASE_URL must be set when DJANGO_DEBUG is False.')
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.getenv('DATABASE_NAME', 'parcel_db'),
+            'USER': os.getenv('DATABASE_USER', 'postgres'),
+            'PASSWORD': os.getenv('DATABASE_PASSWORD', ''),
+            'HOST': os.getenv('DATABASE_HOST', '127.0.0.1'),
+            'PORT': os.getenv('DATABASE_PORT', '5432'),
+        }
+    }
 
-# If a full DATABASE_URL is provided (e.g. from Heroku), override the above.
-if os.getenv('DATABASE_URL'):
-    try:
-        import dj_database_url
-        DATABASES['default'] = dj_database_url.parse(os.getenv('DATABASE_URL'), conn_max_age=600)
-    except Exception:
-        # dj-database-url not installed yet; keep the env-var-based config
-        pass
-
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
-#     }
-# }
+# Supabase's transaction pooler (port 6543) gives each transaction a possibly different server
+# connection, so persistent connections, server-side cursors and prepared statements must be off.
+if _as_bool(os.getenv('DATABASE_TRANSACTION_POOLER'), default=False):
+    DATABASES['default']['CONN_MAX_AGE'] = 0
+    DATABASES['default']['DISABLE_SERVER_SIDE_CURSORS'] = True
+    DATABASES['default'].setdefault('OPTIONS', {})['prepare_threshold'] = None
 
 
 # Password validation
@@ -362,8 +393,6 @@ else:
 # MEDIA_ROOT would be lost. Production must store media in a bucket.
 if not DEBUG and not USE_S3:
     raise ValueError('USE_S3 must be True when DJANGO_DEBUG is False; local media storage is not persistent.')
-
-GEOIP_PATH = os.path.join(BASE_DIR, 'geoip')
 
 EMAIL_HOST = os.getenv('EMAIL_HOST', '')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))

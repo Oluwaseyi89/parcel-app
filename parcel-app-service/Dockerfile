@@ -1,36 +1,37 @@
 FROM python:3.12-slim
 
-ENV PYTHONUNBUFFERED=1
-ENV DJANGO_SETTINGS_MODULE=parcel_app.settings
-ENV C_FORCE_ROOT=1
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    DJANGO_SETTINGS_MODULE=parcel_app.settings \
+    PORT=10000
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    postgresql-dev \
-    nginx \
-    && rm -rf /var/lib/apt/lists/*
-
+# Every dependency installs from a wheel (psycopg[binary] bundles libpq), so no system packages.
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install -r requirements.txt
 
 COPY . .
 
-RUN mkdir -p /app/static /app/media /app/logs
+# Bake hashed, compressed static files into the image so container start-up stays fast.
+# Production settings require these variables at import time; the placeholders are never
+# used to connect to anything.
+RUN DJANGO_SECRET_KEY=collectstatic-placeholder \
+    DJANGO_DEBUG=False \
+    DATABASE_URL=postgres://placeholder@localhost:5432/placeholder \
+    USE_S3=True \
+    AWS_STORAGE_BUCKET_NAME=placeholder \
+    S3_MEDIA_PUBLIC=False \
+    AWS_QUERYSTRING_AUTH=True \
+    python manage.py collectstatic --noinput
 
-# Copy nginx config
-COPY nginx.conf /etc/nginx/sites-available/parcel-app
-RUN ln -s /etc/nginx/sites-available/parcel-app /etc/nginx/sites-enabled/
-
-RUN useradd -m -r django && \
-    chown -R django:django /app
+RUN useradd --create-home --system django \
+    && chown -R django:django /app
 USER django
 
-EXPOSE 80
-
-COPY start-services.sh .
-RUN chmod +x start-services.sh
+# Render injects PORT (default 10000); start-services.sh binds gunicorn to it.
+EXPOSE 10000
 
 CMD ["./start-services.sh"]

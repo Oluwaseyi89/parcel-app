@@ -1,0 +1,123 @@
+# Render Blueprint for the Parcel API (parcel-app-service).
+#
+# Secrets are declared with `sync: false`: Render prompts for their values when the Blueprint is
+# first created, and they never live in this file. Render does not allow `sync: false` inside
+# environment groups, so the group below holds only shared, non-secret production settings.
+#
+# The web service runs on the free plan, which has no pre-deploy step, so the container applies
+# migrations on start (see parcel-app-service/start-services.sh). On a paid plan, add
+#   preDeployCommand: python manage.py migrate --noinput
+# to the service and set RUN_MIGRATIONS=false.
+
+services:
+  - type: web
+    name: parcel-app-service
+    runtime: docker
+    plan: free
+    # Keep the API close to the database: use the region nearest your Supabase project.
+    region: frankfurt
+    dockerfilePath: ./parcel-app-service/Dockerfile
+    dockerContext: ./parcel-app-service
+    # Render sends health checks with the onrender.com hostname (added to ALLOWED_HOSTS from
+    # RENDER_EXTERNAL_HOSTNAME automatically). If you add a custom domain, Render uses it for health
+    # checks too, so also list it in DJANGO_ALLOWED_HOSTS.
+    healthCheckPath: /healthz
+    autoDeploy: true
+    buildFilter:
+      paths:
+        - parcel-app-service/**
+    envVars:
+      - fromGroup: parcel-app-service-config
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      # Supabase → Connect → Session pooler connection string (Render has no IPv6 egress, so the
+      # direct db.<ref>.supabase.co host is unreachable). For the transaction pooler (port 6543)
+      # also set DATABASE_TRANSACTION_POOLER=True.
+      - key: DATABASE_URL
+        sync: false
+      # Frontend origins allowed to call the API with credentials, comma separated.
+      - key: DJANGO_CORS_ALLOWED_ORIGINS
+        sync: false
+      # Media bucket. For Supabase Storage also set AWS_S3_ENDPOINT_URL to
+      # https://<project-ref>.supabase.co/storage/v1/s3 and AWS_S3_REGION_NAME to the project region.
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_STORAGE_BUCKET_NAME
+        sync: false
+      - key: AWS_S3_REGION_NAME
+        sync: false
+      - key: AWS_S3_ENDPOINT_URL
+        sync: false
+      # SMTP provider used for activation and password reset emails.
+      - key: EMAIL_HOST
+        sync: false
+      - key: EMAIL_HOST_USER
+        sync: false
+      - key: EMAIL_HOST_PASSWORD
+        sync: false
+      - key: DEFAULT_FROM_EMAIL
+        sync: false
+      # Shared with parcel-app-payment-service for internal payment status sync.
+      - key: PAYMENT_SYNC_TOKEN
+        sync: false
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      # Optional: queue Celery tasks on Redis (see the commented services below). Without it,
+      # tasks run inline in the web process.
+      # - key: REDIS_URL
+      #   fromService:
+      #     type: keyvalue
+      #     name: parcel-app-redis
+      #     property: connectionString
+
+  # Optional Celery setup. Uncomment both services and the web service's REDIS_URL above.
+  # Background workers need a paid instance type.
+  #
+  # - type: keyvalue
+  #   name: parcel-app-redis
+  #   plan: free
+  #   region: frankfurt
+  #   maxmemoryPolicy: noeviction
+  #   ipAllowList: []  # private network only
+  #
+  # - type: worker
+  #   name: parcel-app-celery-worker
+  #   runtime: docker
+  #   plan: starter
+  #   region: frankfurt
+  #   dockerfilePath: ./parcel-app-service/Dockerfile
+  #   dockerContext: ./parcel-app-service
+  #   dockerCommand: celery -A parcel_app worker --loglevel=info
+  #   buildFilter:
+  #     paths:
+  #       - parcel-app-service/**
+  #   envVars:
+  #     - fromGroup: parcel-app-service-config
+  #     - key: DJANGO_SECRET_KEY
+  #       generateValue: true
+  #     - key: REDIS_URL
+  #       fromService:
+  #         type: keyvalue
+  #         name: parcel-app-redis
+  #         property: connectionString
+  #     # Plus the same sync: false secrets as the web service (database, bucket, email).
+
+envVarGroups:
+  - name: parcel-app-service-config
+    envVars:
+      - key: DJANGO_DEBUG
+        value: "False"
+      # Render's disk is wiped on every deploy, so media must live in a bucket.
+      - key: USE_S3
+        value: "True"
+      - key: S3_MEDIA_PUBLIC
+        value: "False"
+      - key: AWS_QUERYSTRING_AUTH
+        value: "True"
+      - key: DATABASE_CONN_MAX_AGE
+        value: "60"
+      # Gunicorn workers; 2 fits the free instance's 512 MB.
+      - key: WEB_CONCURRENCY
+        value: "2"
