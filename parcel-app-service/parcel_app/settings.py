@@ -220,8 +220,13 @@ CRISPY_TEMPLATE_PACK = 'bootstrap4'
 WSGI_APPLICATION = 'parcel_app.wsgi.application'
 
 
-CELERY_BROKER_URL = 'redis://localhost:6379/0'
-CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+# Celery is optional. With REDIS_URL set, tasks are queued for a worker process; without it
+# they run inline in the web process, so no broker or worker service is required.
+REDIS_URL = os.getenv('REDIS_URL', '')
+CELERY_BROKER_URL = REDIS_URL or 'memory://'
+CELERY_RESULT_BACKEND = REDIS_URL or 'cache+memory://'
+CELERY_TASK_ALWAYS_EAGER = not REDIS_URL
+CELERY_TASK_EAGER_PROPAGATES = True
 
 # Include a Redis ping in /readyz. Enable only where a broker is actually provisioned.
 READINESS_CHECK_REDIS = _as_bool(os.getenv('READINESS_CHECK_REDIS'), default=False)
