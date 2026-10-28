@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
+import PaginationControls from '../components/common/PaginationControls'
 import TableStateRows from '../components/common/TableStateRows'
 import useToast from '../hooks/useToast'
 import useOptimisticMutation from '../hooks/useOptimisticMutation'
 import { apiRequest } from '../services/api'
+import { summarizeGroupPagination, withPaginationParams } from '../services/pagination'
 
 function ModerationSection({ title, rows, kind, columns, onAction, isSubmitting, isLoading, error, onRetry }) {
   return (
@@ -74,6 +76,9 @@ export default function ModerationPage({ token }) {
   const [queueType, setQueueType] = useState('all')
   const [statusFilter, setStatusFilter] = useState('pending')
   const [data, setData] = useState({ vendors: [], couriers: [], products: [], summary: {} })
+  const [groupPagination, setGroupPagination] = useState({})
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [error, setError] = useState('')
@@ -97,11 +102,12 @@ export default function ModerationPage({ token }) {
         type: queueType,
         status: statusFilter,
       })
-      const payload = await apiRequest(`/auth/moderation/queue/?${params.toString()}`, {
+      const payload = await apiRequest(withPaginationParams(`/auth/moderation/queue/?${params.toString()}`, page, pageSize), {
         method: 'GET',
         token,
       })
       setData(payload?.data || { vendors: [], couriers: [], products: [], summary: {} })
+      setGroupPagination(payload?.pagination || {})
     } catch (err) {
       const message = err.message || 'Failed to load moderation queue.'
       setLoadError(message)
@@ -117,7 +123,7 @@ export default function ModerationPage({ token }) {
       void loadQueue()
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, queueType, statusFilter])
+  }, [token, queueType, statusFilter, page, pageSize])
 
   async function handleModerationAction(type, id, action) {
     setIsSubmitting(true)
@@ -180,6 +186,10 @@ export default function ModerationPage({ token }) {
   const vendors = data?.vendors || []
   const couriers = data?.couriers || []
   const products = data?.products || []
+  const pageSummary = summarizeGroupPagination(
+    groupPagination,
+    queueType === 'all' ? ['vendors', 'couriers', 'products'] : [queueType],
+  )
 
   return (
     <div className="moderation-page">
@@ -196,14 +206,26 @@ export default function ModerationPage({ token }) {
       </div>
 
       <div className="moderation-controls">
-        <select value={queueType} onChange={(event) => setQueueType(event.target.value)}>
+        <select
+          value={queueType}
+          onChange={(event) => {
+            setQueueType(event.target.value)
+            setPage(1)
+          }}
+        >
           <option value="all">All Queues</option>
           <option value="vendors">Vendors</option>
           <option value="couriers">Couriers</option>
           <option value="products">Products</option>
         </select>
 
-        <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+        <select
+          value={statusFilter}
+          onChange={(event) => {
+            setStatusFilter(event.target.value)
+            setPage(1)
+          }}
+        >
           <option value="pending">Pending</option>
           <option value="approved">Approved</option>
           <option value="rejected">Rejected</option>
@@ -225,6 +247,18 @@ export default function ModerationPage({ token }) {
 
       {error ? <p className="form-error">{error}</p> : null}
       {notice ? <p className="form-success">{notice}</p> : null}
+
+      <PaginationControls
+        page={page}
+        pageSize={pageSize}
+        total={pageSummary.total}
+        totalPages={pageSummary.totalPages}
+        onPageChange={setPage}
+        onPageSizeChange={(next) => {
+          setPageSize(next)
+          setPage(1)
+        }}
+      />
 
       {queueType === 'all' || queueType === 'vendors' ? (
         <ModerationSection

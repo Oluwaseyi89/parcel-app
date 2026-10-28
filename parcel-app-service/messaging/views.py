@@ -4,7 +4,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.pagination import PageNumberPagination
+from core.pagination import StandardPagination, paginated_response
 from django.db.models import Q
 from authentication.permissions import IsAdminOrSuperAdmin
 from .services import EmailService, NotificationService, MessageTemplateService, StatsService
@@ -14,11 +14,6 @@ from .serializers import (
     BulkEmailSerializer, EmailStatsSerializer
 )
 from .models import MessageTemplate, EmailMessage, EmailQueue, Notification, SMTPSettings
-
-class StandardPagination(PageNumberPagination):
-    page_size = 20
-    page_size_query_param = 'page_size'
-    max_page_size = 100
 
 class MessageTemplateListView(APIView):
     """List and create message templates"""
@@ -36,11 +31,7 @@ class MessageTemplateListView(APIView):
         if is_active is not None:
             queryset = queryset.filter(is_active=is_active.lower() == 'true')
         
-        serializer = MessageTemplateSerializer(queryset, many=True)
-        return Response({
-            "status": "success",
-            "data": serializer.data
-        })
+        return paginated_response(request, queryset, lambda page: MessageTemplateSerializer(page, many=True).data)
     
     def post(self, request):
         serializer = MessageTemplateSerializer(
@@ -165,10 +156,7 @@ class EmailMessageListView(APIView):
         page = paginator.paginate_queryset(queryset, request)
         
         serializer = EmailMessageSerializer(page, many=True)
-        return paginator.get_paginated_response({
-            "status": "success",
-            "data": serializer.data
-        })
+        return paginator.get_paginated_response(serializer.data)
     
     def post(self, request):
         serializer = EmailMessageCreateSerializer(
@@ -268,9 +256,8 @@ class NotificationListView(APIView):
     def get(self, request):
         is_read = request.query_params.get('is_read')
         notification_type = request.query_params.get('type')
-        limit = request.query_params.get('limit', 50)
         
-        queryset = Notification.objects.filter(recipient=request.user)
+        queryset = Notification.for_recipient(request.user)
         
         if is_read is not None:
             queryset = queryset.filter(is_read=is_read.lower() == 'true')
@@ -278,16 +265,11 @@ class NotificationListView(APIView):
         if notification_type:
             queryset = queryset.filter(notification_type=notification_type)
         
-        queryset = queryset.order_by('-created_at')[:int(limit)]
+        queryset = queryset.order_by('-created_at', '-id')
         
-        unread_count = NotificationService.get_unread_count(request.user)
-        
-        serializer = NotificationSerializer(queryset, many=True)
-        return Response({
-            "status": "success",
-            "data": serializer.data,
-            "unread_count": unread_count
-        })
+        response = paginated_response(request, queryset, lambda page: NotificationSerializer(page, many=True).data)
+        response.data["unread_count"] = NotificationService.get_unread_count(request.user)
+        return response
     
     def post(self, request):
         # Mark all as read
@@ -309,7 +291,7 @@ class NotificationDetailView(APIView):
     
     def patch(self, request, notification_id):
         try:
-            notification = Notification.objects.get(id=notification_id, recipient=request.user)
+            notification = Notification.for_recipient(request.user).get(id=notification_id)
         except Notification.DoesNotExist:
             return Response({
                 "status": "error",

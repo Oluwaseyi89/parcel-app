@@ -96,6 +96,9 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
+    'EXCEPTION_HANDLER': 'core.exceptions.api_exception_handler',
+    'DEFAULT_PAGINATION_CLASS': 'core.pagination.StandardPagination',
+    'PAGE_SIZE': 20,
     # Applied per-view via ScopedRateThrottle on login/registration/reset endpoints.
     'DEFAULT_THROTTLE_RATES': {
         'auth': os.getenv('DJANGO_AUTH_THROTTLE_RATE', '10/minute'),

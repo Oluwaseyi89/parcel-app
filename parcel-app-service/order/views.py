@@ -8,7 +8,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
-from rest_framework.pagination import PageNumberPagination
+from core.pagination import StandardPagination
 from django.db.models import Q
 from authentication.permissions import IsAdminOrSuperAdmin, IsVendorOrAdmin, IsCourierOrAdmin
 from django.conf import settings
@@ -32,11 +32,6 @@ class IsAuthenticatedOrTrustedInternalPaymentRequest(BasePermission):
 
         trusted_checker = getattr(view, '_is_trusted_internal_call', None)
         return callable(trusted_checker) and trusted_checker(request)
-
-class StandardPagination(PageNumberPagination):
-    page_size = 20
-    page_size_query_param = 'page_size'
-    max_page_size = 100
 
 class OrderListView(APIView):
     """List orders with filters"""
@@ -76,10 +71,7 @@ class OrderListView(APIView):
         page = paginator.paginate_queryset(queryset, request)
         
         serializer = OrderSerializer(page, many=True)
-        return paginator.get_paginated_response({
-            "status": "success",
-            "data": serializer.data
-        })
+        return paginator.get_paginated_response(serializer.data)
 
 class OrderCreateView(APIView):
     """Create a new order"""

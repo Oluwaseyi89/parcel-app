@@ -189,32 +189,28 @@ class DispatchService:
     
     @staticmethod
     def get_ready_for_dispatch():
-        """Get orders ready for dispatch"""
-        # Orders that are paid and ready for dispatch
-        orders = Order.objects.filter(
+        """Paid, ready orders that have no dispatch yet, newest first."""
+        return Order.objects.filter(
             status='ready',
-            payment_status='paid'
-        ).select_related('customer').prefetch_related('items', 'items__product', 'items__vendor')
-        
-        result = []
-        for order in orders:
-            # Check if dispatch already exists
-            if hasattr(order, 'dispatch'):
-                continue
-            
-            order_data = {
-                'order_id': order.id,
-                'order_number': order.order_number,
-                'customer_name': order.customer.get_full_name(),
-                'total_items': order.items.count(),
-                'total_amount': order.total_amount,
-                'shipping_address': order.shipping_address,
-                'items': []
-            }
-            
-            # Add items with vendor info
-            for item in order.items.all():
-                item_data = {
+            payment_status='paid',
+            dispatch__isnull=True,
+        ).select_related('customer').prefetch_related(
+            'items', 'items__product', 'items__vendor'
+        ).order_by('-created_at', '-id')
+
+    @staticmethod
+    def build_ready_order_data(order):
+        """Dispatch-planning summary of one ready order, with per-item vendor details."""
+        items = list(order.items.all())
+        return {
+            'order_id': order.id,
+            'order_number': order.order_number,
+            'customer_name': order.customer.get_full_name(),
+            'total_items': len(items),
+            'total_amount': order.total_amount,
+            'shipping_address': order.shipping_address,
+            'items': [
+                {
                     'product_id': item.product.id if item.product else None,
                     'product_name': item.product_name,
                     'quantity': item.quantity,
@@ -229,11 +225,9 @@ class DispatchService:
                         'country': item.vendor.business_country
                     }
                 }
-                order_data['items'].append(item_data)
-            
-            result.append(order_data)
-        
-        return result
+                for item in items
+            ],
+        }
     
     @staticmethod
     def get_available_couriers_for_dispatch(dispatch_id=None, location_filter=None):

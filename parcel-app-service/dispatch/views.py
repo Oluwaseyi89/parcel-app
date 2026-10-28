@@ -3,7 +3,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.pagination import PageNumberPagination
+from core.pagination import StandardPagination, paginated_response
 from django.db.models import Q
 from authentication.permissions import IsAdminOrSuperAdmin, IsVendorOrAdmin, IsCourierOrAdmin, IsVendor
 from .services import DispatchService, RouteOptimizationService
@@ -14,29 +14,14 @@ from .serializers import (
 )
 from .models import Dispatch, DispatchItem, CourierLocation
 
-class StandardPagination(PageNumberPagination):
-    page_size = 20
-    page_size_query_param = 'page_size'
-    max_page_size = 100
-
 class ReadyForDispatchView(APIView):
     """Get orders ready for dispatch"""
     permission_classes = [IsAuthenticated, IsAdminOrSuperAdmin]
     
     def get(self, request):
-        try:
-            ready_orders = DispatchService.get_ready_for_dispatch()
-            serializer = ReadyOrdersSerializer(ready_orders, many=True)
-            
-            return Response({
-                "status": "success",
-                "data": serializer.data
-            })
-        except Exception as e:
-            return Response({
-                "status": "error",
-                "message": str(e)
-            }, status=status.HTTP_400_BAD_REQUEST)
+        return paginated_response(request, DispatchService.get_ready_for_dispatch(), lambda page: ReadyOrdersSerializer(
+            [DispatchService.build_ready_order_data(order) for order in page], many=True
+        ).data)
 
 class DispatchListView(APIView):
     """List dispatches with filters"""
@@ -85,10 +70,7 @@ class DispatchListView(APIView):
         page = paginator.paginate_queryset(queryset, request)
         
         serializer = DispatchSerializer(page, many=True)
-        return paginator.get_paginated_response({
-            "status": "success",
-            "data": serializer.data
-        })
+        return paginator.get_paginated_response(serializer.data)
 
 class DispatchCreateView(APIView):
     """Create a new dispatch"""
