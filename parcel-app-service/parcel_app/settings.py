@@ -363,8 +363,6 @@ else:
 if not DEBUG and not USE_S3:
     raise ValueError('USE_S3 must be True when DJANGO_DEBUG is False; local media storage is not persistent.')
 
-GEOIP_PATH = os.path.join(BASE_DIR, 'geoip')
-
 EMAIL_HOST = os.getenv('EMAIL_HOST', '')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
