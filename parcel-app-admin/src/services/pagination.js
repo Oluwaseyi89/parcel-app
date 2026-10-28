@@ -3,6 +3,17 @@ export function normalizePaginatedPayload(payload) {
     return { items: [], total: 0, isServerPaginated: false }
   }
 
+  // Standard API envelope: { status, data: [...], pagination: { total_count, ... } }
+  if (Array.isArray(payload?.data) && typeof payload?.pagination?.total_count === 'number') {
+    return {
+      items: payload.data,
+      total: payload.pagination.total_count,
+      isServerPaginated: true,
+      next: payload.pagination.next,
+      previous: payload.pagination.previous,
+    }
+  }
+
   if (Array.isArray(payload?.results) && typeof payload?.count === 'number') {
     return {
       items: payload.results,
@@ -51,4 +62,14 @@ export function paginateLocal(items, page, pageSize) {
 export function withPaginationParams(path, page, pageSize) {
   const separator = path.includes('?') ? '&' : '?'
   return `${path}${separator}page=${page}&page_size=${pageSize}`
+}
+
+// Grouped listings (moderation queue, banking) paginate each group with the shared ?page,
+// so one screen shows a page from every group and the page count is the largest group's.
+export function summarizeGroupPagination(pagination, groups) {
+  const metas = groups.map((group) => pagination?.[group]).filter(Boolean)
+  return {
+    total: metas.reduce((sum, meta) => sum + (Number(meta.total_count) || 0), 0),
+    totalPages: Math.max(1, ...metas.map((meta) => Number(meta.total_pages) || 1)),
+  }
 }
