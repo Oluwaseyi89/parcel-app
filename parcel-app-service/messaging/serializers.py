@@ -230,14 +230,15 @@ class EmailQueueSerializer(serializers.ModelSerializer):
 
 class NotificationSerializer(serializers.ModelSerializer):
     """Serializer for notifications"""
-    recipient_email = serializers.EmailField(source='recipient.email', read_only=True)
-    recipient_name = serializers.CharField(source='recipient.get_full_name', read_only=True)
+    # Notification has one FK per user model; get_recipient() resolves the populated one.
+    recipient_email = serializers.EmailField(source='get_recipient.email', read_only=True)
+    recipient_name = serializers.CharField(source='get_recipient.get_full_name', read_only=True)
     type_display = serializers.CharField(source='get_notification_type_display', read_only=True)
     
     class Meta:
         model = Notification
         fields = [
-            'id', 'recipient', 'recipient_email', 'recipient_name',
+            'id', 'recipient_type', 'recipient_email', 'recipient_name',
             'title', 'message', 'notification_type', 'type_display',
             'action_url', 'action_label', 'is_read', 'is_archived',
             'related_model', 'related_id', 'created_at', 'read_at'
