@@ -16,6 +16,9 @@ const DISPATCH_STATUSES = [
   'returned',
 ]
 
+// Largest page the API serves (core.pagination.StandardPagination.max_page_size).
+const DROPDOWN_PAGE_SIZE = 100
+
 export default function DispatchPage({ token }) {
   const toast = useToast()
   const [dispatches, setDispatches] = useState([])
@@ -84,25 +87,15 @@ export default function DispatchPage({ token }) {
     try {
       setIsLoading(true)
       setError('')
-      const [dispatchPayload, courierPayload, readyPayload] = await Promise.all([
-        apiRequest('/auth/dispatches/', { method: 'GET', token }),
-        apiRequest('/auth/couriers/', { method: 'GET', token }),
-        apiRequest('/auth/dispatches/ready-orders/', { method: 'GET', token }),
+      // Couriers and ready orders feed dropdowns, so request the API's maximum page size.
+      const [courierPayload, readyPayload] = await Promise.all([
+        apiRequest(withPaginationParams('/auth/couriers/', 1, DROPDOWN_PAGE_SIZE), { method: 'GET', token }),
+        apiRequest(withPaginationParams('/auth/dispatches/ready-orders/', 1, DROPDOWN_PAGE_SIZE), { method: 'GET', token }),
+        loadDispatches(),
       ])
 
-      const dispatchList = Array.isArray(dispatchPayload?.data) ? dispatchPayload.data : []
-      setDispatches(dispatchList)
       setCouriers(Array.isArray(courierPayload?.data) ? courierPayload.data : [])
       setReadyOrders(Array.isArray(readyPayload?.data) ? readyPayload.data : [])
-
-      const statusDefaults = {}
-      const courierDefaults = {}
-      dispatchList.forEach((dispatch) => {
-        statusDefaults[dispatch.id] = dispatch.status
-        courierDefaults[dispatch.id] = dispatch?.courier?.id ? String(dispatch.courier.id) : ''
-      })
-      setStatusByDispatch(statusDefaults)
-      setCourierByDispatch(courierDefaults)
       if (!selectedReadyOrderId && readyPayload?.data?.length) {
         setSelectedReadyOrderId(String(readyPayload.data[0].id))
       }
