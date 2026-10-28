@@ -1,11 +1,9 @@
-import json
 import secrets
 from datetime import datetime, timedelta
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.shortcuts import render, get_object_or_404
-from django.http import JsonResponse, HttpResponse, Http404
-from django.views.decorators.csrf import csrf_exempt
+from django.http import JsonResponse, Http404
 from django.contrib.auth.hashers import make_password, check_password
 from django.middleware.csrf import get_token
 from django.utils import timezone
@@ -1301,31 +1299,6 @@ def desk_login(request):
                         {"not_exist": "Staff is Not Registered Yet!"})
     
     return render(request, "parcel_backends/staff_login.html")
-
-
-@csrf_exempt
-def desk_login_external(request, email=None, password=None):
-    """External desk login API"""
-    if request.method == 'POST':
-        if email == "" or password == "":
-            return JsonResponse({"status": "error", "data": "Enter all Fields"}, safe=True)
-        else:
-            try:
-                check_staff = AdminUser.objects.get(email=email, is_active=True)
-                if check_staff is not None:
-                    if check_password(password, check_staff.password):
-                        staff_data = {
-                            "first_name": check_staff.first_name,
-                            "id": check_staff.id,
-                            "last_name": check_staff.last_name,
-                        }
-                        return HttpResponse(json.dumps({"status": "success", "data": staff_data}))
-                    else:
-                        return JsonResponse({"status": "error", "data": "Wrong password"}, safe=True)
-            except AdminUser.DoesNotExist:
-                return JsonResponse({"status": "error", "data": "Staff does not exist"}, safe=True)
-    
-    return JsonResponse({"status": "error", "data": "Invalid request method"}, safe=True)
 
 
 def reg_staff(request):
