@@ -1,0 +1,38 @@
+# Secrets: provide these as runtime environment variables, never bake them into the image
+.env
+.env.*
+
+# User uploads and generated assets (media lives in S3; static is collected at build/deploy)
+media/
+static/
+staticfiles/
+
+# Version control and tooling
+.git
+.gitignore
+.pre-commit-config.yaml
+.vscode/
+.idea/
+
+# Python caches and virtual environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Celery beat local state
+celerybeat-schedule*
+celerybeat.pid
+
+# Local logs and databases
+logs/
+*.log
+*.sqlite3
+
+# Local-only compose files
+docker-compose*.yml
