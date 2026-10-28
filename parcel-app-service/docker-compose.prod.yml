@@ -56,9 +56,9 @@ services:
   db:
     image: postgres:13
     environment:
-      - POSTGRES_DB=parcel_db
-      - POSTGRES_USER=parcel_user
-      - POSTGRES_PASSWORD=parcel_password
+      - POSTGRES_DB=${POSTGRES_DB:-parcel_db}
+      - POSTGRES_USER=${POSTGRES_USER:-parcel_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the environment}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped

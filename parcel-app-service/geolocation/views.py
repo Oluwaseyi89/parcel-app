@@ -6,7 +6,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from .forms import MeasurementModelForm
 from .models import Measurement
-from core.utils import get_ip_address, get_geo, get_zoom, get_center_coords
+from core.utils import get_geo, get_zoom, get_center_coords
 
 def calculate_distance_view(request):
     distance = 0
@@ -14,18 +14,12 @@ def calculate_distance_view(request):
     form = MeasurementModelForm(request.POST or None)
     geolocator = Nominatim(user_agent='parcel_backends')
 
-    ip_ = get_ip_address(request)
-    print(ip_)
     ip = '197.210.76.118'
-    print(ip)
     country, city, lat, lon = get_geo(ip)
-    location = geolocator.geocode(city)
-    print(location)
 
     l_lat = lat
     l_lon = lon
     pointA = (l_lat, l_lon)
-    print(pointA)
 
     m = folium.Map(width=800, height=500, location=get_center_coords(l_lat, l_lon), zoom_start=get_zoom(distance))
     folium.Marker([l_lat, l_lon], tooltip='click here for more', popup=city['city'],
@@ -34,14 +28,11 @@ def calculate_distance_view(request):
     if form.is_valid():
         instance = form.save(commit=False)
         destination_ = form.cleaned_data.get('destination')
-        print(destination_)
         destination = geolocator.geocode(destination_)
-        print(destination)
 
         d_lat = destination.latitude
         d_lon = destination.longitude
         pointB = (d_lat, d_lon)
-        print(pointB)
 
         distance = round(geodesic(pointA, pointB).km, 2)
 
