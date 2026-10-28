@@ -71,13 +71,14 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'django_celery_results',
-    'flower',
     'crispy_forms',
     'storages',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    # Serves collected static files (Django admin, DRF browsable API) from the app process.
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -270,6 +271,16 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/3.2/howto/static-files/
 
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+# Hashed, compressed static files in production; the manifest requires collectstatic,
+# so development keeps Django's plain storage.
+STATICFILES_STORAGE_BACKEND = (
+    'django.contrib.staticfiles.storage.StaticFilesStorage' if DEBUG
+    else 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+)
+
 USE_S3 = _as_bool(os.getenv('USE_S3'), default=False)
 
 if USE_S3:
@@ -322,17 +333,23 @@ if USE_S3:
             'BACKEND': 'storages.backends.s3boto3.S3Boto3Storage',
         },
         'staticfiles': {
-            'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
+            'BACKEND': STATICFILES_STORAGE_BACKEND,
         },
     }
 
     MEDIA_URL = f"{AWS_S3_URL_PROTOCOL}//{AWS_S3_CUSTOM_DOMAIN}/{AWS_LOCATION}/"
 else:
+    STORAGES = {
+        'default': {
+            'BACKEND': 'django.core.files.storage.FileSystemStorage',
+        },
+        'staticfiles': {
+            'BACKEND': STATICFILES_STORAGE_BACKEND,
+        },
+    }
+
     MEDIA_URL = '/media/'
     MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
-
-STATIC_URL = '/static/'
-STATICFILES_DIRS = (os.path.join(BASE_DIR, 'static'),)
 
 GEOIP_PATH = os.path.join(BASE_DIR, 'geoip')
 
