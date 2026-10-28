@@ -91,12 +91,15 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'authentication.drf_auth.SessionTokenAuthentication',
         'rest_framework.authentication.SessionAuthentication',
-        'rest_framework.authentication.BasicAuthentication',
     ),
     # Deny by default; public endpoints must opt in with AllowAny explicitly.
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
+    # Applied per-view via ScopedRateThrottle on login/registration/reset endpoints.
+    'DEFAULT_THROTTLE_RATES': {
+        'auth': os.getenv('DJANGO_AUTH_THROTTLE_RATE', '10/minute'),
+    },
     'DEFAULT_PARSER_CLASSES': (
         'rest_framework.parsers.JSONParser',
         'rest_framework.parsers.FormParser',
