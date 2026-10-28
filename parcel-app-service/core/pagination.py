@@ -1,3 +1,6 @@
+import math
+
+from rest_framework.exceptions import NotFound
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
@@ -38,7 +41,23 @@ def paginated_response(request, queryset, serialize):
 
 
 def paginate_group(request, queryset, serialize):
-    """Paginate one group of a grouped listing; returns (data, pagination_meta)."""
+    """Paginate one group of a grouped listing; returns (data, pagination_meta).
+
+    Groups share the ?page parameter, so a page past the end of one group returns an
+    empty list for that group instead of failing the whole request with a 404.
+    """
     paginator = StandardPagination()
-    page = paginator.paginate_queryset(queryset, request)
+    try:
+        page = paginator.paginate_queryset(queryset, request)
+    except NotFound:
+        page_size = paginator.get_page_size(request)
+        total_count = queryset.count()
+        return serialize([]), {
+            "page": request.query_params.get(paginator.page_query_param),
+            "page_size": page_size,
+            "total_count": total_count,
+            "total_pages": max(1, math.ceil(total_count / page_size)),
+            "next": None,
+            "previous": None,
+        }
     return serialize(page), paginator.get_pagination_meta()
