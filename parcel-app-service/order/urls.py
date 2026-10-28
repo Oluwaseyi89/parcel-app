@@ -40,7 +40,4 @@ urlpatterns = [
     
     # Statistics (admin only) -> /api/v1/order/stats/
     path('stats/', OrderStatsView.as_view(), name="order_stats"),
-    
-    # Legacy fallback routing hooks
-    path('legacy/create/', OrderCreateView.as_view(), name="order_create_legacy"),
 ]
