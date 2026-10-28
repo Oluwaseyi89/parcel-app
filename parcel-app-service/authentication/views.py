@@ -18,7 +18,9 @@ from .models import AdminUser, UserSession
 from .serializers import (
     AdminLoginSerializer, AdminSessionSerializer, 
     AdminUserSerializer, ChangePasswordSerializer,
-    AdminCreateSerializer, CustomerProfileSerializer
+    AdminCreateSerializer, CustomerProfileSerializer,
+    AdminComplaintUpdateSerializer, AdminDispatchAssignSerializer, AdminDispatchCreateSerializer,
+    AdminDispatchStatusUpdateSerializer, AdminModerationActionSerializer, AdminOrderStatusUpdateSerializer,
 )
 from .permissions import IsSuperAdmin, IsAdminOrSuperAdmin, IsCustomer
 from django.conf import settings
@@ -692,20 +694,10 @@ class AdminModerationActionView(APIView):
     permission_classes = [IsAdminOrSuperAdmin]
 
     def patch(self, request, queue_type, pk):
-        action = str(request.data.get('action', '')).strip().lower()
-        reason = str(request.data.get('reason', '')).strip()
-
-        status_map = {
-            'approve': 'approved',
-            'reject': 'rejected',
-            'request_changes': 'changes_requested',
-        }
-
-        if action not in status_map:
-            return Response({
-                "status": "error",
-                "message": "Invalid action. Use approve, reject, or request_changes."
-            }, status=status.HTTP_400_BAD_REQUEST)
+        serializer = AdminModerationActionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        action = serializer.validated_data['action']
+        reason = serializer.validated_data['reason'].strip()
 
         if queue_type == 'vendors':
             instance = get_object_or_404(VendorUser, pk=pk)
@@ -722,7 +714,7 @@ class AdminModerationActionView(APIView):
                 "message": "Invalid queue type."
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        next_status = status_map[action]
+        next_status = AdminModerationActionSerializer.ACTION_STATUS[action]
         instance.approval_status = next_status
         instance.reviewed_at = timezone.now()
         instance.approved_by = request.user
@@ -825,15 +817,10 @@ class AdminOrderStatusUpdateView(APIView):
     def patch(self, request, pk):
         order = get_object_or_404(Order, pk=pk)
 
-        next_status = str(request.data.get('status', '')).strip()
-        notes = str(request.data.get('notes', '')).strip()
-
-        valid_statuses = [choice[0] for choice in Order.STATUS_CHOICES]
-        if next_status not in valid_statuses:
-            return Response({
-                "status": "error",
-                "message": "Invalid order status."
-            }, status=status.HTTP_400_BAD_REQUEST)
+        serializer = AdminOrderStatusUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        next_status = serializer.validated_data['status']
+        notes = serializer.validated_data['notes'].strip()
 
         if notes:
             order.internal_notes = (order.internal_notes + "\n" + notes).strip() if order.internal_notes else notes
@@ -881,16 +868,11 @@ class AdminDispatchListView(APIView):
         })
 
     def post(self, request):
-        order_id = request.data.get('order_id')
-        admin_notes = str(request.data.get('admin_notes', '')).strip()
+        serializer = AdminDispatchCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        admin_notes = serializer.validated_data['admin_notes'].strip()
 
-        if not order_id:
-            return Response({
-                "status": "error",
-                "message": "order_id is required."
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-        order = get_object_or_404(Order, pk=order_id)
+        order = get_object_or_404(Order, pk=serializer.validated_data['order_id'])
         if hasattr(order, 'dispatch'):
             return Response({
                 "status": "error",
@@ -935,16 +917,11 @@ class AdminDispatchStatusUpdateView(APIView):
 
     def patch(self, request, pk):
         dispatch = get_object_or_404(Dispatch, pk=pk)
-        next_status = str(request.data.get('status', '')).strip()
 
-        valid_statuses = [choice[0] for choice in Dispatch.STATUS_CHOICES]
-        if next_status not in valid_statuses:
-            return Response({
-                "status": "error",
-                "message": "Invalid dispatch status."
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-        notes = str(request.data.get('notes', '')).strip()
+        serializer = AdminDispatchStatusUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        next_status = serializer.validated_data['status']
+        notes = serializer.validated_data['notes'].strip()
         dispatch.update_status(next_status, notes=notes)
         if notes:
             dispatch.admin_notes = (dispatch.admin_notes + "\n" + notes).strip() if dispatch.admin_notes else notes
@@ -968,15 +945,11 @@ class AdminDispatchAssignView(APIView):
 
     def patch(self, request, pk):
         dispatch = get_object_or_404(Dispatch, pk=pk)
-        courier_id = request.data.get('courier_id')
-        if not courier_id:
-            return Response({
-                "status": "error",
-                "message": "courier_id is required."
-            }, status=status.HTTP_400_BAD_REQUEST)
 
-        courier = get_object_or_404(CourierUser, pk=courier_id)
-        notes = str(request.data.get('notes', '')).strip()
+        serializer = AdminDispatchAssignSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        courier = get_object_or_404(CourierUser, pk=serializer.validated_data['courier_id'])
+        notes = serializer.validated_data['notes'].strip()
         dispatch.assign_courier(courier, notes=notes)
 
         return Response({
@@ -1109,32 +1082,11 @@ class AdminComplaintUpdateView(APIView):
     def patch(self, request, pk):
         complaint = get_object_or_404(CustomerComplaint, pk=pk)
 
-        fields_to_update = []
-        if 'is_resolved' in request.data:
-            complaint.is_resolved = str(request.data.get('is_resolved')).strip().lower() in ['1', 'true', 'yes', 'on']
-            fields_to_update.append('is_resolved')
-
-        if 'is_satisfied' in request.data:
-            complaint.is_satisfied = str(request.data.get('is_satisfied')).strip().lower() in ['1', 'true', 'yes', 'on']
-            fields_to_update.append('is_satisfied')
-
-        detail = request.data.get('complaint_detail')
-        if detail is not None:
-            complaint.complaint_detail = str(detail)
-            fields_to_update.append('complaint_detail')
-
-        subject = request.data.get('complaint_subject')
-        if subject is not None:
-            complaint.complaint_subject = str(subject)
-            fields_to_update.append('complaint_subject')
-
-        if not fields_to_update:
-            return Response({
-                "status": "error",
-                "message": "No valid fields provided for update."
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-        complaint.save(update_fields=fields_to_update)
+        serializer = AdminComplaintUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        for field, value in serializer.validated_data.items():
+            setattr(complaint, field, value)
+        complaint.save(update_fields=list(serializer.validated_data))
 
         return Response({
             "status": "success",
