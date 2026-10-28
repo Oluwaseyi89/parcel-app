@@ -2,7 +2,6 @@
 from django.urls import path
 from django.views.decorators.csrf import csrf_exempt
 from .views import (
-    home, base, super_admin_login, super_admin_dashboard,
     AdminLoginView, AdminLogoutView, AdminProfileView, 
     ChangePasswordView, AdminUserListView, AdminCustomerListView, AdminDashboardMetricsView,
     SessionMeView, CsrfTokenView, SwitchActiveRoleView,
@@ -12,7 +11,6 @@ from .views import (
     AdminDispatchReadyOrdersView, AdminCourierListView,
     AdminComplaintListView, AdminComplaintUpdateView,
     AdminBankingListView, AdminBankingUpdateView,
-    staff_reg_page, staff_login, desk_login, reg_staff,
     CustomerRegistrationView, CustomerLoginView, CustomerProfileView,
     activate_customer, customer_reset, dev_verify_email,
     CustomerResetView, CustomerSaveResetView
@@ -22,18 +20,6 @@ from .views import (
 app_name = 'authentication'
 
 urlpatterns = [
-    # --------------------------------------------------------------------------
-    # Root & Template-Based Admin Views (Legacy / Base HTML)
-    # --------------------------------------------------------------------------
-    path('', home, name="home"),
-    path('base/', base, name="base"),
-    path('super_admin/', super_admin_login, name="super_admin_login"),
-    path('admin_dashboard/', super_admin_dashboard, name="admin_dashboard"),
-    path('staff_reg_page/', staff_reg_page, name="staff_reg_page"),
-    path('staff_login/', staff_login, name="staff_login"),
-    path('desk_login/', desk_login, name="desk_login"),
-    path('reg_staff/', reg_staff, name="reg_staff"),
-    
     # --------------------------------------------------------------------------
     # Core API Authentication Endpoints -> /api/v1/auth/...
     # --------------------------------------------------------------------------

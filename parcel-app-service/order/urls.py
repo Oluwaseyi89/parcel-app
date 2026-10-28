@@ -1,7 +1,7 @@
 from django.urls import path
 from django.views.decorators.csrf import csrf_exempt
 from .views import (
-    order, OrderListView, OrderCreateView, OrderDetailView,
+    OrderListView, OrderCreateView, OrderDetailView,
     OrderStatusUpdateView, PaymentRegistrationView,
     PaymentContextView,
     InternalPaymentStatusSyncView, PaystackWebhookView,
@@ -13,9 +13,6 @@ from .views import (
 app_name = 'order'
 
 urlpatterns = [
-    # Template view (legacy dashboard) -> /api/v1/order/view/
-    path('view/', order, name="order"),
-    
     # Order management -> /api/v1/order/
     path('', OrderListView.as_view(), name="order_list"),
     path('create/', OrderCreateView.as_view(), name="order_create"),
@@ -40,7 +37,4 @@ urlpatterns = [
     
     # Statistics (admin only) -> /api/v1/order/stats/
     path('stats/', OrderStatsView.as_view(), name="order_stats"),
-    
-    # Legacy fallback routing hooks
-    path('legacy/create/', OrderCreateView.as_view(), name="order_create_legacy"),
 ]

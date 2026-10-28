@@ -1,7 +1,7 @@
 from django.urls import path
 from django.views.decorators.csrf import csrf_exempt
 from .views import (
-    dispatch, ReadyForDispatchView, DispatchListView,
+    ReadyForDispatchView, DispatchListView,
     DispatchCreateView, DispatchDetailView, DispatchAssignView,
     DispatchStatusUpdateView, VendorDispatchItemsView,
     DispatchItemUpdateView, CourierLocationUpdateView,
@@ -12,9 +12,6 @@ from .views import (
 app_name = 'dispatch'
 
 urlpatterns = [
-    # Template view (legacy dashboard) -> /api/v1/dispatch/view/
-    path('view/', dispatch, name="dispatch"),
-    
     # Dispatch management -> /api/v1/dispatch/
     path('', DispatchListView.as_view(), name="dispatch_list"),
     path('create/', DispatchCreateView.as_view(), name="dispatch_create"),
@@ -35,7 +32,4 @@ urlpatterns = [
     
     # Statistics -> /api/v1/dispatch/stats/
     path('stats/', DispatchStatsView.as_view(), name="dispatch_stats"),
-    
-    # Legacy URLs for backward compatibility
-    path('legacy/ready/', ReadyForDispatchView.as_view(), name="legacy_ready_orders"),
 ]

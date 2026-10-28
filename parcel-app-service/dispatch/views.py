@@ -1,5 +1,4 @@
 # dispatch/views.py
-from django.shortcuts import render
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -363,7 +362,3 @@ class RouteOptimizationView(APIView):
                 "status": "error",
                 "message": str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
-
-# Template view (legacy compatibility)
-def dispatch(request):
-    return render(request, "dispatch/dispatch.html")

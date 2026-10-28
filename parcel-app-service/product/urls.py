@@ -1,7 +1,7 @@
 from django.urls import path
 from django.views.decorators.csrf import csrf_exempt
 from .views import (
-    product, ProductListView, ProductDetailView, ProductCreateView,
+    ProductListView, ProductDetailView, ProductCreateView,
     TempProductListView, ProductApprovalView, VendorProductsView,
     ProductUpdateView, CategoryListView, CategoryCreateView,
     InventoryStatusView
@@ -11,9 +11,6 @@ from .views import (
 app_name = 'product'
 
 urlpatterns = [
-    # Template view (legacy) -> /api/v1/product/view/
-    path('view/', product, name="product"),
-    
     # Product listings -> /api/v1/product/
     path('', ProductListView.as_view(), name="product_list"),
     path('<int:product_id>/', ProductDetailView.as_view(), name="product_detail"),
@@ -38,8 +35,4 @@ urlpatterns = [
     
     # Inventory management -> /api/v1/product/inventory/status/
     path('inventory/status/', InventoryStatusView.as_view(), name="inventory_status"),
-    
-    # Legacy URLs for backward compatibility
-    path('upload/', ProductCreateView.as_view(), name="product_upload_legacy"),
-    path('approve/', ProductApprovalView.as_view(), name="product_approve_legacy"),
 ]

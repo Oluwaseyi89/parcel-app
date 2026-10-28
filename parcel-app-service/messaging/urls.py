@@ -1,7 +1,7 @@
 from django.urls import path
 from django.views.decorators.csrf import csrf_exempt
 from .views import (
-    message, MessageTemplateListView, MessageTemplateDetailView,
+    MessageTemplateListView, MessageTemplateDetailView,
     EmailMessageListView, SendOrderConfirmationView, BulkEmailView,
     NotificationListView, NotificationDetailView, SMTPSettingsView,
     EmailStatsView, TemplatePreviewView
@@ -11,9 +11,6 @@ from .views import (
 app_name = 'messaging'
 
 urlpatterns = [
-    # Template view (legacy dashboard) -> /api/v1/messaging/view/
-    path('view/', message, name="message"),
-    
     # Message templates -> /api/v1/messaging/templates/
     path('templates/', MessageTemplateListView.as_view(), name="template_list"),
     path('templates/<int:template_id>/', MessageTemplateDetailView.as_view(), name="template_detail"),
@@ -33,7 +30,4 @@ urlpatterns = [
     
     # Statistics -> /api/v1/messaging/stats/
     path('stats/', EmailStatsView.as_view(), name="email_stats"),
-    
-    # Legacy URLs for backward compatibility
-    path('legacy/send/', EmailMessageListView.as_view(), name="legacy_send_email"),
 ]

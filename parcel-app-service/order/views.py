@@ -1,5 +1,5 @@
 # order/views.py
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import get_object_or_404
 import hashlib
 import hmac
 import json
@@ -609,7 +609,3 @@ class CourierOrdersView(APIView):
             "status": "success",
             "data": serializer.data
         })
-
-# Template view (legacy compatibility)
-def order(request):
-    return render(request, "parcel_order/order.html")

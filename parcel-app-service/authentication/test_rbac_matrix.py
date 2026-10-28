@@ -349,7 +349,6 @@ class EndpointRbacMatrixTests(TestCase):
             {"name": "vendor_orders", "method": "options", "path": reverse("v1:order:vendor_orders"), "allowed_roles": self.VENDOR_OR_ADMIN},
             {"name": "courier_orders", "method": "options", "path": reverse("v1:order:courier_orders"), "allowed_roles": self.COURIER_OR_ADMIN},
             {"name": "order_stats", "method": "options", "path": reverse("v1:order:order_stats"), "allowed_roles": self.ADMIN_ROLES},
-            {"name": "order_legacy_create", "method": "options", "path": reverse("v1:order:order_create_legacy"), "allowed_roles": self.AUTHENTICATED_ROLES},
 
             # product app
             {"name": "product_list", "method": "options", "path": reverse("v1:product:product_list"), "allowed_roles": self.ALL_ROLES},
@@ -365,8 +364,6 @@ class EndpointRbacMatrixTests(TestCase):
             {"name": "category_list", "method": "options", "path": reverse("v1:product:category_list"), "allowed_roles": self.ALL_ROLES},
             {"name": "category_create", "method": "options", "path": reverse("v1:product:category_create"), "allowed_roles": self.ADMIN_ROLES},
             {"name": "inventory_status", "method": "options", "path": reverse("v1:product:inventory_status"), "allowed_roles": self.VENDOR_OR_ADMIN},
-            {"name": "product_upload_legacy", "method": "options", "path": reverse("v1:product:product_upload_legacy"), "allowed_roles": self.VENDOR_OR_ADMIN},
-            {"name": "product_approve_legacy", "method": "options", "path": reverse("v1:product:product_approve_legacy"), "allowed_roles": self.ADMIN_ROLES},
 
             # dispatch app
             {"name": "dispatch_list", "method": "options", "path": reverse("v1:dispatch:dispatch_list"), "allowed_roles": self.AUTHENTICATED_ROLES},
@@ -380,7 +377,6 @@ class EndpointRbacMatrixTests(TestCase):
             {"name": "dispatch_item_update", "method": "options", "path": reverse("v1:dispatch:dispatch_item_update", kwargs={"item_id": self.dispatch_item.id}), "allowed_roles": self.VENDOR_OR_ADMIN},
             {"name": "dispatch_courier_location", "method": "options", "path": reverse("v1:dispatch:courier_location_update"), "allowed_roles": self.COURIER_OR_ADMIN},
             {"name": "dispatch_stats", "method": "options", "path": reverse("v1:dispatch:dispatch_stats"), "allowed_roles": self.ADMIN_ROLES},
-            {"name": "dispatch_legacy_ready", "method": "options", "path": reverse("v1:dispatch:legacy_ready_orders"), "allowed_roles": self.ADMIN_ROLES},
 
             # email_service app
             {"name": "email_send_test", "method": "options", "path": reverse("v1:email:send_test_email"), "allowed_roles": self.ADMIN_ROLES},
@@ -397,7 +393,6 @@ class EndpointRbacMatrixTests(TestCase):
             {"name": "messaging_notification_detail", "method": "options", "path": reverse("v1:messaging:notification_detail", kwargs={"notification_id": self.notification_id}), "allowed_roles": self.AUTHENTICATED_ROLES},
             {"name": "messaging_smtp_settings", "method": "options", "path": reverse("v1:messaging:smtp_settings"), "allowed_roles": self.ADMIN_ROLES},
             {"name": "messaging_stats", "method": "options", "path": reverse("v1:messaging:email_stats"), "allowed_roles": self.ADMIN_ROLES},
-            {"name": "messaging_legacy_send", "method": "options", "path": reverse("v1:messaging:legacy_send_email"), "allowed_roles": self.ADMIN_ROLES},
         ]
 
         for endpoint in endpoints:

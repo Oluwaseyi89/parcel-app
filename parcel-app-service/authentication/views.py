@@ -4,7 +4,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse, Http404
-from django.contrib.auth.hashers import make_password, check_password
+from django.contrib.auth.hashers import make_password
 from django.middleware.csrf import get_token
 from django.utils import timezone
 from rest_framework.views import APIView
@@ -1259,113 +1259,6 @@ class AdminBankingUpdateView(APIView):
             }
         })
 
-
-# ==================== TEMPLATE-BASED VIEWS (LEGACY) ====================
-
-def home(request):
-    """Home page - redirects to admin login"""
-    return render(request, "parcel_backends/parcel_admin.html")
-
-
-def base(request):
-    """Base template page"""
-    return render(request, "parcel_backends/base.html")
-
-
-def staff_reg_page(request):
-    """Staff registration page"""
-    return render(request, "parcel_backends/staff.html")
-
-
-def staff_login(request):
-    """Staff login page"""
-    return render(request, "parcel_backends/staff_login.html")
-
-
-def desk_login(request):
-    """Desktop login - legacy function-based view"""
-    if request.method == 'POST':
-        form_input = request.POST
-        staff_email = form_input['email']
-        staff_password = form_input['password']
-        
-        try:
-            check_staff = AdminUser.objects.get(email=staff_email, is_active=True)
-            if not check_password(staff_password, check_staff.password):
-                return render(request, "parcel_backends/staff_login.html", 
-                            {"bad_password": "Wrong Password Entered"})
-            else:
-                return render(request, "parcel_backends/admin_desk.html", {
-                    "first_name": check_staff.first_name,
-                    "id": check_staff.id,
-                    "last_name": check_staff.last_name,
-                    "photo": check_staff.photo
-                })
-        except AdminUser.DoesNotExist:
-            return render(request, "parcel_backends/staff_login.html", 
-                        {"not_exist": "Staff is Not Registered Yet!"})
-    
-    return render(request, "parcel_backends/staff_login.html")
-
-
-def reg_staff(request):
-    """Staff registration - legacy function-based view"""
-    if request.method == 'POST':
-        form_input = request.POST
-        first_name = form_input['first_name']
-        last_name = form_input['last_name']
-        phone = form_input.get('phone', '')
-        photo = request.FILES.get('photo')
-        email = form_input['email']
-        password = form_input['password']
-        retyped_password = form_input.get('retype_password', '')
-        
-        # Basic validation
-        if (len(first_name) == 0 or len(last_name) == 0 or len(email) == 0
-                or len(password) == 0 or password != retyped_password):
-            return render(request, "parcel_backends/staff.html",
-                        {"blank": "Fill the Missing Values and Match Password!"})
-        else:
-            try:
-                pot_staff = AdminUser.objects.get(email=email)
-                if pot_staff is not None:
-                    return render(request, "parcel_backends/staff.html", 
-                                {"exists": "Staff Already Exists"})
-            except AdminUser.DoesNotExist:
-                # Create new admin user with staff role
-                new_staff = AdminUser(
-                    first_name=first_name,
-                    last_name=last_name,
-                    phone=phone,
-                    email=email,
-                    role='staff',
-                    is_active=True
-                )
-                new_staff.set_password(password)
-                
-                if photo:
-                    new_staff.photo = photo
-                
-                new_staff.save()
-                
-                reg_mess = {
-                    "success": "Your Registration Was Successful!",
-                    "failure": "An Error Occurred Saving Your Details!"
-                }
-                return render(request, "parcel_backends/staff.html", reg_mess)
-    
-    return render(request, "parcel_backends/staff.html")
-
-
-def super_admin_login(request):
-    """Render admin login page"""
-    return render(request, "parcel_backends/parcel_admin.html")
-
-
-def super_admin_dashboard(request):
-    """Admin dashboard - requires authentication"""
-    # You can add session verification here
-    return render(request, "parcel_backends/staff.html")
 
 class CustomerRegistrationView(APIView):
     permission_classes = [AllowAny]

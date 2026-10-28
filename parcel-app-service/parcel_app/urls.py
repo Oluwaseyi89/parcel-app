@@ -7,6 +7,8 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path, include
 
+from core.views import healthz, readyz
+
 # ------------------------------------------------------------------------------
 # API VERSION 1 (v1) ENDPOINT FLEET
 # ------------------------------------------------------------------------------
@@ -32,15 +34,16 @@ v1_api_patterns = [
 # GLOBAL ROUTING MATRIX
 # ------------------------------------------------------------------------------
 urlpatterns = [
+    # Unversioned, unauthenticated probes for the platform (e.g. Render health checks)
+    path('healthz', healthz, name='healthz'),
+    path('readyz', readyz, name='readyz'),
+
     # Core Django Management Dashboard Portal
     path('admin/', admin.site.urls),
     
     # Namespaced V1 API Base Mount Point
     # All sub-routes become accessible via: /api/v1/<endpoint>/
     path('api/v1/', include((v1_api_patterns, 'v1'), namespace='v1')),
-    
-    # Baseline Entry Fallback / Root landing path
-    path('', include('authentication.urls')),
 ]
 
 # Append Static/Media Asset handling loops

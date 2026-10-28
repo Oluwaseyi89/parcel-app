@@ -105,7 +105,7 @@ class VendorLoginSerializer(serializers.Serializer):
 
         uid = urlsafe_base64_encode(force_bytes(user.pk))
         token = account_activation_token.make_token(user)
-        path = reverse('dev_verify_email', kwargs={'role': 'vendor', 'uidb64': uid, 'token': token})
+        path = reverse('v1:auth:dev_verify_email', kwargs={'role': 'vendor', 'uidb64': uid, 'token': token})
         try:
             return request.build_absolute_uri(path)
         except Exception:
