@@ -398,6 +398,22 @@ class Notification(models.Model):
         recipient = self.get_recipient()
         return f"Notification: {self.title} for {recipient.email if recipient else 'Unknown'}"
     
+    @staticmethod
+    def recipient_fields(user):
+        """Map a user instance to the recipient_type and matching FK for that user model."""
+        from authentication.models import AdminUser, CourierUser, CustomerUser, VendorUser
+
+        for model, kind in ((AdminUser, 'admin'), (CustomerUser, 'customer'),
+                            (VendorUser, 'vendor'), (CourierUser, 'courier')):
+            if isinstance(user, model):
+                return {'recipient_type': kind, f'{kind}_recipient': user}
+        raise ValueError(f"Unsupported notification recipient: {type(user).__name__}")
+
+    @classmethod
+    def for_recipient(cls, user):
+        """Notifications addressed to the given user."""
+        return cls.objects.filter(**cls.recipient_fields(user))
+
     def get_recipient(self):
         """Get the actual recipient based on recipient_type"""
         if self.recipient_type == 'admin' and self.admin_recipient:
