@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/3.2/ref/settings/
 """
 import os
 from pathlib import Path
+import dj_database_url
 from dotenv import load_dotenv
 
 
@@ -228,32 +229,38 @@ READINESS_CHECK_REDIS = _as_bool(os.getenv('READINESS_CHECK_REDIS'), default=Fal
 # Database
 # https://docs.djangoproject.com/en/3.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('DATABASE_NAME', 'parcel_db'),
-        'USER': os.getenv('DATABASE_USER', 'postgres'),
-        'PASSWORD': os.getenv('DATABASE_PASSWORD', ''),
-        'HOST': os.getenv('DATABASE_HOST', '127.0.0.1'),
-        'PORT': os.getenv('DATABASE_PORT', '5432'),
+# Production uses DATABASE_URL (e.g. a Supabase pooler connection string). Local development
+# may instead use the individual DATABASE_* variables.
+DATABASE_URL = os.getenv('DATABASE_URL')
+if DATABASE_URL:
+    DATABASES = {
+        'default': dj_database_url.parse(
+            DATABASE_URL,
+            conn_max_age=int(os.getenv('DATABASE_CONN_MAX_AGE', '60')),
+            conn_health_checks=True,
+            ssl_require=_as_bool(os.getenv('DATABASE_SSL_REQUIRE'), default=not DEBUG),
+        )
     }
-}
+elif not DEBUG:
+    raise ValueError('DATABASE_URL must be set when DJANGO_DEBUG is False.')
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.getenv('DATABASE_NAME', 'parcel_db'),
+            'USER': os.getenv('DATABASE_USER', 'postgres'),
+            'PASSWORD': os.getenv('DATABASE_PASSWORD', ''),
+            'HOST': os.getenv('DATABASE_HOST', '127.0.0.1'),
+            'PORT': os.getenv('DATABASE_PORT', '5432'),
+        }
+    }
 
-# If a full DATABASE_URL is provided (e.g. from Heroku), override the above.
-if os.getenv('DATABASE_URL'):
-    try:
-        import dj_database_url
-        DATABASES['default'] = dj_database_url.parse(os.getenv('DATABASE_URL'), conn_max_age=600)
-    except Exception:
-        # dj-database-url not installed yet; keep the env-var-based config
-        pass
-
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
-#     }
-# }
+# Supabase's transaction pooler (port 6543) gives each transaction a possibly different server
+# connection, so persistent connections, server-side cursors and prepared statements must be off.
+if _as_bool(os.getenv('DATABASE_TRANSACTION_POOLER'), default=False):
+    DATABASES['default']['CONN_MAX_AGE'] = 0
+    DATABASES['default']['DISABLE_SERVER_SIDE_CURSORS'] = True
+    DATABASES['default'].setdefault('OPTIONS', {})['prepare_threshold'] = None
 
 
 # Password validation
