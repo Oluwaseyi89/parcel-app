@@ -1,29 +1,30 @@
-# Project dependencies (upgrade target: Django 4.2 LTS range)
-# Adjust exact versions and pin after testing in your environment.
-Django>=4.2,<5
-djangorestframework>=3.14
-django-cors-headers>=3.14
-django-environ>=0.10
-django-celery-results>=2.4
-celery>=5.2
-redis>=4.0
-flower>=1.0.0
-django-crispy-forms>=1.14
-psycopg-binary>=3.1
-dj-database-url>=1.0
-whitenoise>=6.6,<7
-geoip2>=4.5
-# Optional / dev
-python-dotenv>=1.0.0
-# gunicorn (for production on UNIX hosts)
-# gunicorn>=20.1.0
-# pywin32
-psycopg
-geopy
-folium
-httpx
-Pillow
+# Pinned to the versions the test suite runs against. Upgrade deliberately and let CI verify.
 
-# AWS S3 Storage dependencies
-django-storages>=1.14.4
-boto3>=1.34.0
+# Web
+Django==4.2.27
+djangorestframework==3.16.0
+django-cors-headers==4.9.0
+django-crispy-forms==2.5
+gunicorn==23.0.0
+whitenoise==6.12.0
+
+# Database (psycopg 3 with bundled libpq, so no system Postgres libraries are needed)
+psycopg[binary]==3.3.2
+dj-database-url==3.1.0
+
+# Background tasks. A broker is optional: without REDIS_URL, tasks run inline.
+celery==5.3.6
+django-celery-results==2.6.0
+redis==5.0.1
+flower==2.0.1
+
+# Media storage and images
+django-storages==1.14.6
+boto3==1.42.83
+Pillow==11.3.0
+
+# Geolocation
+geopy==2.4.1
+
+# Configuration
+python-dotenv==1.0.0
