@@ -3,7 +3,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.pagination import PageNumberPagination
+from core.pagination import StandardPagination
 from django.db.models import Q
 from authentication.permissions import IsAdminOrSuperAdmin, IsVendorOrAdmin, IsCourierOrAdmin, IsVendor
 from .services import DispatchService, RouteOptimizationService
@@ -13,11 +13,6 @@ from .serializers import (
     CourierLocationSerializer, ReadyOrdersSerializer, DispatchStatusHistorySerializer
 )
 from .models import Dispatch, DispatchItem, CourierLocation
-
-class StandardPagination(PageNumberPagination):
-    page_size = 20
-    page_size_query_param = 'page_size'
-    max_page_size = 100
 
 class ReadyForDispatchView(APIView):
     """Get orders ready for dispatch"""
@@ -85,10 +80,7 @@ class DispatchListView(APIView):
         page = paginator.paginate_queryset(queryset, request)
         
         serializer = DispatchSerializer(page, many=True)
-        return paginator.get_paginated_response({
-            "status": "success",
-            "data": serializer.data
-        })
+        return paginator.get_paginated_response(serializer.data)
 
 class DispatchCreateView(APIView):
     """Create a new dispatch"""
