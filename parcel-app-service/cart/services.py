@@ -1,6 +1,7 @@
 # cart/services.py
 from datetime import timedelta
 from django.utils import timezone
+from product.models import Product
 from .models import CartSession, CartDetail
 
 class CartService:
@@ -30,8 +31,8 @@ class CartService:
         return cart
     
     @staticmethod
-    def add_to_cart(session_id, customer, product_id, product_name, quantity, unit_price):
-        """Add or update product in a customer's cart."""
+    def add_to_cart(session_id, customer, product_id, quantity):
+        """Add or update product in a customer's cart, priced from the catalogue."""
         try:
             cart = CartSession.objects.get(id=session_id, customer=customer, is_active=True)
             
@@ -39,19 +40,29 @@ class CartService:
                 cart.delete()
                 return None, "Cart has expired"
             
+            # Name and price always come from the product record, never the client.
+            try:
+                product = Product.objects.get(id=product_id, status='active')
+            except Product.DoesNotExist:
+                return None, "Product not found"
+            
+            if quantity > product.quantity:
+                return None, f"Only {product.quantity} unit(s) of {product.name} available"
+            
             cart_item, created = CartDetail.objects.get_or_create(
                 session=cart,
-                product_id=product_id,
+                product_id=product.id,
                 defaults={
-                    'product_name': product_name,
+                    'product_name': product.name,
                     'quantity': quantity,
-                    'unit_price': unit_price
+                    'unit_price': product.price
                 }
             )
             
             if not created:
+                cart_item.product_name = product.name
                 cart_item.quantity = quantity
-                cart_item.unit_price = unit_price
+                cart_item.unit_price = product.price
                 cart_item.save()
             
             # Update cart totals
