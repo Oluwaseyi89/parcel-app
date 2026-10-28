@@ -51,6 +51,7 @@ class EndpointRbacMatrixTests(TestCase):
     COURIER_OR_ADMIN = {ROLE_COURIER, ROLE_ADMIN, ROLE_SUPER}
     VENDOR_ONLY = {ROLE_VENDOR}
     CUSTOMER_ONLY = {ROLE_CUSTOMER}
+    COURIER_ONLY = {ROLE_COURIER}
 
     def setUp(self):
         self.clients = {self.ROLE_ANON: APIClient()}
@@ -313,10 +314,10 @@ class EndpointRbacMatrixTests(TestCase):
             {"name": "courier_list", "method": "options", "path": reverse("v1:couriers:courier_list"), "allowed_roles": self.ADMIN_ROLES},
             {"name": "courier_login", "method": "options", "path": reverse("v1:couriers:courier_login"), "allowed_roles": self.ALL_ROLES},
             {"name": "courier_login_mobile", "method": "options", "path": reverse("v1:couriers:courier_login_mobile"), "allowed_roles": self.ALL_ROLES},
-            {"name": "courier_profile", "method": "options", "path": reverse("v1:couriers:courier_profile"), "allowed_roles": self.AUTHENTICATED_ROLES},
-            {"name": "courier_location_update", "method": "options", "path": reverse("v1:couriers:courier_location_update"), "allowed_roles": self.AUTHENTICATED_ROLES},
-            {"name": "courier_status_update", "method": "options", "path": reverse("v1:couriers:courier_status_update"), "allowed_roles": self.AUTHENTICATED_ROLES},
-            {"name": "courier_available", "method": "options", "path": reverse("v1:couriers:available_couriers"), "allowed_roles": self.AUTHENTICATED_ROLES},
+            {"name": "courier_profile", "method": "options", "path": reverse("v1:couriers:courier_profile"), "allowed_roles": self.COURIER_ONLY},
+            {"name": "courier_location_update", "method": "options", "path": reverse("v1:couriers:courier_location_update"), "allowed_roles": self.COURIER_ONLY},
+            {"name": "courier_status_update", "method": "options", "path": reverse("v1:couriers:courier_status_update"), "allowed_roles": self.COURIER_ONLY},
+            {"name": "courier_available", "method": "options", "path": reverse("v1:couriers:available_couriers"), "allowed_roles": self.COURIER_OR_ADMIN},
 
             # banking app
             {"name": "banking_vendor_save", "method": "options", "path": reverse("v1:banking:vendor_bank_save"), "allowed_roles": self.VENDOR_OR_ADMIN},
