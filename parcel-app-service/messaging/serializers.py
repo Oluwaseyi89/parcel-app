@@ -256,6 +256,8 @@ class SMTPSettingsSerializer(serializers.ModelSerializer):
             'is_active', 'is_default', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+        # Accept the SMTP password on write but never echo it back.
+        extra_kwargs = {'password': {'write_only': True}}
     
     def validate_password(self, value):
         """In production, encrypt password"""
