@@ -50,6 +50,7 @@ class EndpointRbacMatrixTests(TestCase):
     VENDOR_OR_ADMIN = {ROLE_VENDOR, ROLE_ADMIN, ROLE_SUPER}
     COURIER_OR_ADMIN = {ROLE_COURIER, ROLE_ADMIN, ROLE_SUPER}
     VENDOR_ONLY = {ROLE_VENDOR}
+    CUSTOMER_ONLY = {ROLE_CUSTOMER}
 
     def setUp(self):
         self.clients = {self.ROLE_ANON: APIClient()}
@@ -284,8 +285,8 @@ class EndpointRbacMatrixTests(TestCase):
             {"name": "auth_customer_register_mobile", "method": "options", "path": reverse("v1:auth:customer_register_mobile"), "allowed_roles": self.ALL_ROLES},
             {"name": "auth_customer_login", "method": "options", "path": reverse("v1:auth:customer_login"), "allowed_roles": self.ALL_ROLES},
             {"name": "auth_customer_login_mobile", "method": "options", "path": reverse("v1:auth:customer_login_mobile"), "allowed_roles": self.ALL_ROLES},
-            {"name": "auth_customer_profile", "method": "options", "path": reverse("v1:auth:customer_profile"), "allowed_roles": self.ALL_ROLES},
-            {"name": "auth_customer_profile_mobile", "method": "options", "path": reverse("v1:auth:customer_profile_mobile"), "allowed_roles": self.ALL_ROLES},
+            {"name": "auth_customer_profile", "method": "options", "path": reverse("v1:auth:customer_profile"), "allowed_roles": self.CUSTOMER_ONLY},
+            {"name": "auth_customer_profile_mobile", "method": "options", "path": reverse("v1:auth:customer_profile_mobile"), "allowed_roles": self.CUSTOMER_ONLY},
             {"name": "auth_customer_password_reset", "method": "options", "path": reverse("v1:auth:customer_password_reset"), "allowed_roles": self.ALL_ROLES},
             {"name": "auth_customer_password_reset_mobile", "method": "options", "path": reverse("v1:auth:customer_password_reset_mobile"), "allowed_roles": self.ALL_ROLES},
             {"name": "auth_customer_password_save", "method": "options", "path": reverse("v1:auth:customer_password_save"), "allowed_roles": self.ALL_ROLES},
@@ -332,7 +333,7 @@ class EndpointRbacMatrixTests(TestCase):
             {"name": "complaints_all", "method": "options", "path": reverse("v1:complaints:all_complaints"), "allowed_roles": self.ADMIN_ROLES},
 
             # geolocation app
-            {"name": "geolocation_api_calculate", "method": "options", "path": reverse("v1:geolocation:api_calculate_distance"), "allowed_roles": self.ALL_ROLES},
+            {"name": "geolocation_api_calculate", "method": "options", "path": reverse("v1:geolocation:api_calculate_distance"), "allowed_roles": self.AUTHENTICATED_ROLES},
 
             # order app
             {"name": "order_list", "method": "options", "path": reverse("v1:order:order_list"), "allowed_roles": self.AUTHENTICATED_ROLES},
