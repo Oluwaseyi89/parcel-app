@@ -31,6 +31,7 @@ from order.models import Order
 from dispatch.models import Dispatch
 from complaints.models import CustomerComplaint
 from banking.models import VendorBankDetail, CourierBankDetail
+from banking.serializers import AdminCourierBankUpdateSerializer, AdminVendorBankUpdateSerializer
 from .serializers import (
     CustomerRegistrationSerializer, CustomerLoginSerializer,
     ForgotPasswordSerializer, CustomerPasswordResetSerializer,
@@ -1221,30 +1222,31 @@ class AdminBankingUpdateView(APIView):
     def patch(self, request, account_kind, pk):
         if account_kind == 'vendor':
             record = get_object_or_404(VendorBankDetail, pk=pk)
-            email_field = 'vendor_email'
+            serializer_class = AdminVendorBankUpdateSerializer
         elif account_kind == 'courier':
             record = get_object_or_404(CourierBankDetail, pk=pk)
-            email_field = 'courier_email'
+            serializer_class = AdminCourierBankUpdateSerializer
         else:
             return Response({
                 "status": "error",
                 "message": "Invalid account kind. Use vendor or courier."
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        allowed_fields = ['bank_name', 'account_type', 'account_name', 'account_no', 'updated_at', email_field]
-        update_fields = []
-        for field in allowed_fields:
-            if field in request.data:
-                setattr(record, field, str(request.data.get(field)))
-                update_fields.append(field)
+        serializer = serializer_class(record, data=request.data, partial=True)
+        if not serializer.is_valid():
+            return Response({
+                "status": "error",
+                "message": "Invalid banking details.",
+                "errors": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
 
-        if not update_fields:
+        if not serializer.validated_data:
             return Response({
                 "status": "error",
                 "message": "No valid fields provided for update."
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        record.save(update_fields=update_fields)
+        serializer.save(updated_at=timezone.now().isoformat())
 
         return Response({
             "status": "success",
