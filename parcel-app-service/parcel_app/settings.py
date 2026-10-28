@@ -149,7 +149,7 @@ CORS_ALLOW_HEADERS = [
 
 
 # Admin settings
-DEFAULT_SUPER_ADMIN_EMAIL = os.environ.get('SUPER_ADMIN_EMAIL', 'admin@parcel.com')
+DEFAULT_SUPER_ADMIN_EMAIL = os.environ.get('SUPER_ADMIN_EMAIL', '')  # Set via env
 DEFAULT_SUPER_ADMIN_PASSWORD = os.environ.get('SUPER_ADMIN_PASSWORD', '')  # Set via env
 
 # Session settings
