@@ -7,6 +7,7 @@ from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.throttling import ScopedRateThrottle
 from authentication.permissions import IsAdminOrSuperAdmin
 from authentication.models import AdminUser, UserSession
 from .services import VendorService
@@ -21,6 +22,8 @@ from authentication.models import VendorUser
 
 class TempVendorRegistrationView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'auth'
     parser_classes = (MultiPartParser,)
     
     def post(self, request):
@@ -104,6 +107,8 @@ class VendorListView(APIView):
 
 class VendorLoginView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'auth'
     
     def post(self, request):
         serializer = VendorLoginSerializer(data=request.data, context={'request': request})
