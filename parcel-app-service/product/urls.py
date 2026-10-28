@@ -38,8 +38,4 @@ urlpatterns = [
     
     # Inventory management -> /api/v1/product/inventory/status/
     path('inventory/status/', InventoryStatusView.as_view(), name="inventory_status"),
-    
-    # Legacy URLs for backward compatibility
-    path('upload/', ProductCreateView.as_view(), name="product_upload_legacy"),
-    path('approve/', ProductApprovalView.as_view(), name="product_approve_legacy"),
 ]
