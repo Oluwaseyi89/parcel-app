@@ -148,5 +148,17 @@ jobs:
           python manage.py migrate --noinput
           python manage.py migrate --check
 
+      # Production static storage hashes and compresses files and fails on broken references,
+      # so collect with DEBUG off as a deploy would. Production settings require S3 for media;
+      # the placeholder bucket is never contacted because static files go through whitenoise.
+      - name: Collect static files with production settings
+        env:
+          DJANGO_DEBUG: "False"
+          USE_S3: "True"
+          AWS_STORAGE_BUCKET_NAME: ci-placeholder-bucket
+          S3_MEDIA_PUBLIC: "False"
+          AWS_QUERYSTRING_AUTH: "True"
+        run: python manage.py collectstatic --noinput
+
       - name: Run test suite
         run: python manage.py test --verbosity 2
