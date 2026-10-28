@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from authentication.permissions import IsAdminOrSuperAdmin
+from core.pagination import paginated_response
 from .models import CustomerComplaint
 from .serializers import CustomerComplaintSerializer
 
@@ -74,6 +75,5 @@ class GetAllCustomerComplaintsViews(APIView):
     permission_classes = [IsAuthenticated, IsAdminOrSuperAdmin]
 
     def get(self, request):
-        complaints = CustomerComplaint.objects.all()
-        serializer = CustomerComplaintSerializer(complaints, many=True)
-        return Response({"status": "success", "data": serializer.data}, status=status.HTTP_200_OK)
+        complaints = CustomerComplaint.objects.all().order_by('-id')
+        return paginated_response(request, complaints, lambda page: CustomerComplaintSerializer(page, many=True).data)
