@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework.pagination import PageNumberPagination
+from core.pagination import StandardPagination
 from authentication.permissions import IsAdminOrSuperAdmin, IsVendorOrAdmin
 from .services import ProductService, CategoryService, InventoryService
 from .serializers import (
@@ -14,12 +14,6 @@ from .serializers import (
     ProductSearchSerializer
 )
 from .models import Category, Product
-
-class StandardPagination(PageNumberPagination):
-    """Standard pagination for product listings"""
-    page_size = 20
-    page_size_query_param = 'page_size'
-    max_page_size = 100
 
 class ProductListView(APIView):
     """List all approved products with filters"""
