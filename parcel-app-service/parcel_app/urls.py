@@ -44,9 +44,6 @@ urlpatterns = [
     # Namespaced V1 API Base Mount Point
     # All sub-routes become accessible via: /api/v1/<endpoint>/
     path('api/v1/', include((v1_api_patterns, 'v1'), namespace='v1')),
-    
-    # Baseline Entry Fallback / Root landing path
-    path('', include('authentication.urls')),
 ]
 
 # Append Static/Media Asset handling loops
