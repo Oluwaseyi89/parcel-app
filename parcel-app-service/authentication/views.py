@@ -21,7 +21,7 @@ from .serializers import (
     AdminUserSerializer, ChangePasswordSerializer,
     AdminCreateSerializer, CustomerProfileSerializer
 )
-from .permissions import IsSuperAdmin, IsAdminOrSuperAdmin
+from .permissions import IsSuperAdmin, IsAdminOrSuperAdmin, IsCustomer
 from django.conf import settings
 from .session_contract import attach_session_cookies, clear_session_cookies
 
@@ -1455,7 +1455,8 @@ class CustomerLoginView(APIView):
 
 class CustomerProfileView(APIView):
     # Extends from authentication app using same session auth
-    
+    permission_classes = [IsAuthenticated, IsCustomer]
+
     def get(self, request):
         customer = request.user
         serializer = CustomerProfileSerializer(customer)
