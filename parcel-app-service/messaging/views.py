@@ -1,5 +1,4 @@
 # messaging/views.py
-from django.shortcuts import render
 from datetime import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -405,7 +404,3 @@ class TemplatePreviewView(APIView):
                 "status": "error",
                 "message": str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
-
-# Template views (legacy compatibility)
-def message(request):
-    return render(request, "messaging/message.html")
