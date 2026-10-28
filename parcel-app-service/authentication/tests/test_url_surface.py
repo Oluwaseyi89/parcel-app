@@ -22,6 +22,33 @@ class UnversionedRootMountTests(SimpleTestCase):
 				self.assertEqual(resolve(path).namespace, 'v1:auth')
 
 
+
+class LegacyAliasRemovalTests(SimpleTestCase):
+	"""Pre-versioning aliases are not part of the v1 contract."""
+
+	def test_legacy_aliases_do_not_resolve(self):
+		for path in [
+			'/api/v1/order/legacy/create/',
+			'/api/v1/dispatch/legacy/ready/',
+			'/api/v1/messaging/legacy/send/',
+			'/api/v1/product/upload/',
+			'/api/v1/product/approve/',
+		]:
+			with self.subTest(path=path):
+				with self.assertRaises(Resolver404):
+					resolve(path)
+
+	def test_canonical_routes_still_resolve(self):
+		for path in [
+			'/api/v1/order/create/',
+			'/api/v1/dispatch/ready-orders/',
+			'/api/v1/messaging/emails/',
+			'/api/v1/product/create/',
+			'/api/v1/product/temp-products/1/approve/',
+		]:
+			with self.subTest(path=path):
+				resolve(path)
+
 @override_settings(DEBUG=True)
 class DevVerifyUrlTests(TestCase):
 	"""Dev verification links must resolve via the versioned namespace."""
