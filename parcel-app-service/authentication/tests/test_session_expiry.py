@@ -1,3 +1,4 @@
+from django.core.cache import cache
 from django.test import TestCase
 from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
@@ -133,6 +134,8 @@ class LogoutInvalidationTests(TestCase):
 	"""Logout marks session inactive and clears cookies."""
 
 	def setUp(self):
+		# Auth endpoints are rate limited; reset throttle history between tests.
+		cache.clear()
 		self.client = APIClient()
 		self.customer = CustomerUser.objects.create(
 			email='logout-customer@example.com',
