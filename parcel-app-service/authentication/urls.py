@@ -12,7 +12,7 @@ from .views import (
     AdminDispatchReadyOrdersView, AdminCourierListView,
     AdminComplaintListView, AdminComplaintUpdateView,
     AdminBankingListView, AdminBankingUpdateView,
-    staff_reg_page, staff_login, desk_login, desk_login_external, reg_staff,
+    staff_reg_page, staff_login, desk_login, reg_staff,
     CustomerRegistrationView, CustomerLoginView, CustomerProfileView,
     activate_customer, customer_reset, dev_verify_email,
     CustomerResetView, CustomerSaveResetView
@@ -32,7 +32,6 @@ urlpatterns = [
     path('staff_reg_page/', staff_reg_page, name="staff_reg_page"),
     path('staff_login/', staff_login, name="staff_login"),
     path('desk_login/', desk_login, name="desk_login"),
-    path('desk_login_ext/<str:email>/<str:password>/', desk_login_external, name="desk_login_ext"),
     path('reg_staff/', reg_staff, name="reg_staff"),
     
     # --------------------------------------------------------------------------
