@@ -365,13 +365,26 @@ if not DEBUG and not USE_S3:
 
 GEOIP_PATH = os.path.join(BASE_DIR, 'geoip')
 
-EMAIL_BACKEND = 'django.core.mail.backends.filebased.EmailBackend'
-EMAIL_HOST = os.getenv('EMAIL_HOST')
-EMAIL_USE_TLS = True
-EMAIL_PORT = 587
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
-EMAIL_FILE_PATH = os.path.join(BASE_DIR, 'parcel_backends/messages')
+EMAIL_HOST = os.getenv('EMAIL_HOST', '')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+EMAIL_USE_TLS = _as_bool(os.getenv('EMAIL_USE_TLS'), default=True)
+EMAIL_USE_SSL = _as_bool(os.getenv('EMAIL_USE_SSL'), default=False)
+EMAIL_TIMEOUT = int(os.getenv('EMAIL_TIMEOUT', '10'))
+if EMAIL_USE_TLS and EMAIL_USE_SSL:
+    raise ValueError('EMAIL_USE_TLS and EMAIL_USE_SSL are mutually exclusive.')
+
+# Sender for every outgoing email that does not set one explicitly.
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL') or EMAIL_HOST_USER or 'webmaster@localhost'
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
+
+# SMTP whenever a host is configured; otherwise print emails to the console so local
+# development works without a mail server. EMAIL_BACKEND overrides either choice.
+EMAIL_BACKEND = os.getenv('EMAIL_BACKEND') or (
+    'django.core.mail.backends.smtp.EmailBackend' if EMAIL_HOST
+    else 'django.core.mail.backends.console.EmailBackend'
+)
 
 RECIPIENT_ADDRESS = os.getenv('RECIPIENT_ADDRESS')
 
