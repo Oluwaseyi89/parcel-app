@@ -4,7 +4,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.pagination import PageNumberPagination
+from core.pagination import StandardPagination
 from django.db.models import Q
 from authentication.permissions import IsAdminOrSuperAdmin
 from .services import EmailService, NotificationService, MessageTemplateService, StatsService
@@ -14,11 +14,6 @@ from .serializers import (
     BulkEmailSerializer, EmailStatsSerializer
 )
 from .models import MessageTemplate, EmailMessage, EmailQueue, Notification, SMTPSettings
-
-class StandardPagination(PageNumberPagination):
-    page_size = 20
-    page_size_query_param = 'page_size'
-    max_page_size = 100
 
 class MessageTemplateListView(APIView):
     """List and create message templates"""
@@ -165,10 +160,7 @@ class EmailMessageListView(APIView):
         page = paginator.paginate_queryset(queryset, request)
         
         serializer = EmailMessageSerializer(page, many=True)
-        return paginator.get_paginated_response({
-            "status": "success",
-            "data": serializer.data
-        })
+        return paginator.get_paginated_response(serializer.data)
     
     def post(self, request):
         serializer = EmailMessageCreateSerializer(
