@@ -149,11 +149,14 @@ jobs:
           python manage.py migrate --check
 
       # Production static storage hashes and compresses files and fails on broken references,
-      # so collect with DEBUG off as a deploy would. Production settings require S3 for media;
-      # the placeholder bucket is never contacted because static files go through whitenoise.
+      # so collect with DEBUG off as a deploy would. Production settings require DATABASE_URL and
+      # S3 for media; the placeholder bucket is never contacted because static files go through
+      # whitenoise.
       - name: Collect static files with production settings
         env:
           DJANGO_DEBUG: "False"
+          DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/parcel_db
+          DATABASE_SSL_REQUIRE: "False"
           USE_S3: "True"
           AWS_STORAGE_BUCKET_NAME: ci-placeholder-bucket
           S3_MEDIA_PUBLIC: "False"
