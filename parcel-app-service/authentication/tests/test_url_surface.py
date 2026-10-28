@@ -49,6 +49,43 @@ class LegacyAliasRemovalTests(SimpleTestCase):
 			with self.subTest(path=path):
 				resolve(path)
 
+
+class HtmlPageRemovalTests(SimpleTestCase):
+	"""Server-rendered legacy pages are not served from the API namespace."""
+
+	def test_html_pages_do_not_resolve(self):
+		for path in [
+			'/api/v1/auth/',
+			'/api/v1/auth/base/',
+			'/api/v1/auth/super_admin/',
+			'/api/v1/auth/admin_dashboard/',
+			'/api/v1/auth/staff_reg_page/',
+			'/api/v1/auth/staff_login/',
+			'/api/v1/auth/desk_login/',
+			'/api/v1/auth/reg_staff/',
+			'/api/v1/dispatch/view/',
+			'/api/v1/messaging/view/',
+			'/api/v1/order/view/',
+			'/api/v1/product/view/',
+			'/api/v1/geolocation/calculate/',
+		]:
+			with self.subTest(path=path):
+				with self.assertRaises(Resolver404):
+					resolve(path)
+
+	def test_email_link_targets_still_resolve(self):
+		for path in [
+			'/api/v1/auth/customer/activate/uid/token/',
+			'/api/v1/auth/customer/password/reset/uid/token/',
+			'/api/v1/vendors/activate/uid/token/',
+			'/api/v1/vendors/password-reset/uid/token/',
+			'/api/v1/couriers/activate/uid/token/',
+			'/api/v1/couriers/password-reset/uid/token/',
+			'/api/v1/geolocation/calculate/api/',
+		]:
+			with self.subTest(path=path):
+				resolve(path)
+
 @override_settings(DEBUG=True)
 class DevVerifyUrlTests(TestCase):
 	"""Dev verification links must resolve via the versioned namespace."""
