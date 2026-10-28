@@ -184,6 +184,12 @@ class OrderStatusUpdateView(APIView):
     def post(self, request, order_id):
         order = get_object_or_404(Order, id=order_id)
         
+        if request.user.role == 'vendor' and not order.items.filter(vendor=request.user).exists():
+            return Response({
+                "status": "error",
+                "message": "You can only update orders containing your products."
+            }, status=status.HTTP_403_FORBIDDEN)
+        
         serializer = OrderStatusUpdateSerializer(
             data=request.data,
             context={'order': order}
