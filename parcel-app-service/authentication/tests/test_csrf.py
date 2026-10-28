@@ -275,57 +275,29 @@ class CsrfEnforcementMatrixTests(TestCase):
 				response = getattr(client, case['method'])(case['path'], case['data'], format='json')
 				self.assertEqual(response.status_code, 403)
 
-	def test_exempt_mobile_routes_allow_cookie_auth_without_csrf(self):
+	def test_public_mobile_routes_allow_requests_without_csrf(self):
 		cases = [
-			{
-				'name': 'customer_register_mobile',
-				'method': 'post',
-				'path': reverse('v1:auth:customer_register_mobile'),
-				'token': None,
-				'data': {},
-			},
-			{
-				'name': 'customer_login_mobile',
-				'method': 'post',
-				'path': reverse('v1:auth:customer_login_mobile'),
-				'token': None,
-				'data': {},
-			},
-			{
-				'name': 'customer_reset_mobile',
-				'method': 'post',
-				'path': reverse('v1:auth:customer_password_reset_mobile'),
-				'token': None,
-				'data': {},
-			},
-			{
-				'name': 'vendor_register_mobile',
-				'method': 'post',
-				'path': reverse('v1:vendors:vendor_register_mobile'),
-				'token': None,
-				'data': {},
-			},
-			{
-				'name': 'vendor_login_mobile',
-				'method': 'post',
-				'path': reverse('v1:vendors:vendor_login_mobile'),
-				'token': None,
-				'data': {},
-			},
-			{
-				'name': 'courier_register_mobile',
-				'method': 'post',
-				'path': reverse('v1:couriers:courier_register_mobile'),
-				'token': None,
-				'data': {},
-			},
-			{
-				'name': 'courier_login_mobile',
-				'method': 'post',
-				'path': reverse('v1:couriers:courier_login_mobile'),
-				'token': None,
-				'data': {},
-			},
+			('customer_register_mobile', reverse('v1:auth:customer_register_mobile')),
+			('customer_login_mobile', reverse('v1:auth:customer_login_mobile')),
+			('customer_reset_mobile', reverse('v1:auth:customer_password_reset_mobile')),
+			('vendor_register_mobile', reverse('v1:vendors:vendor_register_mobile')),
+			('vendor_login_mobile', reverse('v1:vendors:vendor_login_mobile')),
+			('courier_register_mobile', reverse('v1:couriers:courier_register_mobile')),
+			('courier_login_mobile', reverse('v1:couriers:courier_login_mobile')),
+		]
+
+		for name, path in cases:
+			with self.subTest(endpoint=name):
+				client = APIClient(enforce_csrf_checks=True)
+				response = client.post(path, {}, format='json')
+				self.assertNotEqual(
+					response.status_code,
+					403,
+					msg=f"{name} should bypass CSRF when routed through csrf_exempt",
+				)
+
+	def _authenticated_mobile_cases(self):
+		return [
 			{
 				'name': 'order_create_mobile',
 				'method': 'post',
@@ -347,16 +319,34 @@ class CsrfEnforcementMatrixTests(TestCase):
 				'token': 'csrf-matrix-vendor-token',
 				'data': {'name': 'Allowed Without CSRF'},
 			},
+			{
+				'name': 'customer_profile_mobile',
+				'method': 'get',
+				'path': reverse('v1:auth:customer_profile_mobile'),
+				'token': 'csrf-matrix-customer-token',
+				'data': {},
+			},
 		]
 
-		for case in cases:
+	def test_exempt_mobile_routes_reject_cookie_auth(self):
+		for case in self._authenticated_mobile_cases():
+			with self.subTest(endpoint=case['name']):
+				client = self._cookie_client(case['token'])
+				response = getattr(client, case['method'])(case['path'], case['data'], format='json')
+				self.assertIn(
+					response.status_code,
+					{401, 403},
+					msg=f"{case['name']} must not authenticate from an ambient cookie",
+				)
+
+	def test_exempt_mobile_routes_allow_header_token_without_csrf(self):
+		for case in self._authenticated_mobile_cases():
 			with self.subTest(endpoint=case['name']):
 				client = APIClient(enforce_csrf_checks=True)
-				if case['token']:
-					client.cookies['auth_session'] = case['token']
+				client.credentials(HTTP_AUTHORIZATION=f"Bearer {case['token']}")
 				response = getattr(client, case['method'])(case['path'], case['data'], format='json')
-				self.assertNotEqual(
+				self.assertNotIn(
 					response.status_code,
-					403,
-					msg=f"{case['name']} should bypass CSRF when routed through csrf_exempt",
+					{401, 403},
+					msg=f"{case['name']} should accept a header token without CSRF",
 				)
