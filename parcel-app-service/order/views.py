@@ -136,6 +136,12 @@ class OrderDetailView(APIView):
                 "message": "You can only view orders containing your products."
             }, status=status.HTTP_403_FORBIDDEN)
         
+        if request.user.role == 'courier' and order.courier_id != request.user.id:
+            return Response({
+                "status": "error",
+                "message": "You can only view orders assigned to you."
+            }, status=status.HTTP_403_FORBIDDEN)
+        
         serializer = OrderSerializer(order)
         return Response({
             "status": "success",
