@@ -33,7 +33,4 @@ urlpatterns = [
     
     # Statistics -> /api/v1/messaging/stats/
     path('stats/', EmailStatsView.as_view(), name="email_stats"),
-    
-    # Legacy URLs for backward compatibility
-    path('legacy/send/', EmailMessageListView.as_view(), name="legacy_send_email"),
 ]
