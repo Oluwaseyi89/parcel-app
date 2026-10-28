@@ -130,7 +130,7 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
     }
 
     if (tab === "products") {
-      readRequest<ApiResponse<ProductsApprovalResponse>>("/product/vendor/products/?include_temp=true", { method: "GET" })
+      readRequest<ApiResponse<ProductsApprovalResponse>>("/product/vendor/?include_temp=true", { method: "GET" })
         .then((res) => {
           const approved = Array.isArray(res.data?.approved) ? res.data?.approved : [];
           const pending = Array.isArray(res.data?.pending) ? res.data?.pending : [];
@@ -139,7 +139,8 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
         })
         .catch(() => setProducts([]));
 
-      readRequest<ApiListResponse<CategoryOption>>("/product/categories/", { method: "GET" })
+      // Categories feed a dropdown, so request the API's maximum page size.
+      readRequest<ApiListResponse<CategoryOption>>("/product/categories/?page_size=100", { method: "GET" })
         .then((res) => setCategories(Array.isArray(res.data) ? res.data : []))
         .catch(() => setCategories([]));
       return;
