@@ -11,3 +11,11 @@ class MeasurementSerializer(serializers.ModelSerializer):
     class Meta:
         model = Measurement
         fields = '__all__'
+
+
+class DistanceCalculationSerializer(serializers.Serializer):
+    """Two coordinate pairs in decimal degrees."""
+    origin_lat = serializers.FloatField(min_value=-90, max_value=90)
+    origin_lng = serializers.FloatField(min_value=-180, max_value=180)
+    destination_lat = serializers.FloatField(min_value=-90, max_value=90)
+    destination_lng = serializers.FloatField(min_value=-180, max_value=180)
