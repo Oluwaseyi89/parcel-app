@@ -1,3 +1,4 @@
+from django.core.cache import cache
 from django.test import TestCase
 from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
@@ -9,6 +10,8 @@ from authentication.models import CourierUser, CustomerUser, UserSession, Vendor
 
 class SessionContractTests(TestCase):
 	def setUp(self):
+		# Auth endpoints are rate limited; reset throttle history between tests.
+		cache.clear()
 		self.client = APIClient()
 
 	def test_customer_login_sets_cookie_session_contract(self):
