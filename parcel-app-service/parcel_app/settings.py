@@ -351,6 +351,11 @@ else:
     MEDIA_URL = '/media/'
     MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
+# Container disks (e.g. Render) are wiped on every deploy, so uploads written to
+# MEDIA_ROOT would be lost. Production must store media in a bucket.
+if not DEBUG and not USE_S3:
+    raise ValueError('USE_S3 must be True when DJANGO_DEBUG is False; local media storage is not persistent.')
+
 GEOIP_PATH = os.path.join(BASE_DIR, 'geoip')
 
 EMAIL_BACKEND = 'django.core.mail.backends.filebased.EmailBackend'
