@@ -199,6 +199,9 @@ WSGI_APPLICATION = 'parcel_app.wsgi.application'
 CELERY_BROKER_URL = 'redis://localhost:6379/0'
 CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
 
+# Include a Redis ping in /readyz. Enable only where a broker is actually provisioned.
+READINESS_CHECK_REDIS = _as_bool(os.getenv('READINESS_CHECK_REDIS'), default=False)
+
 # Database
 # https://docs.djangoproject.com/en/3.2/ref/settings/#databases
 
