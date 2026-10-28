@@ -25,6 +25,7 @@ from .serializers import (
 from .permissions import IsSuperAdmin, IsAdminOrSuperAdmin, IsCustomer
 from django.conf import settings
 from .session_contract import attach_session_cookies, clear_session_cookies
+from core.pagination import paginate_group, paginated_response
 
 
 from .models import CustomerUser, VendorUser, CourierUser
@@ -391,11 +392,7 @@ class AdminUserListView(APIView):
             })
 
         admins = AdminUser.objects.all().order_by('-created_at')
-        serializer = AdminUserSerializer(admins, many=True)
-        return Response({
-            "status": "success",
-            "data": serializer.data
-        })
+        return paginated_response(request, admins, lambda page: AdminUserSerializer(page, many=True).data)
     
     def post(self, request):
         serializer = AdminCreateSerializer(data=request.data, context={'request': request})
@@ -496,11 +493,7 @@ class AdminCustomerListView(APIView):
             verified_flag = self._as_bool(is_email_verified)
             queryset = queryset.filter(is_email_verified=verified_flag)
 
-        serializer = CustomerProfileSerializer(queryset, many=True)
-        return Response({
-            "status": "success",
-            "data": serializer.data
-        })
+        return paginated_response(request, queryset, lambda page: CustomerProfileSerializer(page, many=True).data)
 
     def patch(self, request, pk=None):
         if pk is None:
@@ -637,54 +630,40 @@ class AdminModerationQueueView(APIView):
                 return queryset
             return queryset.filter(approval_status=status_filter)
 
-        vendors = []
-        couriers = []
-        products = []
-
-        if queue_type in ['all', 'vendors']:
-            vendors = list(
-                with_status(VendorUser.objects.all())
-                .values(
-                    'id', 'email', 'first_name', 'last_name',
-                    'business_name', 'approval_status', 'submitted_at',
-                    'reviewed_at', 'rejection_reason'
-                )
-                .order_by('-submitted_at')[:50]
+        groups = {
+            'vendors': with_status(VendorUser.objects.all())
+            .values(
+                'id', 'email', 'first_name', 'last_name',
+                'business_name', 'approval_status', 'submitted_at',
+                'reviewed_at', 'rejection_reason'
             )
-
-        if queue_type in ['all', 'couriers']:
-            couriers = list(
-                with_status(CourierUser.objects.all())
-                .values(
-                    'id', 'email', 'first_name', 'last_name',
-                    'service_area', 'vehicle_type', 'approval_status',
-                    'submitted_at', 'reviewed_at', 'rejection_reason'
-                )
-                .order_by('-submitted_at')[:50]
+            .order_by('-submitted_at', '-id'),
+            'couriers': with_status(CourierUser.objects.all())
+            .values(
+                'id', 'email', 'first_name', 'last_name',
+                'service_area', 'vehicle_type', 'approval_status',
+                'submitted_at', 'reviewed_at', 'rejection_reason'
             )
-
-        if queue_type in ['all', 'products']:
-            products = list(
-                with_status(Product.objects.select_related('vendor'))
-                .values(
-                    'id', 'name', 'vendor_id', 'vendor__email', 'vendor__business_name',
-                    'approval_status', 'submitted_at', 'reviewed_at', 'rejection_reason'
-                )
-                .order_by('-submitted_at')[:50]
+            .order_by('-submitted_at', '-id'),
+            'products': with_status(Product.objects.select_related('vendor'))
+            .values(
+                'id', 'name', 'vendor_id', 'vendor__email', 'vendor__business_name',
+                'approval_status', 'submitted_at', 'reviewed_at', 'rejection_reason'
             )
+            .order_by('-submitted_at', '-id'),
+        }
 
+        data = {"vendors": [], "couriers": [], "products": []}
+        pagination = {}
+        for name, queryset in groups.items():
+            if queue_type in ['all', name]:
+                data[name], pagination[name] = paginate_group(request, queryset, list)
+
+        data["summary"] = {name: meta["total_count"] for name, meta in pagination.items()}
         return Response({
             "status": "success",
-            "data": {
-                "vendors": vendors,
-                "couriers": couriers,
-                "products": products,
-                "summary": {
-                    "vendors": len(vendors),
-                    "couriers": len(couriers),
-                    "products": len(products),
-                }
-            }
+            "data": data,
+            "pagination": pagination,
         })
 
 
@@ -772,11 +751,7 @@ class AdminOrderListView(APIView):
         if payment_status_filter:
             queryset = queryset.filter(payment_status=payment_status_filter)
 
-        data = [self._serialize_order(order) for order in queryset[:100]]
-        return Response({
-            "status": "success",
-            "data": data
-        })
+        return paginated_response(request, queryset, lambda page: [self._serialize_order(order) for order in page])
 
     @staticmethod
     def _serialize_order(order):
@@ -861,11 +836,7 @@ class AdminDispatchListView(APIView):
         if status_filter:
             queryset = queryset.filter(status=status_filter)
 
-        data = [self._serialize_dispatch(item) for item in queryset[:100]]
-        return Response({
-            "status": "success",
-            "data": data
-        })
+        return paginated_response(request, queryset, lambda page: [self._serialize_dispatch(item) for item in page])
 
     def post(self, request):
         serializer = AdminDispatchCreateSerializer(data=request.data)
@@ -974,24 +945,22 @@ class AdminDispatchReadyOrdersView(APIView):
     permission_classes = [IsAdminOrSuperAdmin]
 
     def get(self, request):
-        queryset = Order.objects.select_related('customer').filter(status='ready').order_by('-created_at')
-        data = []
-        for order in queryset[:100]:
-            if hasattr(order, 'dispatch'):
-                continue
-            data.append({
+        queryset = (
+            Order.objects.select_related('customer')
+            .filter(status='ready', dispatch__isnull=True)
+            .order_by('-created_at')
+        )
+        return paginated_response(request, queryset, lambda page: [
+            {
                 "id": order.id,
                 "order_number": order.order_number,
                 "customer_email": getattr(order.customer, 'email', ''),
                 "total_amount": str(order.total_amount),
                 "payment_status": order.payment_status,
                 "created_at": order.created_at,
-            })
-
-        return Response({
-            "status": "success",
-            "data": data
-        })
+            }
+            for order in page
+        ])
 
 
 class AdminCourierListView(APIView):
@@ -1000,8 +969,8 @@ class AdminCourierListView(APIView):
     permission_classes = [IsAdminOrSuperAdmin]
 
     def get(self, request):
-        queryset = CourierUser.objects.filter(is_active=True).exclude(status='inactive').order_by('-created_at')[:100]
-        data = [
+        queryset = CourierUser.objects.filter(is_active=True).exclude(status='inactive').order_by('-created_at')
+        return paginated_response(request, queryset, lambda page: [
             {
                 "id": courier.id,
                 "email": courier.email,
@@ -1009,13 +978,8 @@ class AdminCourierListView(APIView):
                 "status": courier.status,
                 "service_area": courier.service_area,
             }
-            for courier in queryset
-        ]
-
-        return Response({
-            "status": "success",
-            "data": data
-        })
+            for courier in page
+        ])
 
 
 class AdminComplaintListView(APIView):
@@ -1053,11 +1017,7 @@ class AdminComplaintListView(APIView):
         if satisfied is not None:
             queryset = queryset.filter(is_satisfied=self._as_bool(satisfied))
 
-        data = [self._serialize(complaint) for complaint in queryset[:200]]
-        return Response({
-            "status": "success",
-            "data": data
-        })
+        return paginated_response(request, queryset, lambda page: [self._serialize(complaint) for complaint in page])
 
     @staticmethod
     def _serialize(complaint):
@@ -1108,22 +1068,30 @@ class AdminBankingListView(APIView):
         account_type = request.query_params.get('type', 'all')
         search = request.query_params.get('search', '').strip()
 
-        vendor_data = []
-        courier_data = []
+        groups = {
+            'vendors': (VendorBankDetail, 'vendor_email', 'vendor'),
+            'couriers': (CourierBankDetail, 'courier_email', 'courier'),
+        }
 
-        if account_type in ['all', 'vendors']:
-            vendor_queryset = VendorBankDetail.objects.all().order_by('-id')
+        data = {"vendors": [], "couriers": []}
+        pagination = {}
+        for name, (model, email_field, kind) in groups.items():
+            if account_type not in ['all', name]:
+                continue
+
+            queryset = model.objects.all().order_by('-id')
             if search:
-                vendor_queryset = vendor_queryset.filter(
-                    Q(vendor_email__icontains=search) |
+                queryset = queryset.filter(
+                    Q(**{f'{email_field}__icontains': search}) |
                     Q(account_name__icontains=search) |
                     Q(bank_name__icontains=search)
                 )
-            vendor_data = [
+
+            data[name], pagination[name] = paginate_group(request, queryset, lambda page, email_field=email_field, kind=kind: [
                 {
                     "id": item.id,
-                    "type": "vendor",
-                    "email": item.vendor_email,
+                    "type": kind,
+                    "email": getattr(item, email_field),
                     "account_name": item.account_name,
                     "account_no": item.account_no,
                     "bank_name": item.bank_name,
@@ -1131,38 +1099,13 @@ class AdminBankingListView(APIView):
                     "added_at": item.added_at,
                     "updated_at": item.updated_at,
                 }
-                for item in vendor_queryset[:200]
-            ]
-
-        if account_type in ['all', 'couriers']:
-            courier_queryset = CourierBankDetail.objects.all().order_by('-id')
-            if search:
-                courier_queryset = courier_queryset.filter(
-                    Q(courier_email__icontains=search) |
-                    Q(account_name__icontains=search) |
-                    Q(bank_name__icontains=search)
-                )
-            courier_data = [
-                {
-                    "id": item.id,
-                    "type": "courier",
-                    "email": item.courier_email,
-                    "account_name": item.account_name,
-                    "account_no": item.account_no,
-                    "bank_name": item.bank_name,
-                    "account_type": item.account_type,
-                    "added_at": item.added_at,
-                    "updated_at": item.updated_at,
-                }
-                for item in courier_queryset[:200]
-            ]
+                for item in page
+            ])
 
         return Response({
             "status": "success",
-            "data": {
-                "vendors": vendor_data,
-                "couriers": courier_data,
-            }
+            "data": data,
+            "pagination": pagination,
         })
 
 
