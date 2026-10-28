@@ -39,12 +39,31 @@ def _as_list(value, default=None):
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
+if not SECRET_KEY:
+    raise ValueError('DJANGO_SECRET_KEY must be set.')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = _as_bool(os.getenv('DJANGO_DEBUG'), default=True)
+# Off unless explicitly enabled, so a missing variable can never expose debug pages.
+DEBUG = _as_bool(os.getenv('DJANGO_DEBUG'), default=False)
 
 DEFAULT_ALLOWED_HOSTS = ['localhost', '127.0.0.1', '192.168.42.70']
 ALLOWED_HOSTS = _as_list(os.getenv('DJANGO_ALLOWED_HOSTS'), DEFAULT_ALLOWED_HOSTS)
+
+# Render sets the service's public hostname (e.g. parcel-api.onrender.com).
+RENDER_EXTERNAL_HOSTNAME = os.getenv('RENDER_EXTERNAL_HOSTNAME')
+if RENDER_EXTERNAL_HOSTNAME and RENDER_EXTERNAL_HOSTNAME not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
+
+# HTTPS. Render terminates TLS at its proxy and forwards the original scheme.
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SECURE_SSL_REDIRECT = _as_bool(os.getenv('DJANGO_SECURE_SSL_REDIRECT'), default=not DEBUG)
+# Platform health checks call the app over plain HTTP inside the network.
+SECURE_REDIRECT_EXEMPT = [r'^healthz$', r'^readyz$']
+# Start low; raise to 31536000 once HTTPS is confirmed for every host serving the API.
+SECURE_HSTS_SECONDS = int(os.getenv('DJANGO_SECURE_HSTS_SECONDS', '0' if DEBUG else '3600'))
+SECURE_HSTS_INCLUDE_SUBDOMAINS = _as_bool(os.getenv('DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS'), default=False)
+SECURE_HSTS_PRELOAD = _as_bool(os.getenv('DJANGO_SECURE_HSTS_PRELOAD'), default=False)
 
 # Application definition
 
