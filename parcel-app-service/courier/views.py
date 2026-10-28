@@ -8,6 +8,7 @@ from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.throttling import ScopedRateThrottle
 from authentication.permissions import IsAdminOrSuperAdmin
 from authentication.models import AdminUser, UserSession
 from .services import CourierService
@@ -24,6 +25,8 @@ from authentication.session_contract import attach_session_cookies
 
 class TempCourierRegistrationView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'auth'
     parser_classes = (MultiPartParser,)
     
     def post(self, request):
@@ -107,6 +110,8 @@ class CourierListView(APIView):
 
 class CourierLoginView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'auth'
     
     def post(self, request):
         serializer = CourierLoginSerializer(data=request.data, context={'request': request})
