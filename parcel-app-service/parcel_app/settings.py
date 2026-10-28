@@ -71,13 +71,14 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'django_celery_results',
-    'flower',
     'crispy_forms',
     'storages',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    # Serves collected static files (Django admin, DRF browsable API) from the app process.
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -270,6 +271,16 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/3.2/howto/static-files/
 
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+# Hashed, compressed static files in production; the manifest requires collectstatic,
+# so development keeps Django's plain storage.
+STATICFILES_STORAGE_BACKEND = (
+    'django.contrib.staticfiles.storage.StaticFilesStorage' if DEBUG
+    else 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+)
+
 USE_S3 = _as_bool(os.getenv('USE_S3'), default=False)
 
 if USE_S3:
@@ -300,18 +311,22 @@ if USE_S3:
     if AWS_S3_ENCRYPTION and AWS_S3_ENCRYPTION.lower() != 'none':
         AWS_S3_OBJECT_PARAMETERS['ServerSideEncryption'] = AWS_S3_ENCRYPTION
 
-    AWS_S3_ADDRESSING_STYLE = os.getenv('AWS_S3_ADDRESSING_STYLE', 'virtual')
+    # Set for S3-compatible providers (Supabase Storage, Cloudflare R2, MinIO); unset means AWS.
+    AWS_S3_ENDPOINT_URL = os.getenv('AWS_S3_ENDPOINT_URL') or None
+    # Most non-AWS providers only support path-style URLs (endpoint/bucket/key).
+    AWS_S3_ADDRESSING_STYLE = os.getenv('AWS_S3_ADDRESSING_STYLE') or ('path' if AWS_S3_ENDPOINT_URL else 'virtual')
     AWS_S3_URL_PROTOCOL = os.getenv('AWS_S3_URL_PROTOCOL', 'https:')
     AWS_S3_VERIFY = _as_bool(os.getenv('AWS_S3_VERIFY'), default=True)
 
     AWS_LOCATION = os.getenv('AWS_LOCATION', 'media')
-    AWS_S3_CUSTOM_DOMAIN = os.getenv('AWS_S3_CUSTOM_DOMAIN')
-    AWS_S3_ENDPOINT_URL = os.getenv('AWS_S3_ENDPOINT_URL') or None
+    AWS_S3_CUSTOM_DOMAIN = os.getenv('AWS_S3_CUSTOM_DOMAIN') or None
 
     if not AWS_STORAGE_BUCKET_NAME:
         raise ValueError('USE_S3=True but AWS_STORAGE_BUCKET_NAME is not set.')
 
-    if not AWS_S3_CUSTOM_DOMAIN:
+    # Only derive an amazonaws.com domain for real AWS. With a custom endpoint and no custom
+    # domain, django-storages builds object URLs from the endpoint itself.
+    if not AWS_S3_CUSTOM_DOMAIN and not AWS_S3_ENDPOINT_URL:
         if AWS_S3_REGION_NAME:
             AWS_S3_CUSTOM_DOMAIN = f"{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com"
         else:
@@ -322,27 +337,54 @@ if USE_S3:
             'BACKEND': 'storages.backends.s3boto3.S3Boto3Storage',
         },
         'staticfiles': {
-            'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
+            'BACKEND': STATICFILES_STORAGE_BACKEND,
         },
     }
 
-    MEDIA_URL = f"{AWS_S3_URL_PROTOCOL}//{AWS_S3_CUSTOM_DOMAIN}/{AWS_LOCATION}/"
+    if AWS_S3_CUSTOM_DOMAIN:
+        MEDIA_URL = f"{AWS_S3_URL_PROTOCOL}//{AWS_S3_CUSTOM_DOMAIN}/{AWS_LOCATION}/"
+    else:
+        MEDIA_URL = f"{AWS_S3_ENDPOINT_URL.rstrip('/')}/{AWS_STORAGE_BUCKET_NAME}/{AWS_LOCATION}/"
 else:
+    STORAGES = {
+        'default': {
+            'BACKEND': 'django.core.files.storage.FileSystemStorage',
+        },
+        'staticfiles': {
+            'BACKEND': STATICFILES_STORAGE_BACKEND,
+        },
+    }
+
     MEDIA_URL = '/media/'
     MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-STATIC_URL = '/static/'
-STATICFILES_DIRS = (os.path.join(BASE_DIR, 'static'),)
+# Container disks (e.g. Render) are wiped on every deploy, so uploads written to
+# MEDIA_ROOT would be lost. Production must store media in a bucket.
+if not DEBUG and not USE_S3:
+    raise ValueError('USE_S3 must be True when DJANGO_DEBUG is False; local media storage is not persistent.')
 
 GEOIP_PATH = os.path.join(BASE_DIR, 'geoip')
 
-EMAIL_BACKEND = 'django.core.mail.backends.filebased.EmailBackend'
-EMAIL_HOST = os.getenv('EMAIL_HOST')
-EMAIL_USE_TLS = True
-EMAIL_PORT = 587
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
-EMAIL_FILE_PATH = os.path.join(BASE_DIR, 'parcel_backends/messages')
+EMAIL_HOST = os.getenv('EMAIL_HOST', '')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+EMAIL_USE_TLS = _as_bool(os.getenv('EMAIL_USE_TLS'), default=True)
+EMAIL_USE_SSL = _as_bool(os.getenv('EMAIL_USE_SSL'), default=False)
+EMAIL_TIMEOUT = int(os.getenv('EMAIL_TIMEOUT', '10'))
+if EMAIL_USE_TLS and EMAIL_USE_SSL:
+    raise ValueError('EMAIL_USE_TLS and EMAIL_USE_SSL are mutually exclusive.')
+
+# Sender for every outgoing email that does not set one explicitly.
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL') or EMAIL_HOST_USER or 'webmaster@localhost'
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
+
+# SMTP whenever a host is configured; otherwise print emails to the console so local
+# development works without a mail server. EMAIL_BACKEND overrides either choice.
+EMAIL_BACKEND = os.getenv('EMAIL_BACKEND') or (
+    'django.core.mail.backends.smtp.EmailBackend' if EMAIL_HOST
+    else 'django.core.mail.backends.console.EmailBackend'
+)
 
 RECIPIENT_ADDRESS = os.getenv('RECIPIENT_ADDRESS')
 

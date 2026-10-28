@@ -11,6 +11,7 @@ flower>=1.0.0
 django-crispy-forms>=1.14
 psycopg-binary>=3.1
 dj-database-url>=1.0
+whitenoise>=6.6,<7
 geoip2>=4.5
 # Optional / dev
 python-dotenv>=1.0.0

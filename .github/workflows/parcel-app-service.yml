@@ -111,8 +111,54 @@ jobs:
       - name: Ensure migrations are up to date
         run: python manage.py makemigrations --check --dry-run
 
-      - name: Apply migrations
+      # The Postgres service starts empty on every run, so this proves the full
+      # migration history (including the temp-table backfills) applies cleanly.
+      - name: Apply migrations to a fresh database
         run: python manage.py migrate --noinput
+
+      - name: Verify no migrations are left unapplied
+        run: python manage.py migrate --check
+
+      # Deploy rollbacks need reversible migrations: unapply every project app,
+      # then re-apply to confirm the history works in both directions.
+      - name: Roll back and re-apply project migrations
+        run: |
+          python - <<'PY'
+          import os
+          import subprocess
+          from pathlib import Path
+
+          import django
+
+          os.environ.setdefault("DJANGO_SETTINGS_MODULE", "parcel_app.settings")
+          django.setup()
+          from django.apps import apps
+
+          base = Path.cwd().resolve()
+          project_apps = [
+              config.label
+              for config in apps.get_app_configs()
+              if Path(config.path).resolve().is_relative_to(base)
+              and (Path(config.path) / "migrations").is_dir()
+          ]
+          for label in reversed(project_apps):
+              print(f"Unapplying {label}", flush=True)
+              subprocess.run(["python", "manage.py", "migrate", label, "zero", "--noinput"], check=True)
+          PY
+          python manage.py migrate --noinput
+          python manage.py migrate --check
+
+      # Production static storage hashes and compresses files and fails on broken references,
+      # so collect with DEBUG off as a deploy would. Production settings require S3 for media;
+      # the placeholder bucket is never contacted because static files go through whitenoise.
+      - name: Collect static files with production settings
+        env:
+          DJANGO_DEBUG: "False"
+          USE_S3: "True"
+          AWS_STORAGE_BUCKET_NAME: ci-placeholder-bucket
+          S3_MEDIA_PUBLIC: "False"
+          AWS_QUERYSTRING_AUTH: "True"
+        run: python manage.py collectstatic --noinput
 
       - name: Run test suite
         run: python manage.py test --verbosity 2
