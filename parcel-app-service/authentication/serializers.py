@@ -15,6 +15,8 @@ from django.utils import timezone
 from rest_framework import serializers
 from django.contrib.auth.hashers import make_password, check_password
 from core.tokens import account_activation_token
+from dispatch.models import Dispatch
+from order.models import Order
 
 class BaseUserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
@@ -721,3 +723,50 @@ class CustomerProfileSerializer(serializers.ModelSerializer):
     
     def get_full_name(self, obj):
         return obj.get_full_name()
+
+# ==================== ADMIN ACTION INPUT SERIALIZERS ====================
+
+NOTES_MAX_LENGTH = 2000
+
+
+class AdminModerationActionSerializer(serializers.Serializer):
+    ACTION_STATUS = {
+        'approve': 'approved',
+        'reject': 'rejected',
+        'request_changes': 'changes_requested',
+    }
+
+    action = serializers.ChoiceField(choices=list(ACTION_STATUS))
+    reason = serializers.CharField(required=False, allow_blank=True, default='', max_length=NOTES_MAX_LENGTH)
+
+
+class AdminOrderStatusUpdateSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=Order.STATUS_CHOICES)
+    notes = serializers.CharField(required=False, allow_blank=True, default='', max_length=NOTES_MAX_LENGTH)
+
+
+class AdminDispatchCreateSerializer(serializers.Serializer):
+    order_id = serializers.IntegerField(min_value=1)
+    admin_notes = serializers.CharField(required=False, allow_blank=True, default='', max_length=NOTES_MAX_LENGTH)
+
+
+class AdminDispatchStatusUpdateSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=Dispatch.STATUS_CHOICES)
+    notes = serializers.CharField(required=False, allow_blank=True, default='', max_length=NOTES_MAX_LENGTH)
+
+
+class AdminDispatchAssignSerializer(serializers.Serializer):
+    courier_id = serializers.IntegerField(min_value=1)
+    notes = serializers.CharField(required=False, allow_blank=True, default='', max_length=NOTES_MAX_LENGTH)
+
+
+class AdminComplaintUpdateSerializer(serializers.Serializer):
+    is_resolved = serializers.BooleanField(required=False)
+    is_satisfied = serializers.BooleanField(required=False)
+    complaint_subject = serializers.CharField(required=False, max_length=125)
+    complaint_detail = serializers.CharField(required=False, max_length=1000)
+
+    def validate(self, data):
+        if not data:
+            raise serializers.ValidationError('No valid fields provided for update.')
+        return data
