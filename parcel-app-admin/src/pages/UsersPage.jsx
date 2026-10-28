@@ -72,20 +72,14 @@ export default function UsersPage({ token, role }) {
     try {
       setIsLoadingAdmins(true)
       setAdminError('')
-      const payload = await apiRequest('/auth/admins/', {
+      const payload = await apiRequest(withPaginationParams('/auth/admins/', adminPage, adminPageSize), {
         method: 'GET',
         token,
       })
-      const normalized = normalizePaginatedPayload(payload?.data)
-      if (normalized) {
-        setAdmins(normalized.items)
-        setAdminTotal(normalized.total)
-      } else {
-        const base = Array.isArray(payload?.data) ? payload.data : []
-        const paginated = paginateLocal(base, adminPage, adminPageSize)
-        setAdmins(paginated.items)
-        setAdminTotal(paginated.total)
-      }
+      const normalized = normalizePaginatedPayload(payload)
+      const localPage = paginateLocal(normalized.items, adminPage, adminPageSize)
+      setAdmins(normalized.isServerPaginated ? normalized.items : localPage.items)
+      setAdminTotal(normalized.isServerPaginated ? normalized.total : localPage.total)
     } catch (error) {
       setAdminError(error.message || 'Failed to load admin accounts.')
       toast.error(error.message || 'Failed to load admin accounts.')
@@ -103,16 +97,10 @@ export default function UsersPage({ token, role }) {
         method: 'GET',
         token,
       })
-      const normalized = normalizePaginatedPayload(payload?.data)
-      if (normalized) {
-        setCustomers(normalized.items)
-        setCustomerTotal(normalized.total)
-      } else {
-        const base = Array.isArray(payload?.data) ? payload.data : []
-        const paginated = paginateLocal(base, customerPage, customerPageSize)
-        setCustomers(paginated.items)
-        setCustomerTotal(paginated.total)
-      }
+      const normalized = normalizePaginatedPayload(payload)
+      const localPage = paginateLocal(normalized.items, customerPage, customerPageSize)
+      setCustomers(normalized.isServerPaginated ? normalized.items : localPage.items)
+      setCustomerTotal(normalized.isServerPaginated ? normalized.total : localPage.total)
     } catch (error) {
       setCustomerError(error.message || 'Failed to load customers.')
       toast.error(error.message || 'Failed to load customers.')
