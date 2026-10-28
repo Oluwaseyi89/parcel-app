@@ -11,7 +11,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from rest_framework.authentication import SessionAuthentication, BasicAuthentication
+from rest_framework.authentication import SessionAuthentication
+from rest_framework.throttling import ScopedRateThrottle
 from .drf_auth import SessionTokenAuthentication
 from .models import AdminUser, UserSession
 from .serializers import (
@@ -132,6 +133,8 @@ def _build_me_payload(user):
 class AdminLoginView(APIView):
     authentication_classes = []
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'auth'
 
     def post(self, request):
         serializer = AdminLoginSerializer(data=request.data)
@@ -190,7 +193,7 @@ class AdminLoginView(APIView):
 
 
 class AdminLogoutView(APIView):
-    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
     
     def post(self, request):
@@ -220,7 +223,7 @@ class AdminLogoutView(APIView):
 
 
 class SessionMeView(APIView):
-    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -231,7 +234,7 @@ class SessionMeView(APIView):
 
 
 class SwitchActiveRoleView(APIView):
-    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -304,7 +307,7 @@ class CsrfTokenView(APIView):
 
 
 class AdminProfileView(APIView):
-    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
@@ -339,8 +342,10 @@ class AdminProfileView(APIView):
 
 
 class ChangePasswordView(APIView):
-    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'auth'
     
     def post(self, request):
         serializer = ChangePasswordSerializer(data=request.data)
@@ -370,7 +375,7 @@ class ChangePasswordView(APIView):
 
 
 class AdminUserListView(APIView):
-    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication]
     permission_classes = [IsSuperAdmin]
     
     def get(self, request, pk=None):
@@ -452,7 +457,7 @@ class AdminUserListView(APIView):
 
 class AdminCustomerListView(APIView):
     """Admin customer management (list/detail/update/deactivate)."""
-    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication]
     permission_classes = [IsAdminOrSuperAdmin]
 
     @staticmethod
@@ -549,7 +554,7 @@ class AdminCustomerListView(APIView):
 
 class AdminDashboardMetricsView(APIView):
     """Admin dashboard metrics endpoint - returns pending approvals and stats."""
-    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication]
     permission_classes = [IsAdminOrSuperAdmin]
 
     def get(self, request):
@@ -611,7 +616,7 @@ class AdminDashboardMetricsView(APIView):
 
 class AdminModerationQueueView(APIView):
     """Admin moderation queue endpoint for vendors, couriers, and products."""
-    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication]
     permission_classes = [IsAdminOrSuperAdmin]
 
     def get(self, request):
@@ -682,7 +687,7 @@ class AdminModerationQueueView(APIView):
 
 class AdminModerationActionView(APIView):
     """Admin moderation action endpoint for approving/rejecting queue items."""
-    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication]
     permission_classes = [IsAdminOrSuperAdmin]
 
     def patch(self, request, queue_type, pk):
@@ -745,7 +750,7 @@ class AdminModerationActionView(APIView):
 
 class AdminOrderListView(APIView):
     """Admin order management endpoint (list/detail)."""
-    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication]
     permission_classes = [IsAdminOrSuperAdmin]
 
     def get(self, request, pk=None):
@@ -813,7 +818,7 @@ class AdminOrderListView(APIView):
 
 class AdminOrderStatusUpdateView(APIView):
     """Admin order status update endpoint."""
-    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication]
     permission_classes = [IsAdminOrSuperAdmin]
 
     def patch(self, request, pk):
@@ -850,7 +855,7 @@ class AdminOrderStatusUpdateView(APIView):
 
 class AdminDispatchListView(APIView):
     """Admin dispatch management endpoint (list/create)."""
-    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication]
     permission_classes = [IsAdminOrSuperAdmin]
 
     def get(self, request):
@@ -924,7 +929,7 @@ class AdminDispatchListView(APIView):
 
 class AdminDispatchStatusUpdateView(APIView):
     """Admin dispatch status update endpoint."""
-    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication]
     permission_classes = [IsAdminOrSuperAdmin]
 
     def patch(self, request, pk):
@@ -957,7 +962,7 @@ class AdminDispatchStatusUpdateView(APIView):
 
 class AdminDispatchAssignView(APIView):
     """Admin dispatch assign courier endpoint."""
-    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication]
     permission_classes = [IsAdminOrSuperAdmin]
 
     def patch(self, request, pk):
@@ -991,7 +996,7 @@ class AdminDispatchAssignView(APIView):
 
 class AdminDispatchReadyOrdersView(APIView):
     """Admin dispatch ready order queue endpoint."""
-    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication]
     permission_classes = [IsAdminOrSuperAdmin]
 
     def get(self, request):
@@ -1017,7 +1022,7 @@ class AdminDispatchReadyOrdersView(APIView):
 
 class AdminCourierListView(APIView):
     """Admin courier list endpoint for dispatch assignment."""
-    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication]
     permission_classes = [IsAdminOrSuperAdmin]
 
     def get(self, request):
@@ -1041,7 +1046,7 @@ class AdminCourierListView(APIView):
 
 class AdminComplaintListView(APIView):
     """Admin complaints management endpoint (list/detail)."""
-    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication]
     permission_classes = [IsAdminOrSuperAdmin]
 
     @staticmethod
@@ -1097,7 +1102,7 @@ class AdminComplaintListView(APIView):
 
 class AdminComplaintUpdateView(APIView):
     """Admin complaint status update endpoint."""
-    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication]
     permission_classes = [IsAdminOrSuperAdmin]
 
     def patch(self, request, pk):
@@ -1143,7 +1148,7 @@ class AdminComplaintUpdateView(APIView):
 
 class AdminBankingListView(APIView):
     """Admin banking management endpoint (list vendor/courier bank details)."""
-    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication]
     permission_classes = [IsAdminOrSuperAdmin]
 
     def get(self, request):
@@ -1210,7 +1215,7 @@ class AdminBankingListView(APIView):
 
 class AdminBankingUpdateView(APIView):
     """Admin banking update endpoint for vendor/courier account records."""
-    authentication_classes = [SessionTokenAuthentication, SessionAuthentication, BasicAuthentication]
+    authentication_classes = [SessionTokenAuthentication, SessionAuthentication]
     permission_classes = [IsAdminOrSuperAdmin]
 
     def patch(self, request, account_kind, pk):
@@ -1362,6 +1367,8 @@ def super_admin_dashboard(request):
 
 class CustomerRegistrationView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'auth'
     
     def post(self, request):
         serializer = CustomerRegistrationSerializer(data=request.data)
@@ -1400,6 +1407,8 @@ class CustomerRegistrationView(APIView):
 
 class CustomerLoginView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'auth'
     
     def post(self, request):
         serializer = CustomerLoginSerializer(data=request.data, context={'request': request})
@@ -1440,6 +1449,8 @@ class CustomerProfileView(APIView):
 
 class CustomerResetView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'auth'
     
     def post(self, request):
         serializer = ForgotPasswordSerializer(data=request.data)
@@ -1462,6 +1473,8 @@ class CustomerResetView(APIView):
 
 class CustomerSaveResetView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'auth'
     
     def post(self, request):
         serializer = CustomerPasswordResetSerializer(data=request.data)
