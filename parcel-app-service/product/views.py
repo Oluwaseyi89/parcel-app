@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from core.pagination import StandardPagination
+from core.pagination import StandardPagination, paginated_response
 from authentication.permissions import IsAdminOrSuperAdmin, IsVendorOrAdmin
 from .services import ProductService, CategoryService, InventoryService
 from .serializers import (
@@ -217,11 +217,7 @@ class CategoryListView(APIView):
     
     def get(self, request):
         categories = Category.objects.all()
-        serializer = CategorySerializer(categories, many=True)
-        return Response({
-            "status": "success",
-            "data": serializer.data
-        })
+        return paginated_response(request, categories, lambda page: CategorySerializer(page, many=True).data)
 
 class CategoryCreateView(APIView):
     """Create a new category (admin only)"""
