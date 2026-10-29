@@ -247,6 +247,8 @@ class BulkEmailView(APIView):
         if queue.scheduled_for <= timezone.now():
             from .tasks import process_email_queue_task
             process_email_queue_task.delay(queue.id)
+            # Without a broker the task runs inline; reload so the response shows its outcome.
+            queue.refresh_from_db()
         
         return Response({
             "status": "success",
