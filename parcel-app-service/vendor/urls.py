@@ -4,7 +4,7 @@ from django.views.decorators.csrf import csrf_exempt
 from .views import (
     TempVendorRegistrationView, VendorApprovalView, TempVendorListView,
     VendorListView, VendorLoginView, VendorProfileView,
-    activate_vendor, vendor_reset
+    activate_vendor
 )
 
 # CRITICAL: Links this routing fleet to the 'vendors' block in project urls.py
@@ -26,7 +26,4 @@ urlpatterns = [
     path('login/', VendorLoginView.as_view(), name="vendor_login"),
     path('login/mobile/', csrf_exempt(VendorLoginView.as_view()), name="vendor_login_mobile"),
     path('profile/', VendorProfileView.as_view(), name="vendor_profile"),
-    
-    # Password Reset -> /api/v1/vendors/password-reset/...
-    path('password-reset/<uidb64>/<token>/', vendor_reset, name="vendor_password_reset"),
 ]
