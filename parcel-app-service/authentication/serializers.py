@@ -764,3 +764,9 @@ class AdminComplaintUpdateSerializer(serializers.Serializer):
         if not data:
             raise serializers.ValidationError('No valid fields provided for update.')
         return data
+
+
+class ResendActivationSerializer(serializers.Serializer):
+    """Request a fresh activation email for an unverified account."""
+    email = serializers.EmailField()
+    role = serializers.ChoiceField(choices=['customer', 'vendor', 'courier'])
