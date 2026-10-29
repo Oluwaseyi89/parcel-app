@@ -15,5 +15,7 @@ export const NAV_ITEMS = [
   { path: '/dispatch', label: 'Dispatch' },
   { path: '/complaints', label: 'Complaints' },
   { path: '/banking', label: 'Banking' },
+  { path: '/categories', label: 'Categories' },
+  { path: '/messaging', label: 'Messaging' },
   { path: '/settings', label: 'Settings' },
 ]
