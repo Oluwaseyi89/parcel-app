@@ -21,6 +21,7 @@ COPY . .
 RUN DJANGO_SECRET_KEY=collectstatic-placeholder \
     DJANGO_DEBUG=False \
     DATABASE_URL=postgres://placeholder@localhost:5432/placeholder \
+    FRONTEND_URL=https://placeholder.invalid \
     USE_S3=True \
     AWS_STORAGE_BUCKET_NAME=placeholder \
     S3_MEDIA_PUBLIC=False \
