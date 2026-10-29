@@ -572,18 +572,12 @@ class CustomerUpdateSerializer(serializers.ModelSerializer):
 
 
 class ForgotPasswordSerializer(serializers.Serializer):
-    """Serializer for forgot password request (for customers)"""
+    """Serializer for forgot password request (for customers).
+
+    Deliberately does not check whether the email belongs to an account: the reset service
+    answers the same way either way, so the endpoint cannot reveal registered addresses.
+    """
     email = serializers.EmailField(required=True)
-    
-    def validate_email(self, value):
-        """Verify email exists and is active"""
-        try:
-            customer = CustomerUser.objects.get(email=value.lower(), is_active=True)
-        except CustomerUser.DoesNotExist:
-            raise serializers.ValidationError('No active customer found with this email.')
-        
-        self.context['customer'] = customer
-        return value
 
 
 class CustomerPasswordResetSerializer(serializers.Serializer):
@@ -770,3 +764,9 @@ class AdminComplaintUpdateSerializer(serializers.Serializer):
         if not data:
             raise serializers.ValidationError('No valid fields provided for update.')
         return data
+
+
+class ResendActivationSerializer(serializers.Serializer):
+    """Request a fresh activation email for an unverified account."""
+    email = serializers.EmailField()
+    role = serializers.ChoiceField(choices=['customer', 'vendor', 'courier'])

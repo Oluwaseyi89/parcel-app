@@ -2,7 +2,7 @@ import secrets
 from datetime import datetime, timedelta
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import get_object_or_404
 from django.http import JsonResponse, Http404
 from django.contrib.auth.hashers import make_password
 from django.middleware.csrf import get_token
@@ -36,13 +36,14 @@ from complaints.models import CustomerComplaint
 from banking.models import VendorBankDetail, CourierBankDetail
 from banking.serializers import AdminCourierBankUpdateSerializer, AdminVendorBankUpdateSerializer
 from .serializers import (
-    CustomerRegistrationSerializer, CustomerLoginSerializer,
+    CustomerRegistrationSerializer, CustomerLoginSerializer, ResendActivationSerializer,
     ForgotPasswordSerializer, CustomerPasswordResetSerializer,
     CustomerUpdateSerializer
 )
 from .services import EmailService, CustomerService
 
 from core.tokens import account_activation_token
+from core.activation import activate_from_email_link
 
 
 def _normalize_app_role(role_value):
@@ -1286,29 +1287,39 @@ class CustomerSaveResetView(APIView):
             "errors": serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
 
+class ResendActivationView(APIView):
+    """Send a new activation link to an unverified customer, vendor or courier.
+
+    Always answers the same way, so it cannot be used to discover accounts or their status.
+    """
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'auth'
+
+    MODELS = {'customer': CustomerUser, 'vendor': VendorUser, 'courier': CourierUser}
+    MESSAGE = "If that account exists and still needs verifying, a new activation link has been sent."
+
+    def post(self, request):
+        serializer = ResendActivationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        role = serializer.validated_data['role']
+
+        user = self.MODELS[role].objects.filter(
+            email__iexact=serializer.validated_data['email'], is_active=True
+        ).first()
+        if user is not None and not user.is_email_verified:
+            EmailService.send_activation_email(user, request, email_type=role)
+
+        return Response({"status": "success", "message": self.MESSAGE})
+
+
 # Also add these function-based views
 from django.utils.encoding import force_str
 from django.utils.http import urlsafe_base64_decode
 
 def activate_customer(request, uidb64, token):
-    """Activate customer account"""
-    try:
-        uid = force_str(urlsafe_base64_decode(uidb64))
-        customer = CustomerUser.objects.get(pk=uid)
-    except (TypeError, ValueError, OverflowError, CustomerUser.DoesNotExist):
-        customer = None
-    
-    if customer is not None and account_activation_token.check_token(customer, token):
-        customer.is_email_verified = True
-        customer.save()
-        return render(request, "parcel_backends/activation_page.html", {
-            "message": "Your account has been activated successfully"
-        })
-    else:
-        return render(request, "parcel_backends/activation_page.html", {
-            "message": "The activation link is invalid or expired"
-        })
-
+    """Verify a customer from the emailed link, then redirect to the web app's result page."""
+    return activate_from_email_link(CustomerUser, uidb64, token, role='customer')
 
 def dev_verify_email(request, role, uidb64, token):
     """Dev-only verification endpoint for quick local testing."""
@@ -1356,24 +1367,3 @@ def dev_verify_email(request, role, uidb64, token):
             "is_email_verified": user.is_email_verified,
         }
     }, status=200)
-
-def customer_reset(request, uidb64, token):
-    """Password reset confirmation page"""
-    try:
-        uid = force_str(urlsafe_base64_decode(uidb64))
-        customer = CustomerUser.objects.get(pk=uid)
-    except (TypeError, ValueError, OverflowError, CustomerUser.DoesNotExist):
-        customer = None
-    
-    if customer is not None and account_activation_token.check_token(customer, token):
-        return render(request, "parcel_backends/password_reset_page.html", {
-            "message": "Reset Your Password",
-            "type": "customer",
-            "permit": "true",
-            "user": customer.email
-        })
-    else:
-        return render(request, "parcel_backends/password_reset_page.html", {
-            "message": "The link has expired",
-            "permit": "false"
-        })

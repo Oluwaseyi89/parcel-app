@@ -1,4 +1,5 @@
 import logging
+from email.utils import formataddr, parseaddr
 from datetime import timedelta
 from typing import List, Dict, Optional
 from django.utils import timezone
@@ -9,7 +10,7 @@ from django.conf import settings
 from django.template.loader import render_to_string
 from .models import (
     MessageTemplate, EmailMessage, EmailQueue,
-    Unsubscribe, Notification, SMTPSettings
+    Unsubscribe, Notification
 )
 from authentication.models import AuditLog, CustomerUser, VendorUser, CourierUser, AdminUser
 from order.models import Order
@@ -31,20 +32,16 @@ class EmailService:
         template_data: Dict = None,
         priority: str = 'normal',
         attachments: List = None,
-        request = None
+        request = None,
+        sender: AdminUser = None
     ) -> EmailMessage:
-        """Send an email with tracking"""
+        """Send an email with tracking. sender defaults to the requesting admin."""
         from .models import EmailMessage
         
-        # Use default sender if not provided
+        # Default to the configured sender; it must match what the SMTP provider will accept.
         if not sender_email:
-            smtp_settings = SMTPSettings.objects.filter(is_active=True).first()
-            if smtp_settings:
-                sender_email = smtp_settings.default_from_email
-                sender_name = smtp_settings.default_from_name
-            else:
-                sender_email = settings.DEFAULT_FROM_EMAIL
-                sender_name = settings.DEFAULT_FROM_NAME
+            default_name, sender_email = parseaddr(settings.DEFAULT_FROM_EMAIL)
+            sender_name = sender_name or default_name
         
         # Format recipients
         recipients = []
@@ -65,7 +62,7 @@ class EmailService:
         
         # Create email message record
         email_message = EmailMessage.objects.create(
-            sender=request.user if request and hasattr(request, 'user') else None,
+            sender=sender or (request.user if request and hasattr(request, 'user') else None),
             sender_email=sender_email,
             sender_name=sender_name or '',
             recipients=recipients,
@@ -79,8 +76,9 @@ class EmailService:
             status='queued'
         )
         
-        # Send email asynchronously (in production, use Celery)
+        # Deliver now; delivery updates the stored row, so refresh to return the final status.
         EmailService._send_email_async(email_message.id)
+        email_message.refresh_from_db(fields=['status', 'sent_at', 'provider_response'])
         
         # Log the action
         if request:
@@ -101,52 +99,33 @@ class EmailService:
     
     @staticmethod
     def _send_email_async(email_message_id: int):
-        """Send email asynchronously (simplified - use Celery in production)"""
+        """Deliver a recorded EmailMessage through Django's configured mail backend (SMTP settings
+        from the environment). Failures are logged and recorded on the message, not raised."""
         try:
             email_message = EmailMessage.objects.get(id=email_message_id)
-            
-            # Get SMTP settings
-            smtp_settings = SMTPSettings.objects.filter(is_active=True).first()
-            if not smtp_settings:
-                logger.error("No active SMTP settings found")
-                email_message.status = 'failed'
-                email_message.save()
-                return
-            
-            # Prepare email
-            recipient_emails = [r['email'] for r in email_message.recipients]
-            
-            email = EmailMultiAlternatives(
-                subject=email_message.subject,
-                body=email_message.body_text,
-                from_email=f"{email_message.sender_name} <{email_message.sender_email}>",
-                to=recipient_emails,
-                connection=None  # Would use SMTP settings here
-            )
-            
-            # Add HTML alternative
-            email.attach_alternative(email_message.body_html, "text/html")
-            
-            # Send email (simulated - in production, use actual SMTP)
-            try:
-                # email.send()  # Uncomment in production
-                logger.info(f"Simulating email send to {len(recipient_emails)} recipients")
-                
-                # Mark as sent
-                email_message.mark_as_sent(
-                    provider_message_id=f"sim_{int(timezone.now().timestamp())}",
-                    provider_response={'simulated': True}
-                )
-                
-            except Exception as e:
-                logger.error(f"Failed to send email: {e}")
-                email_message.status = 'failed'
-                email_message.save()
-                raise
-            
         except EmailMessage.DoesNotExist:
             logger.error(f"EmailMessage {email_message_id} not found")
-    
+            return
+
+        email = EmailMultiAlternatives(
+            subject=email_message.subject,
+            body=email_message.body_text,
+            from_email=formataddr((email_message.sender_name, email_message.sender_email)),
+            to=[r['email'] for r in email_message.recipients],
+        )
+        email.attach_alternative(email_message.body_html, "text/html")
+
+        try:
+            email.send()
+        except Exception as e:
+            logger.exception(f"Failed to send email {email_message.id}: {e}")
+            email_message.status = 'failed'
+            email_message.provider_response = {'error': str(e)}
+            email_message.save(update_fields=['status', 'provider_response', 'updated_at'])
+            return
+
+        email_message.mark_as_sent(provider_response={'backend': settings.EMAIL_BACKEND})
+
     @staticmethod
     def send_template_email(
         template_name: str,
@@ -154,7 +133,8 @@ class EmailService:
         template_data: Dict,
         sender_email: str = None,
         sender_name: str = None,
-        request = None
+        request = None,
+        sender: AdminUser = None
     ) -> EmailMessage:
         """Send email using a template"""
         try:
@@ -162,16 +142,18 @@ class EmailService:
         except MessageTemplate.DoesNotExist:
             raise ValidationError(f"Template '{template_name}' not found or inactive.")
         
-        # Render template with variables
+        # Render template with variables (subject placeholders too, e.g. "Hello {name}")
+        subject = template.subject
         body_html = template.body_html
         for key, value in template_data.items():
+            subject = subject.replace(f'{{{key}}}', str(value))
             body_html = body_html.replace(f'{{{key}}}', str(value))
         
         # Generate plain text version (simplified)
         body_text = template.body_text or EmailService._html_to_text(body_html)
         
         return EmailService.send_email(
-            subject=template.subject,
+            subject=subject,
             body_html=body_html,
             body_text=body_text,
             recipient_emails=recipient_emails,
@@ -179,7 +161,8 @@ class EmailService:
             sender_name=sender_name,
             template=template,
             template_data=template_data,
-            request=request
+            request=request,
+            sender=sender
         )
     
     @staticmethod
@@ -246,14 +229,19 @@ class EmailService:
             
             for recipient in recipients:
                 try:
-                    EmailService.send_template_email(
+                    email_message = EmailService.send_template_email(
                         template_name=queue.template.name,
                         recipient_emails=[recipient['email']],
-                        template_data={**queue.template_variables, **recipient}
+                        template_data={**queue.template_variables, **recipient},
+                        sender=queue.created_by
                     )
-                    success_count += 1
+                    sent = email_message.status == 'sent'
                 except Exception as e:
                     logger.error(f"Failed to send to {recipient['email']}: {e}")
+                    sent = False
+                if sent:
+                    success_count += 1
+                else:
                     failure_count += 1
                 
                 queue.processed_recipients += 1
@@ -297,6 +285,16 @@ class EmailService:
                 for c in couriers
             ])
         
+        # Explicit addresses (from the bulk email endpoint's recipient_emails)
+        for email in filter_data.get('emails', []):
+            recipients.append({'email': email, 'name': ''})
+
+        # One message per address, even if it matched several groups
+        unique = {}
+        for recipient in recipients:
+            unique.setdefault(recipient['email'].lower(), recipient)
+        recipients = list(unique.values())
+
         # Additional filtering (simplified)
         if filter_data.get('has_orders'):
             # Would filter users with orders
@@ -478,12 +476,17 @@ class StatsService:
             created_at__range=[start_date, end_date]
         )
         
-        total_sent = emails.filter(status='sent').count()
-        total_opened = emails.filter(status='opened').count()
-        total_clicked = emails.filter(status='clicked').count()
+        # Status only holds the latest event (an opened email is no longer 'sent'), so count each
+        # stage from its timestamp/counter, falling back to status for older records.
+        from django.db.models import Q
+        total_sent = emails.filter(sent_at__isnull=False).count()
+        total_delivered = emails.filter(Q(delivered_at__isnull=False) | Q(status__in=['opened', 'clicked'])).count()
+        total_opened = emails.filter(Q(opened_at__isnull=False) | Q(status__in=['opened', 'clicked'])).count()
+        total_clicked = emails.filter(Q(click_count__gt=0) | Q(status='clicked')).count()
+        total_bounced = emails.filter(status='bounced').count()
         
-        open_rate = (total_opened / total_sent * 100) if total_sent > 0 else 0
-        click_rate = (total_clicked / total_sent * 100) if total_sent > 0 else 0
+        def rate(count):
+            return round(count / total_sent * 100, 2) if total_sent else 0.0
         
         # Top templates
         from django.db.models import Count
@@ -496,15 +499,17 @@ class StatsService:
         
         # Recent activity
         recent_activity = emails.order_by('-created_at')[:10].values(
-            'subject', 'status', 'sent_at', 'open_count'
+            'id', 'subject', 'status', 'sent_at', 'open_count'
         )
         
         return {
             'total_sent': total_sent,
+            'total_delivered': total_delivered,
             'total_opened': total_opened,
             'total_clicked': total_clicked,
-            'open_rate': round(open_rate, 2),
-            'click_rate': round(click_rate, 2),
+            'open_rate': rate(total_opened),
+            'click_rate': rate(total_clicked),
+            'bounce_rate': rate(total_bounced),
             'top_templates': list(top_templates),
             'recent_activity': list(recent_activity)
         }

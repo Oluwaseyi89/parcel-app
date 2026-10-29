@@ -19,6 +19,7 @@ S3_ENV = {
 PRODUCTION_ENV = {
 	'DJANGO_DEBUG': 'False',
 	'DATABASE_URL': 'postgres://parcel:secret@pooler.supabase.com:5432/postgres',
+	'FRONTEND_URL': 'https://parcel-app-web.vercel.app',
 	**S3_ENV,
 }
 

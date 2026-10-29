@@ -1,3 +1,5 @@
+import logging
+
 from django.core.mail import EmailMessage
 from django.template.loader import render_to_string
 from django.contrib.sites.shortcuts import get_current_site
@@ -6,8 +8,24 @@ from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 from core.tokens import account_activation_token
 
+logger = logging.getLogger(__name__)
+
+
 class EmailService:
     """Centralized email service for the application"""
+
+    @staticmethod
+    def _send_html(subject, template_name, context, to_email):
+        """Render an HTML template and send it. Never raises: callers treat delivery as best-effort,
+        so failures (missing template, SMTP errors) are logged and reported as (False, message)."""
+        try:
+            email = EmailMessage(subject, render_to_string(template_name, context), to=[to_email])
+            email.content_subtype = 'html'
+            email.send()
+            return True, "Email sent successfully"
+        except Exception as exc:
+            logger.exception("Failed to send '%s' email using %s", subject, template_name)
+            return False, f"Failed to send email: {exc}"
 
     @staticmethod
     def _resolve_email_type(user, email_type=None):
@@ -41,7 +59,8 @@ class EmailService:
         uid = urlsafe_base64_encode(force_bytes(user.pk))
         token = account_activation_token.make_token(user)
         activation_path = EmailService._activation_path(resolved_email_type, uid, token)
-        activation_url = f"http://{domain}{activation_path}"
+        # build_absolute_uri honours SECURE_PROXY_SSL_HEADER, so links are https behind Render's proxy.
+        activation_url = request.build_absolute_uri(activation_path) if request else f"http://{domain}{activation_path}"
         
         if resolved_email_type == 'vendor':
             mail_subject = "Activate your Vendor Account"
@@ -54,7 +73,7 @@ class EmailService:
         else:
             mail_subject = "Activate your Account"
         
-        message = render_to_string(template_name, {
+        return EmailService._send_html(mail_subject, template_name, {
             'user': user,
             'domain': domain,
             'uid': uid,
@@ -62,55 +81,30 @@ class EmailService:
             'email_type': resolved_email_type,
             'activation_path': activation_path,
             'activation_url': activation_url,
-        })
-        
-        to_email = user.email
-        email = EmailMessage(mail_subject, message, to=[to_email])
-        
-        try:
-            email.send()
-            return True, "Activation email sent successfully"
-        except Exception as e:
-            return False, f"Failed to send activation email: {str(e)}"
-    
+        }, user.email)
+
     @staticmethod
-    def send_password_reset_email(user, request, template_name, email_type='vendor'):
+    def send_password_reset_email(user, reset_url, email_type='customer', expires_in_minutes=60):
         """
-        Send password reset email
+        Send a password reset email linking to the web app's reset page.
         Args:
             user: User model instance
-            request: HttpRequest object
-            template_name: Email template path
-            email_type: Type of user
+            reset_url: Absolute URL of the reset page, including the reset token
+            email_type: Type of user (customer, vendor, courier, admin)
+            expires_in_minutes: Token lifetime shown in the email
         """
-        current_site = get_current_site(request)
-        
-        if email_type == 'vendor':
-            mail_subject = "Reset your Vendor Password"
-        elif email_type == 'courier':
-            mail_subject = "Reset your Courier Password"
-        elif email_type == 'admin':
-            mail_subject = "Reset your Admin Password"
-        else:
-            mail_subject = "Reset your Password"
-        
-        message = render_to_string(template_name, {
+        subjects = {
+            'vendor': "Reset your Vendor Password",
+            'courier': "Reset your Courier Password",
+            'admin': "Reset your Admin Password",
+        }
+        return EmailService._send_html(subjects.get(email_type, "Reset your Password"), 'emails/password_reset.html', {
             'user': user,
-            'domain': current_site.domain,
-            'uid': urlsafe_base64_encode(force_bytes(user.pk)),
-            'token': account_activation_token.make_token(user),
+            'reset_url': reset_url,
             'email_type': email_type,
-        })
-        
-        to_email = user.email
-        email = EmailMessage(mail_subject, message, to=[to_email])
-        
-        try:
-            email.send()
-            return True, "Password reset email sent successfully"
-        except Exception as e:
-            return False, f"Failed to send password reset email: {str(e)}"
-    
+            'expires_in_minutes': expires_in_minutes,
+        }, user.email)
+
     @staticmethod
     def send_welcome_email(user, request, email_type='vendor'):
         """

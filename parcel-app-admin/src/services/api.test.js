@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { API_BASE_URL } from '../config/constants'
 import { apiRequest } from './api'
 
 describe('apiRequest', () => {
@@ -19,7 +20,8 @@ describe('apiRequest', () => {
     })
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://localhost:7000/api/v1/auth/orders/',
+      // Built from the configured origin so the test passes whatever VITE_API_BASE_URL is set to.
+      `${API_BASE_URL}/api/v1/auth/orders/`,
       expect.objectContaining({
         method: 'POST',
         credentials: 'include',

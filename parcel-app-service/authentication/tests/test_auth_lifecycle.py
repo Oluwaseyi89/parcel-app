@@ -40,10 +40,12 @@ class AuthLifecycleEndToEndTests(TestCase):
 		token = account_activation_token.make_token(user)
 		return f'/{prefix}/{uid}/{token}/'
 
-	def _password_reset_url(self, prefix, user):
-		uid = urlsafe_base64_encode(force_bytes(user.pk))
-		token = account_activation_token.make_token(user)
-		return f'/{prefix}/{uid}/{token}/'
+	def _activate(self, prefix, user, role):
+		response = self.client.get(self._activation_url(prefix, user))
+		self.assertEqual(response.status_code, 302)
+		self.assertTrue(response['Location'].endswith(f'/verify-email?status=success&role={role}'))
+		user.refresh_from_db()
+		self.assertTrue(user.is_email_verified)
 
 	def _issue_csrf_token(self, client):
 		response = client.get('/api/v1/auth/csrf/')
@@ -81,12 +83,7 @@ class AuthLifecycleEndToEndTests(TestCase):
 		self.assertEqual(pre_activation_login.status_code, 400)
 		self.assertIn('verify your email', str(pre_activation_login.data['errors']).lower())
 
-		# Activate directly via DB — the activation endpoint renders a legacy
-		# template (parcel_backends/activation_page.html) that doesn't exist;
-		# verify the token is valid, then flip the flag as the view would.
-		self.assertTrue(account_activation_token.check_token(customer, account_activation_token.make_token(customer)))
-		customer.is_email_verified = True
-		customer.save(update_fields=['is_email_verified'])
+		self._activate('api/v1/auth/customer/activate', customer, 'customer')
 
 		login_response = self.client.post(
 			'/api/v1/auth/customer/login/',
@@ -202,11 +199,7 @@ class AuthLifecycleEndToEndTests(TestCase):
 		self.assertEqual(pre_activation_login.status_code, 400)
 		self.assertIn('verify your email', str(pre_activation_login.data['errors']).lower())
 
-		# Activate directly via DB — the activation endpoint renders a legacy
-		# template that doesn't exist in the test environment.
-		self.assertTrue(account_activation_token.check_token(vendor, account_activation_token.make_token(vendor)))
-		vendor.is_email_verified = True
-		vendor.save(update_fields=['is_email_verified'])
+		self._activate('api/v1/vendors/activate', vendor, 'vendor')
 		self.assertEqual(vendor.approval_status, 'pending')
 
 		under_review_login = self.client.post(
@@ -237,10 +230,6 @@ class AuthLifecycleEndToEndTests(TestCase):
 		self.assertEqual(me_response.status_code, 200)
 		self.assertEqual(me_response.data['data']['active_role'], 'vendor')
 		self.assertIn('vendor', me_response.data['data']['allowed_roles'])
-
-		# Vendor password-reset page renders a legacy template that doesn't
-		# exist — verify the reset token is valid at the model layer instead.
-		self.assertTrue(account_activation_token.check_token(vendor, account_activation_token.make_token(vendor)))
 
 		logout_csrf = self._issue_csrf_token(self.client)
 		logout_response = self.client.post(
@@ -293,10 +282,7 @@ class AuthLifecycleEndToEndTests(TestCase):
 		self.assertEqual(pre_activation_login.status_code, 400)
 		self.assertIn('verify your email', str(pre_activation_login.data['errors']).lower())
 
-		# Activate directly via DB — same legacy template issue.
-		self.assertTrue(account_activation_token.check_token(courier, account_activation_token.make_token(courier)))
-		courier.is_email_verified = True
-		courier.save(update_fields=['is_email_verified'])
+		self._activate('api/v1/couriers/activate', courier, 'courier')
 
 		under_review_login = self.client.post(
 			'/api/v1/couriers/login/',
@@ -326,10 +312,6 @@ class AuthLifecycleEndToEndTests(TestCase):
 		self.assertEqual(me_response.status_code, 200)
 		self.assertEqual(me_response.data['data']['active_role'], 'courier')
 		self.assertIn('courier', me_response.data['data']['allowed_roles'])
-
-		# Courier password-reset page renders a legacy template that doesn't
-		# exist — verify the reset token is valid at the model layer instead.
-		self.assertTrue(account_activation_token.check_token(courier, account_activation_token.make_token(courier)))
 
 		logout_csrf = self._issue_csrf_token(self.client)
 		logout_response = self.client.post(

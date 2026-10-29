@@ -157,6 +157,7 @@ jobs:
           DJANGO_DEBUG: "False"
           DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/parcel_db
           DATABASE_SSL_REQUIRE: "False"
+          FRONTEND_URL: https://placeholder.invalid
           USE_S3: "True"
           AWS_STORAGE_BUCKET_NAME: ci-placeholder-bucket
           S3_MEDIA_PUBLIC: "False"

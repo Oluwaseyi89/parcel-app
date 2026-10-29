@@ -109,6 +109,9 @@ envVarGroups:
     envVars:
       - key: DJANGO_DEBUG
         value: "False"
+      # Customer-facing web app; emailed reset links and activation results point here.
+      - key: FRONTEND_URL
+        value: https://parcel-app-web.vercel.app
       # Render's disk is wiped on every deploy, so media must live in a bucket.
       - key: USE_S3
         value: "True"

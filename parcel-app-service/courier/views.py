@@ -1,8 +1,6 @@
 # courier/views.py
 import datetime
-from django.shortcuts import render, get_object_or_404
-from django.utils.encoding import force_str
-from django.utils.http import urlsafe_base64_decode
+from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
@@ -21,8 +19,8 @@ from .serializers import (
 )
 from authentication.models import CourierUser
 from email_service.services import EmailService
-from core.tokens import account_activation_token
 from authentication.session_contract import attach_session_cookies
+from core.activation import activate_from_email_link
 
 class TempCourierRegistrationView(APIView):
     permission_classes = [AllowAny]
@@ -224,63 +222,12 @@ class AvailableCouriersView(APIView):
 
 # Keep these function-based views for email activation
 def activate_courier(request, uidb64, token):
-    """Activate courier account"""
-    try:
-        uid = force_str(urlsafe_base64_decode(uidb64))
-        courier = CourierUser.objects.get(pk=uid)
-    except (TypeError, ValueError, OverflowError, CourierUser.DoesNotExist):
-        courier = None
-    
-    if courier is not None and account_activation_token.check_token(courier, token):
-        courier.is_email_verified = True
+    """Verify a courier from the emailed link and queue it for approval, then redirect to the web app."""
+    def queue_for_approval(courier):
         courier.approval_status = 'pending'
-        courier.save()
-        return render(request, "parcel_backends/activation_page.html", {
-            "message": "Your courier account has been activated successfully. Awaiting approval."
-        })
-    else:
-        return render(request, "parcel_backends/activation_page.html", {
-            "message": "The activation link is invalid or expired"
-        })
+        return ['approval_status']
 
-def courier_reset(request, uidb64, token):
-    """Courier password reset confirmation page"""
-    try:
-        uid = force_str(urlsafe_base64_decode(uidb64))
-        courier = CourierUser.objects.get(pk=uid)
-    except (TypeError, ValueError, OverflowError, CourierUser.DoesNotExist):
-        courier = None
-    
-    if courier is not None and account_activation_token.check_token(courier, token):
-        return render(request, "parcel_backends/password_reset_page.html", {
-            "message": "Reset Your Password",
-            "type": "courier",
-            "permit": "true",
-            "user": courier.email
-        })
-    else:
-        return render(request, "parcel_backends/password_reset_page.html", {
-            "message": "The link has expired",
-            "permit": "false"
-        })
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    return activate_from_email_link(CourierUser, uidb64, token, role='courier', on_activate=queue_for_approval)
 
 # import datetime
 # from django.shortcuts import render, get_object_or_404

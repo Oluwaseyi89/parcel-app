@@ -1,7 +1,5 @@
 import datetime
-from django.shortcuts import render, get_object_or_404
-from django.utils.encoding import force_str
-from django.utils.http import urlsafe_base64_decode
+from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
@@ -17,9 +15,9 @@ from .serializers import (
     VendorLoginSerializer, VendorProfileSerializer, VendorModerationSerializer
 )
 from email_service.services import EmailService
-from core.tokens import account_activation_token
 from authentication.session_contract import attach_session_cookies
 from authentication.models import VendorUser
+from core.activation import activate_from_email_link
 
 class TempVendorRegistrationView(APIView):
     permission_classes = [AllowAny]
@@ -153,64 +151,12 @@ class VendorProfileView(APIView):
 
 # Keep these function-based views for email activation
 def activate_vendor(request, uidb64, token):
-    """Activate vendor account"""
-    try:
-        uid = force_str(urlsafe_base64_decode(uidb64))
-        vendor = VendorUser.objects.get(pk=uid)
-    except (TypeError, ValueError, OverflowError, VendorUser.DoesNotExist):
-        vendor = None
-    
-    if vendor is not None and account_activation_token.check_token(vendor, token):
-        vendor.is_email_verified = True
+    """Verify a vendor from the emailed link and queue it for approval, then redirect to the web app."""
+    def queue_for_approval(vendor):
         vendor.approval_status = 'pending'
-        vendor.save()
-        return render(request, "parcel_backends/activation_page.html", {
-            "message": "Your vendor account has been activated successfully. Awaiting approval."
-        })
-    else:
-        return render(request, "parcel_backends/activation_page.html", {
-            "message": "The activation link is invalid or expired"
-        })
+        return ['approval_status']
 
-def vendor_reset(request, uidb64, token):
-    """Vendor password reset confirmation page"""
-    try:
-        uid = force_str(urlsafe_base64_decode(uidb64))
-        vendor = VendorUser.objects.get(pk=uid)
-    except (TypeError, ValueError, OverflowError, VendorUser.DoesNotExist):
-        vendor = None
-    
-    if vendor is not None and account_activation_token.check_token(vendor, token):
-        return render(request, "parcel_backends/password_reset_page.html", {
-            "message": "Reset Your Password",
-            "type": "vendor",
-            "permit": "true",
-            "user": vendor.email
-        })
-    else:
-        return render(request, "parcel_backends/password_reset_page.html", {
-            "message": "The link has expired",
-            "permit": "false"
-        })
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    return activate_from_email_link(VendorUser, uidb64, token, role='vendor', on_activate=queue_for_approval)
 
 # import datetime
 # from django.shortcuts import render, get_object_or_404

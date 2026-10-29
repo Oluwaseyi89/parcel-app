@@ -4,7 +4,7 @@ from .views import (
     TempCourierRegistrationView, CourierApprovalView, TempCourierListView,
     CourierListView, CourierLoginView, CourierProfileView,
     CourierLocationUpdateView, CourierStatusUpdateView, AvailableCouriersView,
-    activate_courier, courier_reset
+    activate_courier
 )
 
 # CRITICAL: Links this routing fleet to the 'couriers' block in project urls.py
@@ -31,7 +31,4 @@ urlpatterns = [
     path('location/update/', CourierLocationUpdateView.as_view(), name="courier_location_update"),
     path('status/update/', CourierStatusUpdateView.as_view(), name="courier_status_update"),
     path('available/', AvailableCouriersView.as_view(), name="available_couriers"),
-    
-    # Password Reset -> /api/v1/couriers/password-reset/...
-    path('password-reset/<uidb64>/<token>/', courier_reset, name="courier_password_reset"),
 ]

@@ -1,5 +1,6 @@
 # messaging/views.py
-from datetime import timezone
+from django.utils import timezone
+from django.utils.dateparse import parse_date, parse_datetime
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -233,7 +234,11 @@ class BulkEmailView(APIView):
             description=serializer.validated_data.get('description', ''),
             template=serializer.validated_data['template'],
             template_variables=serializer.validated_data.get('template_data', {}),
-            recipient_filter=serializer.validated_data.get('recipient_filter', {}),
+            # Explicit addresses ride along in the filter; process_email_queue expands both.
+            recipient_filter={
+                **serializer.validated_data.get('recipient_filter', {}),
+                'emails': serializer.validated_data.get('recipient_emails', []),
+            },
             scheduled_for=serializer.validated_data.get('scheduled_for', timezone.now()),
             created_by=request.user
         )
@@ -242,6 +247,8 @@ class BulkEmailView(APIView):
         if queue.scheduled_for <= timezone.now():
             from .tasks import process_email_queue_task
             process_email_queue_task.delay(queue.id)
+            # Without a broker the task runs inline; reload so the response shows its outcome.
+            queue.refresh_from_db()
         
         return Response({
             "status": "success",
@@ -353,10 +360,19 @@ class EmailStatsView(APIView):
     permission_classes = [IsAuthenticated, IsAdminOrSuperAdmin]
     
     def get(self, request):
-        start_date = request.query_params.get('start_date')
-        end_date = request.query_params.get('end_date')
+        bounds = {}
+        for param in ('start_date', 'end_date'):
+            raw = request.query_params.get(param)
+            if raw:
+                value = parse_datetime(raw) or parse_date(raw)
+                if value is None:
+                    return Response({
+                        "status": "error",
+                        "message": f"{param} must be an ISO date or datetime."
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                bounds[param] = value
         
-        stats = StatsService.get_email_stats(start_date, end_date)
+        stats = StatsService.get_email_stats(bounds.get('start_date'), bounds.get('end_date'))
         serializer = EmailStatsSerializer(stats)
         
         return Response({
