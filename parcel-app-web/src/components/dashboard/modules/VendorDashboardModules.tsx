@@ -8,7 +8,7 @@ import { DashboardFeedback } from "@/components/dashboard/DashboardUi";
 import { formatNaira } from "@/lib/productHelpers";
 import type { Product, User, ApiResponse, ApiListResponse, BankDetails, ProductsApprovalResponse, CategoryOption } from "@/lib/types";
 
-type VendorTab = "products" | "deals" | "transactions" | "resolutions";
+type VendorTab = "products" | "deals" | "transactions";
 
 interface VendorDealItem {
   dispatch_item_id: number | string;
@@ -23,48 +23,12 @@ interface VendorDealItem {
 
 
 
-interface ResolutionItem {
-  id: number;
-  orderId: string;
-  customerName: string;
-  issueType: "delivery" | "quality" | "payment" | "other";
-  description: string;
-  status: "pending" | "in_progress" | "resolved";
-  priority: "low" | "medium" | "high";
-  amount: number;
-  vendorResponse?: string;
-}
-
 const initialBank: BankDetails = {
   bank_name: "",
   account_type: "",
   account_name: "",
   account_no: "",
 };
-
-const sampleResolutions: ResolutionItem[] = [
-  {
-    id: 1,
-    orderId: "ORD-9001",
-    customerName: "Amina Yusuf",
-    issueType: "delivery",
-    description: "Package arrived late and seal looked tampered.",
-    status: "pending",
-    priority: "high",
-    amount: 54000,
-  },
-  {
-    id: 2,
-    orderId: "ORD-9002",
-    customerName: "Kola Adebayo",
-    issueType: "quality",
-    description: "Received wrong size for the requested model.",
-    status: "in_progress",
-    priority: "medium",
-    amount: 28000,
-    vendorResponse: "Warehouse team is validating lot batch now.",
-  },
-];
 
 export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; user: User | null }) {
   const { request: readRequest, isLoading: isReadLoading, error: readError } = useApi();
@@ -115,8 +79,6 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ edit_price: "", edit_qty: "", edit_disc: "" });
 
-  const [resolutions, setResolutions] = useState<ResolutionItem[]>(sampleResolutions);
-  const [resolutionReply, setResolutionReply] = useState("");
 
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -297,28 +259,6 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to update product.");
     }
-  }
-
-  async function markResolutionResolved(id: number) {
-    setResolutions((prev) => prev.map((item) => (item.id === id ? { ...item, status: "resolved" } : item)));
-    setMessage("Resolution marked as resolved.");
-  }
-
-  function sendResolutionReply(id: number) {
-    if (!resolutionReply.trim()) {
-      setError("Write a response before sending.");
-      return;
-    }
-
-    setResolutions((prev) =>
-      prev.map((item) =>
-        item.id === id
-          ? { ...item, status: "in_progress", vendorResponse: resolutionReply }
-          : item,
-      ),
-    );
-    setResolutionReply("");
-    setMessage("Response sent.");
   }
 
   async function saveBank(method: "POST" | "PATCH") {
@@ -507,29 +447,5 @@ export default function VendorDashboardModules({ tab, user }: { tab: VendorTab; 
     );
   }
 
-  return (
-    <div className="space-y-4">
-      <DashboardFeedback message={message} error={activeError} />
-
-      {resolutions.map((item) => (
-        <div key={item.id} className="rounded-lg border border-zinc-200 p-4">
-          <div className="flex items-center justify-between">
-            <p className="font-semibold text-zinc-900">{item.orderId} - {item.customerName}</p>
-            <span className="rounded-full bg-zinc-100 px-2 py-1 text-xs">{item.status}</span>
-          </div>
-          <p className="mt-1 text-sm text-zinc-600">Issue: {item.issueType}</p>
-          <p className="text-sm text-zinc-600">Priority: {item.priority}</p>
-          <p className="text-sm text-zinc-600">Amount: {formatNaira(item.amount)}</p>
-          <p className="mt-2 text-sm text-zinc-700">{item.description}</p>
-          {item.vendorResponse && <p className="mt-2 rounded bg-zinc-50 p-2 text-xs text-zinc-700">Response: {item.vendorResponse}</p>}
-
-          <div className="mt-3 flex flex-wrap gap-2">
-            <input value={resolutionReply} onChange={(e) => setResolutionReply(e.target.value)} placeholder="Write response" className="min-w-55 flex-1 rounded border border-zinc-300 px-3 py-1.5 text-sm" />
-            <button onClick={() => sendResolutionReply(item.id)} className="rounded border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-700">Send Reply</button>
-            <button onClick={() => markResolutionResolved(item.id)} className="rounded bg-danger px-3 py-1.5 text-xs font-medium text-white">Mark Resolved</button>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
+  return null;
 }

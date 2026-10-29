@@ -30,8 +30,12 @@ function redirectToHome(request: NextRequest, fromPath: string): NextResponse {
   return NextResponse.redirect(url);
 }
 
-function getAuthApiBase(): string {
-  return process.env.AUTH_API_BASE?.trim() || process.env.NEXT_PUBLIC_API_BASE?.trim() || "http://localhost:7000";
+// Middleware runs on the server, so it calls the backend directly (not through the rewrite),
+// forwarding the browser's first-party cookies. AUTH_API_BASE is the older name for this setting.
+function getAuthApiBase(): string | null {
+  const configured = (process.env.BACKEND_API_URL || process.env.AUTH_API_BASE)?.trim().replace(/\/+$/, "");
+  if (configured) return configured;
+  return process.env.NODE_ENV === "production" ? null : "http://localhost:7000";
 }
 
 async function getTrustedActiveRole(request: NextRequest): Promise<"customer" | "vendor" | "courier" | "admin" | null> {
@@ -39,8 +43,13 @@ async function getTrustedActiveRole(request: NextRequest): Promise<"customer" | 
     return null;
   }
 
+  const apiBase = getAuthApiBase();
+  if (!apiBase) {
+    return null;
+  }
+
   const cookieHeader = request.headers.get("cookie") || "";
-  const meUrl = `${getAuthApiBase()}/api/v1/auth/me/`;
+  const meUrl = `${apiBase}/api/v1/auth/me/`;
   const abort = new AbortController();
   const timeout = setTimeout(() => abort.abort(), 4_000);
 
@@ -68,7 +77,7 @@ async function getTrustedActiveRole(request: NextRequest): Promise<"customer" | 
   }
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (!isProtectedRoute(pathname)) {

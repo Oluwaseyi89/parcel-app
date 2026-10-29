@@ -5,7 +5,6 @@ import { Eye, Package, ShoppingCart, Shield, Star, Store, Tag, Truck } from "luc
 import { useRouter } from "next/navigation";
 
 import { apiRequest } from "@/lib/api";
-import { demoProducts } from "@/lib/demoProducts";
 import { storage } from "@/lib/storage";
 import { useCartStore } from "@/lib/stores/cartStore";
 import { useProductStore } from "@/lib/stores/productStore";
@@ -23,8 +22,14 @@ import {
   getProductStock,
 } from "@/lib/productHelpers";
 
-function productImageFallback(name: string): string {
-  return `https://via.placeholder.com/300x300?text=${encodeURIComponent(name)}`;
+const PRODUCT_IMAGE_PLACEHOLDER = "/placeholder-product.svg";
+const AVATAR_PLACEHOLDER = "/placeholder-avatar.svg";
+
+// Swap a broken image for a local placeholder once; guarding avoids an onError loop.
+function showImagePlaceholder(event: React.SyntheticEvent<HTMLImageElement>, placeholder: string) {
+  if (!event.currentTarget.src.endsWith(placeholder)) {
+    event.currentTarget.src = placeholder;
+  }
 }
 
 interface ProductListResponse {
@@ -49,15 +54,10 @@ export default function ProductGrid() {
 
     try {
       const result = await apiRequest<ProductListResponse>("/product/", { method: "GET" });
-      const resolvedProducts = result.data;
-      if (resolvedProducts && resolvedProducts.length > 0) {
-        setProducts(resolvedProducts);
-      } else {
-        setProducts(demoProducts);
-      }
+      setProducts(result.data ?? []);
     } catch (fetchError) {
       setError(fetchError instanceof Error ? fetchError.message : "Failed to fetch products.");
-      setProducts(demoProducts);
+      setProducts([]);
     } finally {
       setLoading(false);
     }
@@ -85,8 +85,6 @@ export default function ProductGrid() {
     });
   }
 
-  const showDemoBadge = products.length > 0 && products.every((product) => Number(product.id) <= 8);
-
   return (
     <div className="min-h-screen bg-background">
       <section className="bg-linear-to-r from-danger to-orange-500 py-14 text-white">
@@ -113,12 +111,6 @@ export default function ProductGrid() {
       </section>
 
       <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        {showDemoBadge && (
-          <div className="mb-6 inline-flex items-center rounded-full bg-amber-100 px-4 py-2 text-sm font-medium text-amber-800">
-            <Shield className="mr-2 h-4 w-4" />
-            Showing demo products while backend data is unavailable
-          </div>
-        )}
 
         {loading && (
           <div className="flex items-center justify-center py-12">
@@ -165,9 +157,9 @@ export default function ProductGrid() {
                     <img
                       alt={name}
                       className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-                      src={getProductPhoto(product) || productImageFallback(name)}
+                      src={getProductPhoto(product) || PRODUCT_IMAGE_PLACEHOLDER}
                       onError={(event) => {
-                        event.currentTarget.src = productImageFallback(name);
+                        showImagePlaceholder(event, PRODUCT_IMAGE_PLACEHOLDER);
                       }}
                     />
                     <div className="absolute left-3 top-3">
@@ -241,7 +233,7 @@ export default function ProductGrid() {
                                 className="h-full w-full object-cover"
                                 src={String(product.vendor_photo)}
                                 onError={(event) => {
-                                  event.currentTarget.src = "https://via.placeholder.com/32x32?text=V";
+                                  showImagePlaceholder(event, AVATAR_PLACEHOLDER);
                                 }}
                               />
                             ) : (

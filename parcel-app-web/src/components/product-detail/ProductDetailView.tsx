@@ -16,7 +16,6 @@ import {
   User,
 } from "lucide-react";
 
-import { demoProducts } from "@/lib/demoProducts";
 import {
   formatNaira,
   getDiscountedPrice,
@@ -34,9 +33,7 @@ import { useProductStore } from "@/lib/stores/productStore";
 import { storage } from "@/lib/storage";
 import type { Product } from "@/lib/types";
 
-function productImageFallback(name: string): string {
-  return `https://via.placeholder.com/600x600?text=${encodeURIComponent(name)}`;
-}
+const PRODUCT_IMAGE_PLACEHOLDER = "/placeholder-product.svg";
 
 export default function ProductDetailView() {
   const router = useRouter();
@@ -64,12 +61,7 @@ export default function ProductDetailView() {
       return selectedProduct;
     }
 
-    const fromStorage = storage.getProductView();
-    if (fromStorage) {
-      return fromStorage;
-    }
-
-    return demoProducts[0] ?? null;
+    return storage.getProductView() ?? null;
   }, [selectedProduct]);
 
   const stock = product ? Math.max(getProductStock(product), 1) : 0;
@@ -171,7 +163,7 @@ export default function ProductDetailView() {
   const name = getProductName(product);
   const model = getProductModel(product);
   const description = getProductDescription(product);
-  const photo = getProductPhoto(product) || productImageFallback(name);
+  const photo = getProductPhoto(product) || PRODUCT_IMAGE_PLACEHOLDER;
   const rating = getProductRating(product);
   const discount = getProductDiscount(product);
   const price = getProductPrice(product);
@@ -203,7 +195,9 @@ export default function ProductDetailView() {
                   className="h-auto w-full rounded-xl object-cover shadow-md"
                   src={photo}
                   onError={(event) => {
-                    event.currentTarget.src = productImageFallback(name);
+                    if (!event.currentTarget.src.endsWith(PRODUCT_IMAGE_PLACEHOLDER)) {
+                      event.currentTarget.src = PRODUCT_IMAGE_PLACEHOLDER;
+                    }
                   }}
                 />
                 <span className="absolute left-4 top-4 rounded-full bg-green-500 px-4 py-2 text-sm font-bold text-white">

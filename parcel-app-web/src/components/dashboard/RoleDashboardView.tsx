@@ -2,11 +2,16 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type ComponentType } from "react";
-import { CreditCard, Home, LogOut, Menu, MessageSquare, Package, ShoppingCart, Tag, Truck, User, X } from "lucide-react";
+import { Bell, ClipboardList, CreditCard, Home, LogOut, MapPin, Menu, MessageSquare, Navigation, Package, ShoppingCart, Tag, Truck, User, X } from "lucide-react";
 
 import CourierDashboardModules from "@/components/dashboard/modules/CourierDashboardModules";
 import CustomerDashboardModules from "@/components/dashboard/modules/CustomerDashboardModules";
 import VendorDashboardModules from "@/components/dashboard/modules/VendorDashboardModules";
+import CourierAvailabilityPanel from "@/components/dashboard/shared/CourierAvailabilityPanel";
+import NotificationsPanel from "@/components/dashboard/shared/NotificationsPanel";
+import OrdersPanel from "@/components/dashboard/shared/OrdersPanel";
+import ProfilePanel from "@/components/dashboard/shared/ProfilePanel";
+import ShippingAddressesPanel from "@/components/dashboard/shared/ShippingAddressesPanel";
 import { useRequireAuth } from "@/lib/hooks/useRequireAuth";
 import { useAuthStore } from "@/lib/stores/authStore";
 
@@ -22,24 +27,34 @@ type TabItem = {
 const TAB_CONFIG: Record<Role, TabItem[]> = {
   customer: [
     { key: "carts", label: "Carts", icon: ShoppingCart, description: "Review and manage your cart items." },
-    { key: "orders", label: "Orders", icon: Package, description: "Track your placed orders and current status." },
+    { key: "orders", label: "Orders", icon: ClipboardList, description: "Track your placed orders and current status." },
     { key: "deliveries", label: "Deliveries", icon: Truck, description: "Check delivery updates and ETAs." },
-    { key: "notifications", label: "Notifications", icon: MessageSquare, description: "Read system and order notifications." },
+    { key: "addresses", label: "Addresses", icon: MapPin, description: "Manage your saved shipping addresses." },
+    { key: "notifications", label: "Notifications", icon: Bell, description: "Read system and order notifications." },
     { key: "complaints", label: "Complaints", icon: MessageSquare, description: "Create and monitor complaint tickets." },
+    { key: "profile", label: "Profile", icon: User, description: "Your account details." },
   ],
   vendor: [
     { key: "products", label: "Products", icon: Package, description: "Add, edit, and review your product catalog." },
+    { key: "orders", label: "Orders", icon: ClipboardList, description: "Confirm and prepare orders for your products." },
     { key: "deals", label: "Deals", icon: Tag, description: "Manage promotions and hot deal campaigns." },
-    { key: "transactions", label: "Transactions", icon: CreditCard, description: "Inspect payouts and sales transactions." },
-    { key: "resolutions", label: "Resolutions", icon: MessageSquare, description: "Respond to customer issues and resolutions." },
+    { key: "transactions", label: "Transactions", icon: CreditCard, description: "Manage the bank account your payouts go to." },
+    { key: "notifications", label: "Notifications", icon: Bell, description: "Read system and order notifications." },
+    { key: "profile", label: "Profile", icon: User, description: "Your business account details." },
   ],
   courier: [
     { key: "deals", label: "Deals", icon: Tag, description: "See courier deal assignments and availability." },
     { key: "dispatches", label: "Dispatches", icon: Truck, description: "Handle active dispatches and route statuses." },
-    { key: "transactions", label: "Transactions", icon: CreditCard, description: "Review earnings and completed payouts." },
-    { key: "resolutions", label: "Resolutions", icon: MessageSquare, description: "Handle delivery dispute resolutions." },
+    { key: "orders", label: "Orders", icon: ClipboardList, description: "Orders currently assigned to you for delivery." },
+    { key: "availability", label: "Availability", icon: Navigation, description: "Set your availability and share your location." },
+    { key: "transactions", label: "Transactions", icon: CreditCard, description: "Manage the bank account your payouts go to." },
+    { key: "notifications", label: "Notifications", icon: Bell, description: "Read system and order notifications." },
+    { key: "profile", label: "Profile", icon: User, description: "Your courier account details." },
   ],
 };
+
+// Tabs rendered by role-agnostic panels; everything else is handled by the role's module.
+const SHARED_PANEL_TABS = new Set(["orders", "notifications", "profile", "addresses", "availability"]);
 
 const REDIRECT_PATH: Record<Role, string> = {
   customer: "/customer",
@@ -265,23 +280,19 @@ export default function RoleDashboardView({ role }: { role: Role }) {
           </div>
 
           <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
-            {role === "customer" && (
-              <CustomerDashboardModules
-                tab={activeTab as "carts" | "orders" | "deliveries" | "notifications" | "complaints"}
-                user={user}
-              />
+            {activeTab === "orders" && <OrdersPanel role={role} vendorId={role === "vendor" ? (user?.id as number | string | undefined) : undefined} />}
+            {activeTab === "notifications" && <NotificationsPanel />}
+            {activeTab === "profile" && <ProfilePanel role={role} />}
+            {activeTab === "addresses" && <ShippingAddressesPanel defaultEmail={String(user?.email ?? "")} />}
+            {activeTab === "availability" && <CourierAvailabilityPanel />}
+            {!SHARED_PANEL_TABS.has(activeTab) && role === "customer" && (
+              <CustomerDashboardModules tab={activeTab as "carts" | "deliveries" | "complaints"} user={user} />
             )}
-            {role === "vendor" && (
-              <VendorDashboardModules
-                tab={activeTab as "products" | "deals" | "transactions" | "resolutions"}
-                user={user}
-              />
+            {!SHARED_PANEL_TABS.has(activeTab) && role === "vendor" && (
+              <VendorDashboardModules tab={activeTab as "products" | "deals" | "transactions"} user={user} />
             )}
-            {role === "courier" && (
-              <CourierDashboardModules
-                tab={activeTab as "deals" | "dispatches" | "transactions" | "resolutions"}
-                user={user}
-              />
+            {!SHARED_PANEL_TABS.has(activeTab) && role === "courier" && (
+              <CourierDashboardModules tab={activeTab as "deals" | "dispatches" | "transactions"} user={user} />
             )}
           </div>
         </main>
