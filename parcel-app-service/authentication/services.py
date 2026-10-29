@@ -7,6 +7,10 @@ from django.contrib.contenttypes.models import ContentType
 from email_service.services import EmailService  
 from .models import CustomerUser, UserSession, PasswordResetToken, AuditLog, AdminUser
 from core.tokens import account_activation_token
+from core.frontend import frontend_url
+
+PASSWORD_RESET_TOKEN_MINUTES = 60
+PASSWORD_RESET_REQUESTED_MESSAGE = "If an account exists for that email, a password reset link has been sent."
 
 
 class CustomerService:
@@ -115,16 +119,20 @@ class CustomerService:
     
     @staticmethod
     def initiate_password_reset(email, request=None):
-        """Initiate password reset process"""
+        """Initiate password reset process.
+
+        Always reports success with the same message, whether or not the email belongs to an
+        account, so the endpoint cannot be used to discover registered addresses.
+        """
         email = email.lower()
         try:
             customer = CustomerUser.objects.get(email=email, is_active=True)
         except CustomerUser.DoesNotExist:
-            return False, "Customer not found"
+            return True, PASSWORD_RESET_REQUESTED_MESSAGE
         
         # Generate reset token
         token = secrets.token_urlsafe(32)
-        expires_at = timezone.now() + timedelta(hours=1)
+        expires_at = timezone.now() + timedelta(minutes=PASSWORD_RESET_TOKEN_MINUTES)
         
         # Get content type for customer
         content_type = ContentType.objects.get_for_model(customer)
@@ -136,16 +144,16 @@ class CustomerService:
             expires_at=expires_at
         )
         
-        # Send reset email using existing EmailService. The API contract relies
-        # on the persisted PasswordResetToken above; email delivery is best-effort.
+        # Delivery is best-effort: EmailService logs failures instead of raising, and the
+        # response stays the same either way.
         EmailService.send_password_reset_email(
             customer,
-            request,
-            'emails/password_reset.html',
+            frontend_url('/reset-password', token=token),
             email_type='customer',
+            expires_in_minutes=PASSWORD_RESET_TOKEN_MINUTES,
         )
         
-        return True, "Password reset email sent"
+        return True, PASSWORD_RESET_REQUESTED_MESSAGE
     
     @staticmethod
     def reset_password(token, new_password, confirm_password):
