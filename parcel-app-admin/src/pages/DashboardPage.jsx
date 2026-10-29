@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import PerformanceStats from '../components/dashboard/PerformanceStats'
 import useToast from '../hooks/useToast'
 import { apiRequest } from '../services/api'
 
@@ -97,6 +98,8 @@ export default function DashboardPage({ token }) {
           color="#d4a574"
         />
       </div>
+
+      <PerformanceStats token={token} />
 
       {recentActivity?.pending_vendors?.length > 0 ? (
         <div className="activity-section">
