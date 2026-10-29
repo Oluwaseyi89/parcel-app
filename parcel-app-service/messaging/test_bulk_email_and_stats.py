@@ -129,6 +129,7 @@ class EmailStatsTests(TestCase):
 		self.assertEqual(data['click_rate'], 25.0)
 		self.assertEqual(data['bounce_rate'], 25.0)
 		self.assertEqual(len(data['recent_activity']), 5)
+		self.assertTrue(all('id' in row for row in data['recent_activity']))
 
 	def test_date_range_and_invalid_dates(self):
 		old = self._message(status='sent', sent_at=timezone.now())
