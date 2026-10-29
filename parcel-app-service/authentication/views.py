@@ -36,7 +36,7 @@ from complaints.models import CustomerComplaint
 from banking.models import VendorBankDetail, CourierBankDetail
 from banking.serializers import AdminCourierBankUpdateSerializer, AdminVendorBankUpdateSerializer
 from .serializers import (
-    CustomerRegistrationSerializer, CustomerLoginSerializer,
+    CustomerRegistrationSerializer, CustomerLoginSerializer, ResendActivationSerializer,
     ForgotPasswordSerializer, CustomerPasswordResetSerializer,
     CustomerUpdateSerializer
 )
@@ -1286,6 +1286,32 @@ class CustomerSaveResetView(APIView):
             "status": "error",
             "errors": serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
+
+class ResendActivationView(APIView):
+    """Send a new activation link to an unverified customer, vendor or courier.
+
+    Always answers the same way, so it cannot be used to discover accounts or their status.
+    """
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'auth'
+
+    MODELS = {'customer': CustomerUser, 'vendor': VendorUser, 'courier': CourierUser}
+    MESSAGE = "If that account exists and still needs verifying, a new activation link has been sent."
+
+    def post(self, request):
+        serializer = ResendActivationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        role = serializer.validated_data['role']
+
+        user = self.MODELS[role].objects.filter(
+            email__iexact=serializer.validated_data['email'], is_active=True
+        ).first()
+        if user is not None and not user.is_email_verified:
+            EmailService.send_activation_email(user, request, email_type=role)
+
+        return Response({"status": "success", "message": self.MESSAGE})
+
 
 # Also add these function-based views
 from django.utils.encoding import force_str
