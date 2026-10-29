@@ -499,7 +499,7 @@ class StatsService:
         
         # Recent activity
         recent_activity = emails.order_by('-created_at')[:10].values(
-            'subject', 'status', 'sent_at', 'open_count'
+            'id', 'subject', 'status', 'sent_at', 'open_count'
         )
         
         return {
