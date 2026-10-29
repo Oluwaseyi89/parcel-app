@@ -1,4 +1,4 @@
-import { middleware } from "../middleware";
+import { proxy } from "./proxy";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
 const ROUTE_COOKIE_CASES = [
@@ -64,7 +64,7 @@ describe("middleware regression: role dashboard guards", () => {
         json: async () => ({ data: { active_role: wrongRole } }),
       } as Response);
 
-      const response = await middleware(makeRequest(route, { auth_session: "valid-token" }) as never);
+      const response = await proxy(makeRequest(route, { auth_session: "valid-token" }) as never);
 
       expect(response.status).toBe(307);
       const location = response.headers.get("location") ?? "";
@@ -80,15 +80,15 @@ describe("middleware regression: role dashboard guards", () => {
       json: async () => ({ data: { active_role: requiredRole } }),
     } as Response);
 
-    const response = await middleware(makeRequest(route, { auth_session: "valid-token" }) as never);
+    const response = await proxy(makeRequest(route, { auth_session: "valid-token" }) as never);
 
     expect(response.status).toBe(200);
     expect(response.headers.get("location")).toBeNull();
   });
 
   test("redirects shared protected routes without auth_session cookie", async () => {
-    const cartResponse = await middleware(makeRequest("/cart-check") as never);
-    const paymentResponse = await middleware(makeRequest("/payment") as never);
+    const cartResponse = await proxy(makeRequest("/cart-check") as never);
+    const paymentResponse = await proxy(makeRequest("/payment") as never);
 
     expect(cartResponse.status).toBe(307);
     expect(paymentResponse.status).toBe(307);
@@ -98,7 +98,7 @@ describe("middleware regression: role dashboard guards", () => {
   test("redirects when auth_session exists but /auth/me is unauthorized", async () => {
     vi.mocked(fetch).mockResolvedValueOnce({ ok: false } as Response);
 
-    const response = await middleware(makeRequest("/payment", { auth_session: "expired-token" }) as never);
+    const response = await proxy(makeRequest("/payment", { auth_session: "expired-token" }) as never);
 
     expect(response.status).toBe(307);
   });
@@ -114,15 +114,15 @@ describe("middleware regression: role dashboard guards", () => {
         json: async () => ({ data: { active_role: "vendor" } }),
       } as Response);
 
-    const cartResponse = await middleware(makeRequest("/cart-check", { auth_session: "courier-token" }) as never);
-    const paymentResponse = await middleware(makeRequest("/payment", { auth_session: "vendor-token" }) as never);
+    const cartResponse = await proxy(makeRequest("/cart-check", { auth_session: "courier-token" }) as never);
+    const paymentResponse = await proxy(makeRequest("/payment", { auth_session: "vendor-token" }) as never);
 
     expect(cartResponse.status).toBe(200);
     expect(paymentResponse.status).toBe(200);
   });
 
   test("marker cookies alone do not grant access without trusted auth_session", async () => {
-    const response = await middleware(makeRequest("/courier-dash", { logcour: "1" }) as never);
+    const response = await proxy(makeRequest("/courier-dash", { logcour: "1" }) as never);
 
     expect(response.status).toBe(307);
     expect(fetch).not.toHaveBeenCalled();
