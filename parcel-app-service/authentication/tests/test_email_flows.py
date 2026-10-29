@@ -126,3 +126,45 @@ class ActivationEmailTests(TestCase):
 		message = mail.outbox[0]
 		self.assertEqual(message.content_subtype, 'html')
 		self.assertIn('https://parcel-app-service.onrender.com/api/v1/auth/customer/activate/', message.body)
+
+
+@override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+class ResendActivationTests(TestCase):
+	URL = '/api/v1/auth/resend-activation/'
+
+	def setUp(self):
+		cache.clear()
+		self.client = APIClient()
+
+	def test_unverified_account_gets_a_new_activation_link(self):
+		CustomerUser.objects.create(email='pending@example.com', first_name='P', last_name='C', role='customer')
+
+		response = self.client.post(self.URL, {'email': 'Pending@example.com', 'role': 'customer'}, format='json')
+
+		self.assertEqual(response.status_code, 200)
+		self.assertEqual(len(mail.outbox), 1)
+		self.assertIn('/api/v1/auth/customer/activate/', mail.outbox[0].body)
+
+	def test_vendor_role_uses_the_vendor_activation_link(self):
+		VendorUser.objects.create(email='pending-v@example.com', first_name='P', last_name='V', phone='0880000001', role='vendor')
+
+		self.client.post(self.URL, {'email': 'pending-v@example.com', 'role': 'vendor'}, format='json')
+
+		self.assertIn('/api/v1/vendors/activate/', mail.outbox[0].body)
+
+	def test_verified_and_unknown_accounts_get_the_same_answer_and_no_email(self):
+		CustomerUser.objects.create(email='done@example.com', first_name='D', last_name='C', role='customer', is_email_verified=True)
+
+		verified = self.client.post(self.URL, {'email': 'done@example.com', 'role': 'customer'}, format='json')
+		unknown = self.client.post(self.URL, {'email': 'nobody@example.com', 'role': 'customer'}, format='json')
+		wrong_role = self.client.post(self.URL, {'email': 'done@example.com', 'role': 'courier'}, format='json')
+
+		self.assertEqual({verified.status_code, unknown.status_code, wrong_role.status_code}, {200})
+		self.assertEqual(len({verified.data['message'], unknown.data['message'], wrong_role.data['message']}), 1)
+		self.assertEqual(len(mail.outbox), 0)
+
+	def test_invalid_role_is_rejected(self):
+		response = self.client.post(self.URL, {'email': 'a@example.com', 'role': 'admin'}, format='json')
+
+		self.assertEqual(response.status_code, 400)
+		self.assertIn('role', response.data['errors'])
