@@ -40,6 +40,8 @@ class BulkEmailTests(TestCase):
 		}, format='json')
 
 		self.assertEqual(response.status_code, 201)
+		self.assertEqual(response.data['data']['status'], 'completed')
+		self.assertEqual(response.data['data']['success_count'], 2)
 		queue = EmailQueue.objects.get(name='Launch')
 		self.assertEqual(queue.status, 'completed')
 		self.assertEqual((queue.total_recipients, queue.success_count, queue.failure_count), (2, 2, 0))
