@@ -13,7 +13,7 @@ from .views import (
     AdminBankingListView, AdminBankingUpdateView,
     CustomerRegistrationView, CustomerLoginView, CustomerProfileView,
     activate_customer, dev_verify_email,
-    CustomerResetView, CustomerSaveResetView
+    CustomerResetView, CustomerSaveResetView, ResendActivationView
 )
 
 # CRITICAL: Links this routing fleet to the 'auth' block in project urls.py
@@ -74,6 +74,7 @@ urlpatterns = [
     path('customer/register/', CustomerRegistrationView.as_view(), name="customer_register"),
     path('customer/register/mobile/', csrf_exempt(CustomerRegistrationView.as_view()), name="customer_register_mobile"),
     path('customer/activate/<uidb64>/<token>/', activate_customer, name="activate_customer"),
+    path('resend-activation/', ResendActivationView.as_view(), name="resend_activation"),
     path('dev/verify-email/<str:role>/<uidb64>/<token>/', dev_verify_email, name='dev_verify_email'),
     
     path('customer/login/', CustomerLoginView.as_view(), name="customer_login"),
