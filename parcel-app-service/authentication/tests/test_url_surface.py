@@ -68,6 +68,10 @@ class HtmlPageRemovalTests(SimpleTestCase):
 			'/api/v1/order/view/',
 			'/api/v1/product/view/',
 			'/api/v1/geolocation/calculate/',
+			# Legacy uid/token reset pages, replaced by the web app's /reset-password?token= flow.
+			'/api/v1/auth/customer/password/reset/uid/token/',
+			'/api/v1/vendors/password-reset/uid/token/',
+			'/api/v1/couriers/password-reset/uid/token/',
 		]:
 			with self.subTest(path=path):
 				with self.assertRaises(Resolver404):
@@ -76,11 +80,8 @@ class HtmlPageRemovalTests(SimpleTestCase):
 	def test_email_link_targets_still_resolve(self):
 		for path in [
 			'/api/v1/auth/customer/activate/uid/token/',
-			'/api/v1/auth/customer/password/reset/uid/token/',
 			'/api/v1/vendors/activate/uid/token/',
-			'/api/v1/vendors/password-reset/uid/token/',
 			'/api/v1/couriers/activate/uid/token/',
-			'/api/v1/couriers/password-reset/uid/token/',
 			'/api/v1/geolocation/calculate/api/',
 		]:
 			with self.subTest(path=path):
