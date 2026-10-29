@@ -12,7 +12,7 @@ from .views import (
     AdminComplaintListView, AdminComplaintUpdateView,
     AdminBankingListView, AdminBankingUpdateView,
     CustomerRegistrationView, CustomerLoginView, CustomerProfileView,
-    activate_customer, customer_reset, dev_verify_email,
+    activate_customer, dev_verify_email,
     CustomerResetView, CustomerSaveResetView
 )
 
@@ -84,7 +84,6 @@ urlpatterns = [
     
     path('customer/password/reset/', CustomerResetView.as_view(), name="customer_password_reset"),
     path('customer/password/reset/mobile/', csrf_exempt(CustomerResetView.as_view()), name="customer_password_reset_mobile"),
-    path('customer/password/reset/<uidb64>/<token>/', customer_reset, name="customer_reset_confirm"),
     path('customer/password/save/', CustomerSaveResetView.as_view(), name="customer_password_save"),
     
     path('customers/', AdminCustomerListView.as_view(), name="customer_list"),
