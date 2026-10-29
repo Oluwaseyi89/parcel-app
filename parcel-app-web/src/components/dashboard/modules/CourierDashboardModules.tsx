@@ -8,7 +8,7 @@ import { DashboardFeedback } from "@/components/dashboard/DashboardUi";
 import { formatNaira } from "@/lib/productHelpers";
 import type { User, ApiResponse, BankDetails } from "@/lib/types";
 
-type CourierTab = "deals" | "dispatches" | "transactions" | "resolutions";
+type CourierTab = "deals" | "dispatches" | "transactions";
 
 interface CourierDeal {
   dispatch_id: number | string;
@@ -46,38 +46,12 @@ interface CourierDispatch {
 
 
 
-interface CourierTransaction {
-  id: number;
-  reference: string;
-  amount: number;
-  status: "pending" | "settled";
-  date: string;
-}
-
-interface CourierResolutionCard {
-  id: number;
-  title: string;
-  description: string;
-}
-
 const initialBank: BankDetails = {
   bank_name: "",
   account_type: "",
   account_name: "",
   account_no: "",
 };
-
-const sampleTransactions: CourierTransaction[] = [
-  { id: 1, reference: "CR-1001", amount: 12000, status: "settled", date: "2026-03-18" },
-  { id: 2, reference: "CR-1002", amount: 8500, status: "settled", date: "2026-03-17" },
-  { id: 3, reference: "CR-1003", amount: 5500, status: "pending", date: "2026-03-16" },
-];
-
-const resolutionCards: CourierResolutionCard[] = [
-  { id: 1, title: "Issue Resolution", description: "Track and resolve delivery issues." },
-  { id: 2, title: "Customer Feedback", description: "Review ratings and comments from customers." },
-  { id: 3, title: "Performance Metrics", description: "Monitor delivery performance trends." },
-];
 
 export default function CourierDashboardModules({ tab, user }: { tab: CourierTab; user: User | null }) {
   const { request: readRequest, isLoading: isReadLoading, error: readError } = useApi();
@@ -87,7 +61,6 @@ export default function CourierDashboardModules({ tab, user }: { tab: CourierTab
 
   const [bank, setBank] = useState<BankDetails>(initialBank);
   const [fetchedBank, setFetchedBank] = useState<Partial<BankDetails>>({});
-  const [transactions] = useState<CourierTransaction[]>(sampleTransactions);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -335,17 +308,9 @@ export default function CourierDashboardModules({ tab, user }: { tab: CourierTab
   }
 
   if (tab === "transactions") {
-    const total = transactions.reduce((sum, row) => sum + row.amount, 0);
-
     return (
       <div className="space-y-4">
         <DashboardFeedback message={message} error={activeError} isLoading={isReadLoading} />
-
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div className="rounded-lg border border-zinc-200 p-3 text-sm">Total records: <strong>{transactions.length}</strong></div>
-          <div className="rounded-lg border border-zinc-200 p-3 text-sm">Settled: <strong>{transactions.filter((row) => row.status === "settled").length}</strong></div>
-          <div className="rounded-lg border border-zinc-200 p-3 text-sm">Total amount: <strong>{formatNaira(total)}</strong></div>
-        </div>
 
         <div className="grid gap-3 md:grid-cols-2">
           <input placeholder={fetchedBank.bank_name || "Bank Name"} value={bank.bank_name} onChange={(e) => setBank((prev) => ({ ...prev, bank_name: e.target.value }))} className="rounded-lg border border-zinc-300 px-3 py-2.5" />
@@ -362,40 +327,9 @@ export default function CourierDashboardModules({ tab, user }: { tab: CourierTab
           <button onClick={() => saveBank("PATCH")} className="rounded-lg bg-danger px-4 py-2 text-sm font-medium text-white hover:brightness-95">Update</button>
         </div>
 
-        <div className="overflow-x-auto rounded-lg border border-zinc-200">
-          <table className="min-w-full text-sm">
-            <thead className="bg-zinc-50 text-left text-zinc-600">
-              <tr>
-                <th className="px-3 py-2">Reference</th>
-                <th className="px-3 py-2">Amount</th>
-                <th className="px-3 py-2">Status</th>
-                <th className="px-3 py-2">Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {transactions.map((row) => (
-                <tr key={row.id} className="border-t border-zinc-200">
-                  <td className="px-3 py-2">{row.reference}</td>
-                  <td className="px-3 py-2">{formatNaira(row.amount)}</td>
-                  <td className="px-3 py-2">{row.status}</td>
-                  <td className="px-3 py-2">{new Date(row.date).toLocaleDateString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
       </div>
     );
   }
 
-  return (
-    <div className="space-y-4">
-      {resolutionCards.map((card) => (
-        <div key={card.id} className="rounded-lg border border-zinc-200 p-4">
-          <p className="font-semibold text-zinc-900">{card.title}</p>
-          <p className="mt-1 text-sm text-zinc-600">{card.description}</p>
-        </div>
-      ))}
-    </div>
-  );
+  return null;
 }
