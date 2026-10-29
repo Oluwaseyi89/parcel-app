@@ -417,6 +417,12 @@ EMAIL_BACKEND = os.getenv('EMAIL_BACKEND') or (
 
 RECIPIENT_ADDRESS = os.getenv('RECIPIENT_ADDRESS')
 
+# Public URL of the customer-facing web app. Emailed links (password reset, account activation
+# results) point here, so production must not fall back to localhost.
+FRONTEND_URL = (os.getenv('FRONTEND_URL') or ('http://localhost:3000' if DEBUG else '')).rstrip('/')
+if not FRONTEND_URL:
+    raise ValueError('FRONTEND_URL must be set when DJANGO_DEBUG is False.')
+
 # Shared token for trusted internal payment status sync calls.
 PAYMENT_SYNC_TOKEN = os.getenv('PAYMENT_SYNC_TOKEN', '')
 
